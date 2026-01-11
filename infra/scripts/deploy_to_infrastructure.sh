@@ -10,6 +10,24 @@ TERRAFORM_DIR="${TERRAFORM_DIR:-./terraform}"
 PACKAGE_NAME="${PACKAGE_NAME:-obs_deploy.tar.gz}"
 DEPLOYMENT_DIR="${DEPLOYMENT_DIR:-./obs_deploy}"
 
+# SSH 안전성 검증 (SSH 환경에서만 실행)
+if [ -n "$SSH_CONNECTION" ] || [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; then
+    echo "🔍 SSH 연결 감지 - 안전성 검증 중..."
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    SSH_SAFETY_SCRIPT="$SCRIPT_DIR/ssh-safety-check.sh"
+    if [ -f "$SSH_SAFETY_SCRIPT" ]; then
+        "$SSH_SAFETY_SCRIPT" || {
+            echo "❌ SSH 안전성 검증 실패 - 배포 중단"
+            echo "🔧 수동 수정이 필요합니다. SSH 트러블슈팅 가이드를 참조하세요."
+            exit 1
+        }
+        echo "✅ SSH 안전성 검증 통과"
+    else
+        echo "❌ SSH 안전성 검증 스크립트를 찾을 수 없습니다: $SSH_SAFETY_SCRIPT"
+        exit 1
+    fi
+fi
+
 echo "🚀 QTS Observer 인프라 배포 시작..."
 
 # 1. 사전 확인

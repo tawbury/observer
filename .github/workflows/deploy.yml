@@ -1,6 +1,6 @@
 name: QTS Observer CI/CD Pipeline
 
-on:
+      - develop
   push:
     branches:
       - main
@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - develop
+  workflow_dispatch:
 
 env:
   REGISTRY: observerregistry.azurecr.io

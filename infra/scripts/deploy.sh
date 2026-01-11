@@ -58,7 +58,7 @@ deploy() {
   echo "📦 Docker 이미지 빌드 중..."
   docker build -t "$DOCKER_REGISTRY/qts-observer:$ENVIRONMENT_NAME-latest" \
                -t "$DOCKER_REGISTRY/qts-observer:$ENVIRONMENT_NAME-$(date +%Y%m%d-%H%M%S)" \
-               app/ops_deploy/
+               app/obs_deploy/
   
   echo "🐳 Docker 이미지 푸시 중..."
   docker push "$DOCKER_REGISTRY/qts-observer:$ENVIRONMENT_NAME-latest"

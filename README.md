@@ -4,7 +4,7 @@
 
 ## 폴더 구조
 - `app/` : QTS Observer 애플리케이션 및 Docker 관련 파일
-  - `ops_deploy/` : Dockerfile, docker-compose.yml, README 등 배포 패키지
+  - `obs_deploy/` : Dockerfile, docker-compose.yml, README 등 배포 패키지
 - `infra/` : Terraform 기반 Azure 인프라 코드
   - `modules/` : 재사용 가능한 리소스 모듈
   - `scripts/` : 인프라 배포 스크립트
@@ -13,7 +13,7 @@
 - `.terraform/` : (루트) Terraform 상태 및 provider 캐시
 
 ## 주요 파일 및 문서
-- `app/ops_deploy/README.md` : Observer 패키지 사용법
+- `app/obs_deploy/README.md` : Observer 패키지 사용법
 - `infra/README.md` : 인프라 IaC 사용법
 - `docs/ops_Architecture.md` : 전체 시스템 아키텍처
 - `docs/todo/todo.md` : 최신 투두 리스트
@@ -30,15 +30,15 @@ terraform apply -var-file="terraform.tfvars" -auto-approve
 
 ### 2. Observer 앱 배포 (Docker)
 ```sh
-cd app/ops_deploy
+cd app/obs_deploy
 # 도커 이미지 빌드 및 컨테이너 실행
 docker-compose up -d
 ```
 
 ### 3. 수동 배포
 ```sh
-tar -xzf ops_deploy.tar.gz
-cd ops_deploy
+tar -xzf obs_deploy.tar.gz
+cd obs_deploy
 ./start_ops.sh
 ```
 
@@ -50,7 +50,7 @@ cd ops_deploy
 - [docs/ops_Architecture.md](docs/ops_Architecture.md) : 전체 시스템 아키텍처
 - [docs/todo/todo.md](docs/todo/todo.md) : 최신 투두 리스트
 - [infra/README.md](infra/README.md) : 인프라 상세 사용법
-- [app/ops_deploy/README.md](app/ops_deploy/README.md) : Observer 앱 사용법
+- [app/obs_deploy/README.md](app/obs_deploy/README.md) : Observer 앱 사용법
 
 ---
 

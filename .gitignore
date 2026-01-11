@@ -1,0 +1,180 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+*.egg-info/
+.eggs/
+*.egg
+*.log
+*.sqlite3
+*.db
+*.env
+.env.*
+.venv/
+venv/
+
+# VSCode
+.vscode/
+.history/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Docker
+*.pid
+docker-compose.override.yml
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+
+# Node
+node_modules/
+
+# General
+*.bak
+*.swp
+*.swo
+*.tmp
+*.temp
+~$*
+
+# Reports and docs
+*.pdf
+*.docx
+*.xlsx
+*.pptx
+*.ppt
+*.doc
+*.xls
+*.csv
+*.tsv
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Ignore secrets
+secrets.*
+
+# Ignore infra output
+infra/output/
+
+
+# Ignore generated files
+app/ops_deploy/MANIFEST.txt
+
+
+# Ignore deployment artifacts
+app/deploy_ops.sh
+app/ops_deploy/start_ops.sh
+
+
+# Ignore backup and data
+app/ops_deploy/app/data/
+
+# Ignore report outputs
+docs/report/
+
+# Ignore todo files
+docs/todo/
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+*.egg-info/
+.eggs/
+*.egg
+*.log
+*.sqlite3
+*.db
+*.env
+.env.*
+.venv/
+venv/
+
+# VSCode
+.vscode/
+.history/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Docker
+*.pid
+docker-compose.override.yml
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+
+# Node
+node_modules/
+
+# General
+*.bak
+*.swp
+*.swo
+*.tmp
+*.temp
+~$*
+
+# Reports and docs
+*.pdf
+*.docx
+*.xlsx
+*.pptx
+*.ppt
+*.doc
+*.xls
+*.csv
+*.tsv
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Ignore secrets
+secrets.*
+
+# Ignore infra output
+infra/output/
+
+
+# Ignore generated files
+app/ops_deploy/MANIFEST.txt
+
+
+# Ignore deployment artifacts
+app/deploy_ops.sh
+app/ops_deploy/start_ops.sh
+
+
+# Ignore backup and data
+app/ops_deploy/app/data/
+
+# Ignore report outputs
+docs/report/
+
+# Ignore todo files
+docs/todo/

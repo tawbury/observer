@@ -1,0 +1,48 @@
+name: Scheduled Operations Automation
+
+on:
+  schedule:
+    # 매일 자정에 백업 및 정리 수행 (UTC 15:00 = KST 00:00)
+    - cron: '0 15 * * *'
+    # 매주 월요일 오전 2시에 보안 업데이트 및 리포트 (UTC 17:00 = KST 02:00)
+    - cron: '0 17 * * 1'
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  daily-operations:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 15 * * *' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run backup
+        run: bash infra/scripts/ops-automation.sh backup
+      
+      - name: Rotate logs
+        run: bash infra/scripts/ops-automation.sh rotate_logs
+      
+      - name: Cleanup resources
+        run: bash infra/scripts/ops-automation.sh cleanup
+
+  weekly-security:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 17 * * 1' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run security update
+        run: bash infra/scripts/ops-automation.sh security_update
+      
+      - name: Run health check
+        run: bash infra/scripts/ops-automation.sh health_check
+      
+      - name: Generate cost report
+        run: bash infra/scripts/ops-automation.sh cost_report
+      
+      - name: Upload cost report
+        uses: actions/upload-artifact@v3
+        with:
+          name: cost-reports
+          path: docs/report/cost_report_*.md

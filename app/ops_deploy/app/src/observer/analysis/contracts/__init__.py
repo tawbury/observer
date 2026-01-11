@@ -1,0 +1,1 @@
+from .pattern_record_contract import PatternRecordContract

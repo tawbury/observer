@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  qts-observer:
+    build: .
+    container_name: qts-observer
+    restart: unless-stopped
+    environment:
+      - QTS_OBSERVER_STANDALONE=1
+      - PYTHONPATH=/app/src:/app
+      - OBSERVER_DATA_DIR=/app/data/observer
+      - OBSERVER_LOG_DIR=/app/logs
+    volumes:
+      - ./data:/app/data/observer
+      - ./logs:/app/logs
+      - ./config:/app/config
+    ports:
+      - "8000:8000"
+    networks:
+      - qts-network
+    # 배포 최적화: 리소스 제한
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    # 배포 최적화: 로그 로테이션
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  qts-network:
+    driver: bridge

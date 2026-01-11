@@ -17,8 +17,8 @@ docker-compose up -d
 ```bash
 
 # Extract package
-tar -xzf ops_deploy.tar.gz
-cd ops_deploy
+tar -xzf obs_deploy.tar.gz
+cd obs_deploy
 
 # Run startup script
 ./start_ops.sh

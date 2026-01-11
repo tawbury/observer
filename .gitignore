@@ -72,16 +72,16 @@ infra/output/
 
 
 # Ignore generated files
-app/ops_deploy/MANIFEST.txt
+app/obs_deploy/MANIFEST.txt
 
 
 # Ignore deployment artifacts
 app/deploy_ops.sh
-app/ops_deploy/start_ops.sh
+app/obs_deploy/start_obs.sh
 
 
 # Ignore backup and data
-app/ops_deploy/app/data/
+app/obs_deploy/app/data/
 
 # Ignore report outputs
 docs/report/
@@ -162,16 +162,16 @@ infra/output/
 
 
 # Ignore generated files
-app/ops_deploy/MANIFEST.txt
+app/obs_deploy/MANIFEST.txt
 
 
 # Ignore deployment artifacts
 app/deploy_ops.sh
-app/ops_deploy/start_ops.sh
+app/obs_deploy/start_obs.sh
 
 
 # Ignore backup and data
-app/ops_deploy/app/data/
+app/obs_deploy/app/data/
 
 # Ignore report outputs
 docs/report/

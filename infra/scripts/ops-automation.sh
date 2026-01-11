@@ -5,7 +5,7 @@ set -e
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKUP_DIR="$PROJECT_ROOT/.backups"
-LOG_DIR="$PROJECT_ROOT/app/ops_deploy/logs"
+LOG_DIR="$PROJECT_ROOT/app/obs_deploy/logs"
 
 # 컬러 출력
 RED='\033[0;31m'
@@ -37,7 +37,7 @@ backup() {
   
   # 데이터 및 로그 백업
   tar -czf "$BACKUP_FILE" \
-    -C "$PROJECT_ROOT/app/ops_deploy" \
+    -C "$PROJECT_ROOT/app/obs_deploy" \
     data/ logs/ config/ || error "백업 실패"
   
   log "✅ 백업 완료: $BACKUP_FILE"
@@ -99,7 +99,7 @@ security_update() {
   log "🔒 보안 패치 및 업데이트 시작..."
   
   # Python 패키지 업데이트 체크
-  cd "$PROJECT_ROOT/app/ops_deploy"
+  cd "$PROJECT_ROOT/app/obs_deploy"
   
   if [ -f "requirements.txt" ]; then
     log "업데이트 가능한 패키지 확인 중..."
@@ -149,6 +149,7 @@ cost_report() {
   
   cat > "$REPORT_FILE" << EOF
 
+
 # 비용 최적화 리포트 ($(date +'%Y-%m-%d %H:%M:%S'))
 
 ## 리소스 사용량
@@ -156,7 +157,7 @@ cost_report() {
 ### 스토리지
 - 백업 크기: $(du -sh "$BACKUP_DIR" 2>/dev/null | cut -f1)
 - 로그 크기: $(du -sh "$LOG_DIR" 2>/dev/null | cut -f1)
-- 데이터 크기: $(du -sh "$PROJECT_ROOT/app/ops_deploy/data" 2>/dev/null | cut -f1)
+- 데이터 크기: $(du -sh "$PROJECT_ROOT/app/obs_deploy/data" 2>/dev/null | cut -f1)
 
 ### Docker
 - 이미지 수: $(docker images -q | wc -l)

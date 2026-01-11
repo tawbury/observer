@@ -52,12 +52,12 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r app/ops_deploy/requirements.txt
+          pip install -r app/obs_deploy/requirements.txt
           pip install pytest pytest-cov
       
       - name: Run unit tests
         run: |
-          pytest app/ops_deploy/app/ -v --cov || true
+          pytest app/obs_deploy/app/ -v --cov || true
 
   # 3. Docker 빌드 및 푸시
   build:
@@ -94,7 +94,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
-          context: ./app/ops_deploy
+          context: ./app/obs_deploy
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

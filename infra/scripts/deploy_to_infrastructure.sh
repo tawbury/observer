@@ -7,8 +7,8 @@ set -e
 
 # 설정 변수
 TERRAFORM_DIR="${TERRAFORM_DIR:-./terraform}"
-PACKAGE_NAME="${PACKAGE_NAME:-ops_deploy.tar.gz}"
-DEPLOYMENT_DIR="${DEPLOYMENT_DIR:-./ops_deploy}"
+PACKAGE_NAME="${PACKAGE_NAME:-obs_deploy.tar.gz}"
+DEPLOYMENT_DIR="${DEPLOYMENT_DIR:-./obs_deploy}"
 
 echo "🚀 QTS Observer 인프라 배포 시작..."
 

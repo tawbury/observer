@@ -296,18 +296,49 @@ ClientAliveInterval 300
 
 ---
 
-## 8. Azure 비상 복구 옵션
+## 8. 복구 운영 절차
 
-### 8.1 Azure Portal SSH 키 재설정
+### 8.1 SSH 복구 절차
+1. **SSH 접속 불가 시**
+   - Azure Portal에서 VM 콘솔 접속
+   - 홈/SSH 디렉토리 및 authorized_keys 권한 수동 복구
+   - 필요 시 SSH 공개 키 재설정 (Azure Portal)
+   - 복구 후 반드시 ssh-safety-check.sh로 검증
 
-> **최후 수단:** Azure Portal을 통한 SSH 공개 키 재설정은 운영자가 직접 수행하는 최후의 복구 옵션입니다.
+2. **SSH 서비스 장애 시**
+   - 콘솔에서 `sudo systemctl restart sshd` 실행
+   - 서비스 상태 확인 및 로그 분석
 
-Azure Portal에서 VM의 SSH 공개 키를 재설정할 수 있습니다:
-- Azure Portal → Virtual Machines → 해당 VM → 재설정
-- "SSH 공개 키 재설정" 옵션 선택
-- 새로운 공개 키 업로드
+3. **방화벽/네트워크 문제 시**
+   - `sudo ufw status` 및 `sudo ufw allow ssh`로 규칙 확인
+   - Azure NSG/VNet 설정 점검
 
-> **주의:** 이 조치는 기존 SSH 접속을 모두 무효화하며, 반드시 운영자의 검토 후 사용해야 합니다.
+### 8.2 Docker 컨테이너 복구 절차
+1. **컨테이너 비정상 종료/오류 발생 시**
+   - `docker ps -a`로 상태 확인
+   - `docker restart <container>`로 재시작
+   - 필요 시 `docker logs <container>`로 원인 분석
+   - 이미지/볼륨 문제 시 백업 후 재배포
+
+### 8.3 Azure VM 복구 절차
+1. **VM 장애/재시작 필요 시**
+   - Azure Portal에서 VM 상태(중지/재시작/시작) 직접 제어
+   - VM 스냅샷/백업에서 복구 가능
+   - 네트워크/디스크 문제는 Azure Portal에서 점검
+
+### 8.4 전체 인프라/앱 재배포 절차
+1. **재해 복구/전체 장애 발생 시**
+   - 최신 IaC(Terraform) 코드로 인프라 재배포
+   - `./infra/scripts/deploy_to_infrastructure.sh` 실행
+   - 앱/컨테이너 재배포 후 정상 동작 확인
+   - 복구 후 모든 운영 체크리스트 수행
+
+### 8.5 GitHub Actions 워크플로우 실패 복구
+1. **워크플로우 실패 시**
+   - GitHub Actions 로그에서 오류 원인 확인
+   - 필요한 경우 secrets, 환경 변수, 인프라 상태 점검
+   - 실패 원인 수정 후 워크플로우 재실행
+   - 반복 실패 시 수동 배포 절차로 전환
 
 ---
 

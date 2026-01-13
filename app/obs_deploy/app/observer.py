@@ -23,8 +23,9 @@ if str(SRC_DIR) not in sys.path:
 
 def _import_observer_cls():
     candidates = [
-        ("ops.observer.observer", "Observer"),
-        ("ops.observer.core.observer", "Observer"),
+    ("observer.observer", "Observer"),        # PYTHONPATH에 /app/src가 있으므로
+    ("ops.observer.observer", "Observer"),
+    ("ops.observer.core.observer", "Observer"),
     ]
     last_err = None
     for module_name, cls_name in candidates:

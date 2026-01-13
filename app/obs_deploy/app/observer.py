@@ -1,7 +1,7 @@
-import time
-# observer.py
 from __future__ import annotations
 
+import time
+# observer.py
 import sys
 import logging
 from pathlib import Path

@@ -1,3 +1,17 @@
+# Project-specific
+infra/output/
+app/obs_deploy/MANIFEST.txt
+app/obs_deploy/start_observer.sh
+app/obs_deploy/app/data/
+
+# Docs - 전체 docs 폴더 무시 후 필요한 것만 예외
+docs/
+!docs/
+!docs/development/
+!docs/development/**
+!docs/todo/
+!docs/todo/**
+
 # Python
 __pycache__/
 *.py[cod]
@@ -16,21 +30,6 @@ __pycache__/
 .venv/
 venv/
 
-# VSCode
-.vscode/
-.history/
-
-# macOS
-.DS_Store
-
-# Windows
-Thumbs.db
-Desktop.ini
-
-# Docker
-*.pid
-docker-compose.override.yml
-
 # Terraform
 *.tfstate
 *.tfstate.*
@@ -40,8 +39,22 @@ crash.log
 terraform.tfvars
 *.tfvars
 
-# Node
-node_modules/
+# Docker
+*.pid
+docker-compose.override.yml
+.dockerignore
+
+# Development tools
+.vscode/
+.history/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
 
 # General
 *.bak
@@ -51,42 +64,5 @@ node_modules/
 *.temp
 ~$*
 
-# Reports and docs
-*.pdf
-*.docx
-*.xlsx
-*.pptx
-*.ppt
-*.doc
-*.xls
-*.csv
-*.tsv
-*.zip
-*.tar.gz
-*.rar
-*.7z
-
-# Ignore secrets
+# Security
 secrets.*
-
-# Ignore infra output
-infra/output/
-
-# Ignore generated files
-app/obs_deploy/MANIFEST.txt
-app/ops_deploy/MANIFEST.txt
-
-# Ignore deployment artifacts
-app/deploy_ops.sh
-app/obs_deploy/start_obs.sh
-app/ops_deploy/start_ops.sh
-
-# Ignore backup and data
-app/obs_deploy/app/data/
-app/ops_deploy/app/data/
-
-# Ignore report outputs
-docs/report/
-
-# Ignore todo files
-docs/todo/

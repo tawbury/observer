@@ -42,7 +42,7 @@ jobs:
         run: bash infra/scripts/ops-automation.sh cost_report
       
       - name: Upload cost report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v6
         with:
           name: cost-reports
           path: docs/report/cost_report_*.md

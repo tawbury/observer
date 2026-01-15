@@ -4,17 +4,11 @@ app/obs_deploy/MANIFEST.txt
 app/obs_deploy/start_observer.sh
 app/obs_deploy/app/data/
 
-# AI System - .ai 폴더 무시 (읽기는 가능)
+# AI System
 .ai/
-!.ai/**
 
-# Docs - 전체 docs 폴더 무시 후 필요한 것만 예외
+# Docs
 docs/
-!docs/
-!docs/development/
-!docs/development/**
-!docs/todo/
-!docs/todo/**
 
 # Python
 __pycache__/

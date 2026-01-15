@@ -349,7 +349,7 @@ ClientAliveInterval 300
 - [Ops_Dep_Arch.md](Ops_Dep_Arch.md) - 배포 아키텍처 가이드
 
 ### 9.2 참고 자료
-- [Observer Architecture](arch/Obs_Architecture.md) - 시스템 아키텍처
+- [Observer Architecture](../development/obs_architecture.md) - 시스템 아키텍처
 - [CI/CD Workflows](../.github/workflows/) - 자동화 배포 파이프라인
 
 ---

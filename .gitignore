@@ -6,6 +6,7 @@ app/obs_deploy/app/data/
 
 # AI System - .ai 폴더 무시 (읽기는 가능)
 .ai/
+!.ai/**
 
 # Docs - 전체 docs 폴더 무시 후 필요한 것만 예외
 docs/

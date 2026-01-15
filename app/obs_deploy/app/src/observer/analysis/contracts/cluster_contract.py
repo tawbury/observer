@@ -1,4 +1,4 @@
-# QTS/src/ops/observer/analysis/contracts/cluster_contract.py
+# observer/analysis/contracts/cluster_contract.py
 
 from __future__ import annotations
 

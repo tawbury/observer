@@ -1,4 +1,4 @@
-# src/ops/observer/inputs/replay_market_data_provider.py
+# observer/inputs/replay_market_data_provider.py
 
 from __future__ import annotations
 

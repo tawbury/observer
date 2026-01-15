@@ -1,4 +1,4 @@
-# src/ops/observer/tick_events.py
+# observer/tick_events.py
 
 from __future__ import annotations
 

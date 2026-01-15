@@ -1,4 +1,4 @@
-# src/ops/observer/log_rotation.py
+# observer/log_rotation.py
 
 from __future__ import annotations
 

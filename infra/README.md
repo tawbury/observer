@@ -38,7 +38,7 @@ terraform apply -var-file="terraform.tfvars" -auto-approve
 
 ## 주요 파일/문서
 - [../README.md](../README.md) : 전체 프로젝트 개요
-- [../docs/ops_Architecture.md](../docs/ops_Architecture.md) : 시스템 아키텍처
+- [../docs/development/obs_architecture.md](../docs/development/obs_architecture.md) : 시스템 아키텍처
 - [../docs/todo/todo.md](../docs/todo/todo.md) : 최신 투두 리스트
 
 ## 참고 자료

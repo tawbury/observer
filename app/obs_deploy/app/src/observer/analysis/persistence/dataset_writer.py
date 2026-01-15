@@ -1,4 +1,4 @@
-# src/ops/observer/analysis/persistence/dataset_writer.py
+# observer/analysis/persistence/dataset_writer.py
 from __future__ import annotations
 
 import json

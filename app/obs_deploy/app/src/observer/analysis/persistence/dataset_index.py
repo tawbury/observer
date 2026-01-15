@@ -1,4 +1,4 @@
-# src/ops/observer/analysis/persistence/dataset_index.py
+# observer/analysis/persistence/dataset_index.py
 from __future__ import annotations
 
 from dataclasses import dataclass

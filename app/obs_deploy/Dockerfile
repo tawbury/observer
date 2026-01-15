@@ -26,16 +26,16 @@ RUN mkdir -p /app/data/observer \
     && mkdir -p /app/config
 
 # 환경 변수 설정 (Standalone 모드)
-ENV QTS_OBSERVER_STANDALONE=1
+ENV OBSERVER_STANDALONE=1
 ENV PYTHONPATH=/app/src:/app
 ENV OBSERVER_DATA_DIR=/app/data/observer
 ENV OBSERVER_LOG_DIR=/app/logs
 ENV PATH=/root/.local/bin:$PATH
 
 # 보안: 비-root 사용자로 실행
-RUN groupadd -r qts && useradd -r -g qts qts
-RUN chown -R qts:qts /app
-USER qts
+RUN groupadd -r observer && useradd -r -g observer observer
+RUN chown -R observer:observer /app
+USER observer
 
 # 헬스체크
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

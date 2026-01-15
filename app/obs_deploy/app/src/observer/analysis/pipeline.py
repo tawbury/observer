@@ -1,4 +1,4 @@
-# QTS/src/ops/observer/analysis/pipeline.py
+# observer/analysis/pipeline.py
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-# QTS/src/ops/observer/analysis/contracts/pattern_record_contract.py
+# observer/analysis/contracts/pattern_record_contract.py
 
 from __future__ import annotations
 

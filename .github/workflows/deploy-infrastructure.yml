@@ -1,10 +1,10 @@
-name: Deploy QTS Observer to Infrastructure
+name: Deploy Observer to Infrastructure
 
 on:
   push:
     branches: [main]
     paths:
-      - 'src/ops/**'
+      - 'app/obs_deploy/**'
       - 'observer.py'
       - 'paths.py'
       - 'Dockerfile'
@@ -21,7 +21,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: qts-observer
+  IMAGE_NAME: observer
 
 jobs:
   test:
@@ -43,7 +43,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest tests/ops/observer/ -v
+          pytest tests/observer/ -v
 
   build-and-push:
     needs: test

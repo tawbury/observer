@@ -1,4 +1,4 @@
-# QTS/src/ops/observer/analysis/stats.py
+# observer/analysis/stats.py
 
 from __future__ import annotations
 

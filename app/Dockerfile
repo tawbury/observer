@@ -14,15 +14,15 @@ RUN mkdir -p /app/data/observer \
     && mkdir -p /app/config
 
 # Set environment variables for standalone mode
-ENV QTS_OBSERVER_STANDALONE=1
+ENV OBSERVER_STANDALONE=1
 ENV PYTHONPATH=/app/src:/app
 ENV OBSERVER_DATA_DIR=/app/data/observer
 ENV OBSERVER_LOG_DIR=/app/logs
 
 # Create non-root user for security
-RUN groupadd -r qts && useradd -r -g qts qts
-RUN chown -R qts:qts /app
-USER qts
+RUN groupadd -r observer && useradd -r -g observer observer
+RUN chown -R observer:observer /app
+USER observer
 
 # Health check endpoint (if implemented in future)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

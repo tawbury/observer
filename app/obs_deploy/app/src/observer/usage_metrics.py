@@ -1,4 +1,4 @@
-# src/ops/observer/usage_metrics.py
+# observer/usage_metrics.py
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-# src/ops/observer/inputs/__init__.py
+# observer/inputs/__init__.py
 
 from .imarket_data_provider import IMarketDataProvider, MarketDataContract
 from .mock_market_data_provider import MockMarketDataProvider

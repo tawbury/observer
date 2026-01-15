@@ -1,4 +1,4 @@
-# QTS/src/ops/observer/analysis/contracts/dataset_contract.py
+# observer/analysis/contracts/dataset_contract.py
 
 from __future__ import annotations
 

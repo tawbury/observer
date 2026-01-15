@@ -1,4 +1,4 @@
-# src/ops/observer/analysis/features/feature_schema.py
+# observer/analysis/features/feature_schema.py
 from __future__ import annotations
 
 from dataclasses import dataclass

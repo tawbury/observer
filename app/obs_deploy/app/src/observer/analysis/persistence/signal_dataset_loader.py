@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Iterable, Iterator
 
-from src.ops.observer.analysis.signal_frame.contracts.signal_bundle import SignalBundle
+from observer.analysis.signal_frame.contracts.signal_bundle import SignalBundle
 
 
 class SignalDatasetLoader:

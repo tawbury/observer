@@ -1,4 +1,4 @@
-# src/ops/observer/inputs/imarket_data_provider.py
+# observer/inputs/imarket_data_provider.py
 
 from __future__ import annotations
 

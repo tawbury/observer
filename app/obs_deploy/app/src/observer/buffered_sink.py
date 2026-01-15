@@ -1,4 +1,4 @@
-# src/ops/observer/buffered_sink.py
+# observer/buffered_sink.py
 
 from __future__ import annotations
 

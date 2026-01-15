@@ -1,4 +1,4 @@
-# src/ops/observer/buffer_flush.py
+# observer/buffer_flush.py
 
 from __future__ import annotations
 

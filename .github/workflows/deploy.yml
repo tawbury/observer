@@ -168,7 +168,7 @@ jobs:
       
       - name: Send Slack notification on success
         if: needs.terraform.result == 'success' && needs.health-check.result == 'success'
-        uses: slackapi/slack-github-action@v1
+        uses: slackapi/slack-github-action@v2
         with:
           payload: |
             {
@@ -188,7 +188,7 @@ jobs:
       
       - name: Send Slack notification on failure
         if: needs.terraform.result == 'failure' || needs.health-check.result == 'failure'
-        uses: slackapi/slack-github-action@v1
+        uses: slackapi/slack-github-action@v2
         with:
           payload: |
             {

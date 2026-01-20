@@ -1,4 +1,4 @@
-# QTS Observer Deployment Package
+# Observer Deployment Package
 
 ## Structure
 - `/app/` - Observer application root

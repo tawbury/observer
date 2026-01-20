@@ -140,8 +140,9 @@ class Observation:
 @dataclass(frozen=True)
 class ObservationSnapshot:
     """
-    QTS-Observer-Core 최소 관측 단위
-    - Contract v1.0.0 준수 (Phase 2 기준)
+    Observer Core - Minimal Observation Unit (Contract v1.0.0)
+
+    This is the atomic unit of observation data passed through the system.
     """
     meta: Meta
     context: Context

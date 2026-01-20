@@ -1,5 +1,5 @@
 """
-Backup module for QTS Observer datasets.
+Backup module for Observer datasets.
 
 Purpose:
 - Local backup of retained datasets

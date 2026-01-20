@@ -37,7 +37,7 @@ RUN groupadd -r observer && useradd -r -g observer observer
 RUN chown -R observer:observer /app
 USER observer
 
-# 헬스체크: 컨테이너 내부 127.0.0.1:8000/health 호출 (Dockerfile 파서 호환형)
+# 헬스체크: 컨테이너 내부 127.0.0.1:8000/health 호출
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD /bin/sh -c "python - <<'PY'\nimport sys\nimport urllib.request\nurl = 'http://127.0.0.1:8000/health'\ntry:\n    with urllib.request.urlopen(url, timeout=5) as resp:\n        sys.exit(0 if resp.getcode() == 200 else 1)\nexcept Exception:\n    sys.exit(1)\nPY"
 

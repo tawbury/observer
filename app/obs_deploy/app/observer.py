@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 Observer Docker Entry Point
-Observer system with FastAPI server for monitoring and control
+
+Standalone Observer system with FastAPI server for monitoring and control.
+This is the main entry point for Docker container deployment.
 """
 
 from __future__ import annotations
@@ -27,6 +29,8 @@ def configure_environment():
     os.environ.setdefault("PYTHONPATH", "/app/src:/app")
     os.environ.setdefault("OBSERVER_DATA_DIR", "/app/data/observer")
     os.environ.setdefault("OBSERVER_LOG_DIR", "/app/logs")
+    # For backward compatibility with deployment paths module
+    os.environ.setdefault("OBSERVER_DEPLOYMENT_MODE", "docker")
 
 async def run_observer_with_api():
     """Run Observer system with FastAPI server"""

@@ -99,7 +99,7 @@ def validate_deployment_paths() -> bool:
 def is_deployment_environment() -> bool:
     """Check if running in deployment environment."""
     return (
-        os.environ.get("QTS_OBSERVER_STANDALONE") == "1" or
+        os.environ.get("OBSERVER_STANDALONE") == "1" or
         DEPLOYMENT_ROOT.exists()
     )
 

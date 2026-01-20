@@ -3,19 +3,19 @@ from __future__ import annotations
 """
 observer.py
 
-QTS-Observer-Core의 메인 오케스트레이터(중앙 제어 클래스)
+Observer Core - Main Orchestrator (Central Control Class)
 
-현재 구현:
-- Validation Layer: 데이터 유효성 검증
-- Guard Layer: 안전 장치 및 제약 조건 검사
-- PatternRecord Enrichment: 기록 보강
+Current Implementation:
+- Validation Layer: Data validity validation
+- Guard Layer: Safety constraints and guards
+- PatternRecord Enrichment: Record enrichment
   - Schema Auto Lite (record schema versioning + namespace)
   - Quality Tagging
   - Interpretation Metadata
 
-원칙:
-- 전략 계산, 매매 판단, 실행은 절대 여기서 하지 않는다.
-- Snapshot을 받아 → Validation → Guard → Record → Enrich → EventBus 로 전달한다.
+Principles:
+- Strategy calculation, trading decisions, execution are NEVER done here
+- Receives Snapshot → Validation → Guard → Record → Enrich → EventBus dispatch
 """
 
 import logging
@@ -36,19 +36,19 @@ from .phase4_enricher import DefaultRecordEnricher, RecordEnricher
 
 class Observer:
     """
-    QTS-Observer-Core Orchestrator
+    Observer Core Orchestrator
 
-    역할:
-    - ObservationSnapshot 수신
+    Responsibilities:
+    - Receives ObservationSnapshot
     - Validation → Guard
-    - PatternRecord 생성
-    - Record Enrichment (메타데이터 보강)
+    - Creates PatternRecord
+    - Record Enrichment (metadata enrichment)
     - EventBus dispatch
 
-    절대 하지 않는 것:
-    - 매수/매도 판단
-    - 전략 계산
-    - 주문 실행
+    Never does:
+    - Buy/sell decisions
+    - Strategy calculations
+    - Order execution
     """
 
     def __init__(

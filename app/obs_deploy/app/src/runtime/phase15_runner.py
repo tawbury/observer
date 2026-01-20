@@ -124,7 +124,7 @@ def _log_execution_mode_context() -> None:
     """
     sheet_mode = os.getenv("EXECUTION_MODE")          # optional / informational
     sheet_live_enabled = os.getenv("LIVE_ENABLED")    # optional / informational
-    env_ack = os.getenv("QTS_LIVE_ACK")
+    env_ack = os.getenv("OBSERVER_LIVE_ACK")
 
     decision = decide_execution_mode(
         sheet_execution_mode=sheet_mode,

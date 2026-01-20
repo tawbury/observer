@@ -1,12 +1,12 @@
 """
 paths.py
 
-QTS project-wide canonical path resolver.
+Observer project-wide canonical path resolver.
 
 This module defines the single source of truth for all filesystem paths
-used across the QTS project, including:
-- execution (main.py)
-- observer / ops modules
+used across the Observer project, including:
+- execution (observer.py)
+- observer / runtime modules
 - pytest
 - local scripts
 
@@ -15,10 +15,11 @@ Design principles:
 - No relative depth assumptions (no parents[n])
 - Project-level, not package-level
 
-Phase F update:
+Path Management Strategy:
 - Observer-generated JSON / JSONL files are treated as CONFIG ASSETS.
 - data/ directory is reserved for ephemeral runtime-only artifacts.
 - Observer assets MUST be resolved via observer_asset_dir().
+- Supports standalone Docker deployment with /app as project root.
 """
 
 from pathlib import Path
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 def _resolve_project_root(start: Optional[Path] = None) -> Path:
     """
-    Resolve QTS project root directory.
+    Resolve Observer project root directory.
 
     Resolution rules (first match wins):
     1. Observer standalone mode (forced)
@@ -46,10 +47,10 @@ def _resolve_project_root(start: Optional[Path] = None) -> Path:
     """
 
     # 1️⃣ Observer standalone mode (explicit opt-in)
-    if os.environ.get("QTS_OBSERVER_STANDALONE") == "1":
+    if os.environ.get("OBSERVER_STANDALONE") == "1":
         return Path(__file__).resolve().parent
 
-    # 2️⃣ Normal QTS project resolution
+    # 2️⃣ Normal Observer project resolution
     current = start.resolve() if start else Path(__file__).resolve()
 
     for parent in [current] + list(current.parents):
@@ -60,15 +61,15 @@ def _resolve_project_root(start: Optional[Path] = None) -> Path:
         if (parent / "src").exists() and (parent / "tests").exists():
             return parent
 
-    raise RuntimeError("QTS project root could not be resolved")
+    raise RuntimeError("Observer project root could not be resolved")
 
 
 # ============================================================
-# Canonical QTS Paths (Single Source of Truth)
+# Canonical Observer Paths (Single Source of Truth)
 # ============================================================
 
 def project_root() -> Path:
-    """QTS project root directory"""
+    """Observer project root directory"""
     return _resolve_project_root()
 
 
@@ -100,7 +101,7 @@ def data_dir() -> Path:
     """
     Canonical data root directory.
 
-    Phase F:
+    Policy:
     - This directory is reserved for ephemeral / runtime-only artifacts.
     - Long-lived JSON / JSONL assets MUST NOT be placed here.
     """
@@ -111,7 +112,7 @@ def config_dir() -> Path:
     """
     Canonical config root directory.
 
-    Phase F:
+    Policy:
     - Long-lived operational assets live here.
     """
     path = project_root() / "config"
@@ -147,12 +148,12 @@ def ops_backup_dir() -> Path:
 
 
 # ------------------------------------------------------------
-# Observer-specific canonical paths (Phase F)
+# Observer-specific canonical paths
 # ------------------------------------------------------------
 
 def observer_asset_dir() -> Path:
     """
-    Canonical Observer ASSET directory (Phase F).
+    Canonical Observer ASSET directory.
 
     All observer-generated JSON / JSONL artifacts
     MUST be placed here.
@@ -174,7 +175,7 @@ def observer_asset_file(filename: str) -> Path:
 
 def observer_data_dir() -> Path:
     """
-    DEPRECATED since Phase F.
+    DEPRECATED.
 
     Legacy observer runtime data directory.
     This path should NOT be used for new artifacts.
@@ -182,7 +183,7 @@ def observer_data_dir() -> Path:
     Kept for backward compatibility only.
     """
     logger.warning(
-        "observer_data_dir() is deprecated since Phase F. "
+        "observer_data_dir() is deprecated. "
         "Use observer_asset_dir() instead."
     )
     path = data_dir() / "observer"

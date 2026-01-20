@@ -15,10 +15,10 @@ WORKDIR /app
 # 빌더 스테이지에서 의존성 복사
 COPY --from=builder /root/.local /root/.local
 
-# 애플리케이션 파일 복사
-COPY observer.py /app/
-COPY paths.py /app/
-COPY src/ /app/src/
+# 애플리케이션 파일 복사 (소스는 ./app 하위에 위치)
+COPY app/observer.py /app/
+COPY app/paths.py /app/
+COPY app/src/ /app/src/
 
 # 필수 디렉토리 생성
 RUN mkdir -p /app/data/observer \
@@ -37,9 +37,9 @@ RUN groupadd -r observer && useradd -r -g observer observer
 RUN chown -R observer:observer /app
 USER observer
 
-# 헬스체크
+# 헬스체크: 컨테이너 내부 127.0.0.1:8000/health 호출 (Dockerfile 파서 호환형)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import sys; sys.exit(0)" || exit 1
+    CMD /bin/sh -c "python - <<'PY'\nimport sys\nimport urllib.request\nurl = 'http://127.0.0.1:8000/health'\ntry:\n    with urllib.request.urlopen(url, timeout=5) as resp:\n        sys.exit(0 if resp.getcode() == 200 else 1)\nexcept Exception:\n    sys.exit(1)\nPY"
 
 # 포트 노출
 EXPOSE 8000

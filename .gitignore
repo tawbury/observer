@@ -1,0 +1,66 @@
+# Project-specific
+infra/output/
+app/obs_deploy/MANIFEST.txt
+app/obs_deploy/start_observer.sh
+app/obs_deploy/app/data/
+
+# AI System
+.ai/
+
+# Docs
+docs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+*.egg-info/
+.eggs/
+*.egg
+*.log
+*.sqlite3
+*.db
+*.env
+.env.*
+.venv/
+venv/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+terraform.tfvars
+*.tfvars
+
+# Docker
+*.pid
+docker-compose.override.yml
+.dockerignore
+
+# Development tools
+.vscode/
+.history/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# General
+*.bak
+*.swp
+*.swo
+*.tmp
+*.temp
+~$*
+
+# Security
+secrets.*

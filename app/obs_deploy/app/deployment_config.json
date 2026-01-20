@@ -1,0 +1,19 @@
+{
+    "deployment": {
+        "version": "1.0.0",
+        "created": "2026-01-11T08:08:07+09:00",
+        "structure": "/app",
+        "mode": "standalone"
+    },
+    "paths": {
+        "data_dir": "/app/data/observer",
+        "log_dir": "/app/logs",
+        "config_dir": "/app/config"
+    },
+    "environment": {
+        "OBSERVER_STANDALONE": "1",
+        "PYTHONPATH": "/app/src:/app",
+        "OBSERVER_DATA_DIR": "/app/data/observer",
+        "OBSERVER_LOG_DIR": "/app/logs"
+    }
+}

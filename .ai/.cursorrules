@@ -1,0 +1,169 @@
+# System Rules
+
+## 1. Language & contents Rules
+
+### Language Requirements
+- **docs/ Folder**: All documents in `docs/` folder MUST be written in Korean
+- **.ai/ Folder**: All documents in `.ai/` folder MUST be written in English
+- **Mixed Language Prohibition**: Never mix languages within the same document
+- **Language Consistency**: Maintain consistent language usage throughout each document
+
+### contents Creation Rules
+- **docs/tasks/**: Task documents must be created in Korean using Korean templates
+- **docs/reports/**: Report documents must be generated in Korean
+- **docs/dev/**: Development documentation must be written in Korean
+- **AI System**: `.ai/agents/`, `.ai/skills/`, `.ai/workflows/` must be in English
+
+### Language Validation
+- **Language Detection**: Automatically detect document language before processing
+- **Language Enforcement**: Reject or correct documents that violate language rules
+- **Template Language**: Use language-appropriate templates for each folder
+- **Template Translation**: When using English templates for docs/ folder, automatically translate contents to Korean
+- **Template Language Mapping**: 
+  - docs/tasks/ → Use Korean templates or translate English templates to Korean
+  - docs/reports/ → Use Korean templates or translate English templates to Korean
+  - docs/dev/ → Use Korean templates or translate English templates to Korean
+  - .ai/ → Use English templates (no translation needed)
+
+### Template Processing Rules
+- **Template Source**: Templates can be stored in either language, but output must match folder language requirements
+- **Auto-Translation**: When generating docs/ folder documents from English templates, automatically translate to Korean
+- **Template Variables**: Template variables ({{CURRENT_DATE}}, {{USER}}) remain in original format
+- **Structure Preservation**: Maintain template structure while translating contents only
+- **Meta Section Handling**: Meta section fields can remain in English, but contents sections must be in Korean for docs/ folder
+
+## 2. Directory & Path Mapping
+
+### HR Evaluation
+- **Role Definition Input**: `docs/tasks/task_<role>_<dept>.md`.
+- **Evaluation Output**: `docs/reports/report_<role>_<dept>_<YYYYMMDD>.md`.
+
+### Development Documentation
+- **Architecture Docs**: `docs/dev/archi/`
+- **Specifications**: `docs/dev/spec/`
+- **PRD**: `docs/dev/PRD/`
+- **Decision Records**: `docs/dev/decision/`
+
+### AI System Structure
+- **Agent Definitions**: `.ai/agents/`
+- **Skill Definitions**: `.ai/skills/`
+- **Templates**: `.ai/templates/`
+- **Validators**: `.ai/validators/`
+- **Workflows**: `.ai/workflows/`
+
+## 3. Constraint Enforcement
+
+### System Constraints
+- **File Integrity**: Do not modify `.ai/.cursorrules` (read-only)
+- **Backup Safety**: Backup files are never used in active workflows
+- **Agent Boundaries**: Each agent operates within defined scope and constraints
+- **Language Compliance**: Enforce language rules for all document creation and modification
+
+### HR Evaluation Constraints
+- **Meta Isolation**: Never use Meta section data (like Expected Level) to influence the final Evaluation Result.
+- **Pending Protocol**: If criteria are insufficient, Status must be `PENDING` and the `Feedback for Improvement` section must be detailed.
+- **No Natural Language**: Reports should be structured and deterministic for other agents to consume.
+
+### Development Documentation Constraints
+- **Template Consistency**: All development documents must follow standardized templates
+- **Version Control**: Maintain version history for all architecture and specification documents
+- **Cross-Reference**: Ensure proper linking between related documents
+
+## 4. Agent System
+
+### Available Agents
+- **hr**: HR evaluation and management
+- **developer**: Technical development and implementation
+- **contents-creator**: contents creation and management
+- **finance**: Financial analysis and management
+- **pm**: Project management and coordination
+
+### Agent Context
+- **HR Agent**: Refer to `.ai/agents/hr/hr.agent.md` for overall execution flow
+- **Developer Agent**: Refer to `.ai/agents/developer/developer.agent.md`
+- **contents Creator Agent**: Refer to `.ai/agents/contents-creator/contents-creator.agent.md`
+- **Finance Agent**: Refer to `.ai/agents/finance/finance.agent.md`
+- **PM Agent**: Refer to `.ai/agents/pm/pm.agent.md`
+
+## 5. Workflow Systems
+
+### HR Evaluation Workflow
+Whenever a user requests to "create a new role" or "evaluate a position":
+1. **Generate Task**: Create a file in `docs/tasks/` using the **Task Template**.
+2. **Validate Structure**: Run `HR_Onboarding_Init` logic to ensure all Meta and contents sections exist.
+3. **Level Judgment**: Apply `HR_Level_Check` using department-specific keywords (Dev/contents).
+4. **Emit Report**: Produce the final evaluation in `docs/reports/`.
+
+### Development Documentation Workflow
+1. **Architecture Design**: Create architecture docs using Architecture Template
+2. **Specification**: Define functional specs with API interfaces
+3. **PRD Creation**: Define product requirements
+4. **Decision Records**: Document key technical decisions
+
+## 6. Validation System
+
+### Document Validation
+- **Task Validator**: Use `.ai/validators/task_validator.md` for task document validation
+- **Template Compliance**: Ensure all documents follow their respective templates
+- **Meta Data Integrity**: Validate required meta fields are present and correctly formatted
+
+### Validation Process
+1. **Structure Check**: Verify document structure matches template
+2. **Meta Validation**: Ensure all required meta fields exist
+3. **contents Validation**: Verify contents sections are properly formatted
+4. **Link Validation**: Check internal and external references are valid
+
+## 7. File Handling Rules
+
+### Backup Management
+- **Backup Exclusion**: "*.bak" files are excluded from skill scanning and invocation
+- **Backup Location**: Backup files should be moved to "root/backup/" directory
+- **Backup Approval**: Before modifying any existing document, show contents changes and ask for user approval to create backup
+- **Backup Process**: Only create backup if user explicitly approves (Y/yes). If user declines (N/no), proceed with modification without backup
+- **Backup Structure**: Maintain original folder structure in backup (e.g., "docs/tasks/file.md" → "backup/docs/tasks/file.md.bak")
+- **Change Detection**: Display specific contents changes when requesting backup approval
+- **User Consent Required**: Backup creation requires explicit "Y" or "yes" response. Any other response means no backup
+- **Backup File Name**: Backup file name should include the original file name and a timestamp (e.g., "file.md_YYYYMMDD_HHMMSS.bak")
+
+### Template Variables
+- **{{CURRENT_DATE}}**: Replace with actual current date (YYYY-MM-DD HH:MM format)
+- **{{USER}}**: Replace with actual user name
+- **File Naming**: Follow consistent naming conventions across all document types
+
+### File Organization
+- **Meta Section**: All documents must include standardized meta section
+- **contents Separator**: Use "---" to separate meta section from contents
+- **Template Compliance**: All documents must follow their respective templates
+
+## 8. Document Templates
+
+### Template References
+- **Task Template**: `.ai/templates/task_template.md`
+- **Report Template**: `.ai/templates/report_template.md`
+- **Architecture Template**: `.ai/templates/architecture_template.md`
+- **Specification Template**: `.ai/templates/spec_template.md`
+- **PRD Template**: `.ai/templates/prd_template.md`
+- **Decision Template**: `.ai/templates/decision_template.md`
+
+### Template Usage Guidelines
+- **docs/tasks/**: Use Task Template for HR evaluation role definitions
+- **docs/reports/**: Use Report Template for HR evaluation results
+- **docs/dev/archi/**: Use Architecture Template for system architecture
+- **docs/dev/spec/**: Use Specification Template for technical specifications
+- **docs/dev/PRD/**: Use PRD Template for product requirements
+- **docs/dev/decision/**: Use Decision Template for technical decisions
+
+### Template Variables
+- **{{CURRENT_DATE}}**: Current date in YYYY-MM-DD HH:MM format
+- **{{USER}}**: Current user name
+- All templates support standardized meta section with contents separator `---`
+
+### Template Compliance
+- All documents must follow their respective templates
+- Meta section fields must not be empty
+- Contents sections must use proper header format (##)
+- Language rules apply: docs/ in Korean, .ai/ in English
+
+## 9. Additional Rules
+### Additional Rule 1
+- **Rule Description**: This is an additional rule

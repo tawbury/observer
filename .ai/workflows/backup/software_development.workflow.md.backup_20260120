@@ -1,0 +1,168 @@
+# Meta
+- Workflow Name: Software Development Workflow
+- File Name: software_development.workflow.md
+- Document ID: WF-SOFTWARE-001
+- Status: Active
+- Created Date: 2026-01-16
+- Last Updated: 2026-01-20
+- Author: AI System
+- Parent Document: .ai/workflows/README.md
+- Related Reference: .ai/templates/anchor_template.md
+- Version: 1.1.0
+
+---
+
+# Software Development Workflow
+
+## Purpose
+Workflow for systematic management of software development processes with anchor document as strategic foundation
+
+## Workflow Overview
+Entire software development lifecycle management from anchor document creation through deployment, with anchor document serving as the primary strategic reference for all subsequent stages
+
+## Workflow Stages
+
+### 1. Anchor Document Creation
+- **Responsible**: PM Agent, Developer Agent
+- **Input**: Business concept, initial requirements
+- **Output**: Project anchor document
+- **Template**: `.ai/templates/anchor_template.md`
+- **Deliverable**: `docs/dev/anchor/anchor_<project>_<version>.md` (version information managed in Meta section)
+- **Purpose**: Establish strategic foundation and comprehensive project planning
+
+### 2. Requirements Analysis
+- **Responsible**: PM Agent
+- **Input**: Anchor document, business requirements, market research results
+- **Output**: Product requirements document (PRD)
+- **Template**: `.ai/templates/prd_template.md`
+- **Deliverable**: `docs/dev/PRD/prd_<product>.md` (version information managed in Meta section)
+
+### 3. Architecture Design
+- **Responsible**: Developer Agent
+- **Input**: Anchor document, product requirements document
+- **Output**: System architecture document
+- **Template**: `.ai/templates/architecture_template.md`
+- **Deliverable**: `docs/dev/archi/architecture_<project>.md` (version information managed in Meta section)
+
+### 4. Feature Specification
+- **Responsible**: Developer Agent
+- **Input**: Anchor document, architecture document, product requirements
+- **Output**: Feature specification document (including APIs)
+- **Template**: `.ai/templates/spec_template.md`
+- **Deliverable**: `docs/dev/spec/spec_<module>.md` (version information managed in Meta section)
+
+### 5. Technical Decision Making
+- **Responsible**: Developer Agent, PM Agent
+- **Input**: Anchor document, architecture, specification, constraint conditions
+- **Output**: Technical decision making record
+- **Template**: `.ai/templates/decision_template.md`
+- **Deliverable**: `docs/dev/decision/decision_<topic>_<date>.md`
+
+### 6. Development Implementation
+- **Responsible**: Developer Agent
+- **Input**: Anchor document, feature specification document, architecture document
+- **Output**: Source code, unit tests
+- **Verification**: Code review, quality assurance
+
+### 7. Testing and Verification
+- **Responsible**: Developer Agent
+- **Input**: Anchor document, implemented code, test cases
+- **Output**: Test results, bug reports
+- **Verification**: Integration testing, user acceptance testing
+
+### 8. Deployment and Operations
+- **Responsible**: Developer Agent
+- **Input**: Anchor document, verified code, deployment plan
+- **Output**: Deployed system, operations documentation
+- **Verification**: Post-deployment testing, monitoring
+
+## Agent Roles
+
+### PM Agent
+- Anchor document creation & strategic planning
+- Product requirements definition & priority setting
+- Stakeholder communication & expectation management
+- Product roadmap management & progress tracking
+- **L1/L2 Role**: Can serve as L1 author for anchor and PRD documents, L2 reviewer for product quality
+
+### Developer Agent
+- Anchor document technical contributions
+- Technical architecture design
+- Feature specification & API design
+- Code development & quality assurance
+- Deployment & operations support
+- **L1 Role**: Primary author for technical documents
+- **L2 Role**: Senior reviewer for code quality and architecture
+
+### Finance Agent (Optional)
+- Development cost budget analysis
+- ROI evaluation & financial feasibility verification
+- Resource allocation optimization proposals
+- **L1/L2 Role**: Can serve as L1 author for financial documents, L2 reviewer for development ROI
+
+## L1/L2 Role Definitions
+
+### L1 Agent (Author) Responsibilities
+- Document creation and initial development
+- Basic quality assurance and self-review
+- Submission for L2 review process
+- **Meta Field**: Author field assignment
+
+### L2 Agent (Reviewer) Responsibilities
+- Senior-level work review and validation
+- Technical excellence assessment
+- Final approval and certification
+- **Meta Field**: Reviewer field assignment
+
+## Related Documents
+
+### Templates
+- `.ai/templates/anchor_template.md` - Anchor document (primary template)
+- `.ai/templates/prd_template.md` - Product requirements
+- `.ai/templates/architecture_template.md` - Architecture
+- `.ai/templates/spec_template.md` - Feature specification
+- `.ai/templates/decision_template.md` - Decision making
+
+### Agents
+- `.ai/agents/pm.agent.md` - PM agent
+- `.ai/agents/developer.agent.md` - Development agent
+- `.ai/agents/finance.agent.md` - Finance agent
+
+### Skills
+- `.ai/skills/pm/` - PM related skills
+- `.ai/skills/developer/` - Development related skills
+- `.ai/skills/finance/` - Finance related skills
+
+## Constraint Conditions
+
+### Quality Standards
+- All deliverables must comply with templates
+- Code must pass unit tests
+- Architecture must guarantee scalability and maintainability
+
+### Security Requirements
+- Security review required at all development stages
+- Sensitive information processing must comply with security policies
+- Security verification mandatory before deployment
+
+### Performance Requirements
+- System performance standard satisfaction
+- Load test passage
+- Monitoring and optimization
+
+## Success Indicators
+
+### Product Quality
+- Requirements satisfaction rate: 100%
+- Bug density: Target value or lower
+- User satisfaction: Target value or higher
+
+### Development Efficiency
+- Development period compliance
+- Budget compliance
+- Code reuse rate improvement
+
+### Operational Stability
+- System availability: 99.9% or higher
+- Response time: Target value or lower
+- Failure occurrence rate: Target value or lower

@@ -1,0 +1,27 @@
+{
+  "name": "@ai-tool/mcp-server",
+  "version": "1.0.0",
+  "description": "Local private MCP server for .ai workflows, skills, and agents integration with Claude Code",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "setup": "node setup.js"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "ai-workflows",
+    "local",
+    "private"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

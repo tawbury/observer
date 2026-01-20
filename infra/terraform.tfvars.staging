@@ -1,0 +1,16 @@
+# Terraform 변수 - 스테이징(Staging) 환경
+
+resource_group_name = "rg-observer-staging"
+location           = "Korea South"
+
+# 태그
+tags = {
+  Environment = "staging"
+  Project     = "qts-observer"
+  ManagedBy   = "terraform"
+  CostCenter  = "staging"
+}
+
+# 컴퓨트 설정 (필요시 확장)
+# vm_size = "Standard_B2s"
+# instance_count = 2

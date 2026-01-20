@@ -5,19 +5,17 @@ observer.py
 
 QTS-Observer-Core의 메인 오케스트레이터(중앙 제어 클래스)
 
-Phase 3:
-- Validation Layer
-- Guard Layer
-
-Phase 4:
-- PatternRecord Enrichment
+현재 구현:
+- Validation Layer: 데이터 유효성 검증
+- Guard Layer: 안전 장치 및 제약 조건 검사
+- PatternRecord Enrichment: 기록 보강
   - Schema Auto Lite (record schema versioning + namespace)
   - Quality Tagging
   - Interpretation Metadata
 
 원칙:
 - 전략 계산, 매매 판단, 실행은 절대 여기서 하지 않는다.
-- Snapshot을 받아 → Validation → Guard → Record → (Phase4 Enrich) → EventBus 로 전달한다.
+- Snapshot을 받아 → Validation → Guard → Record → Enrich → EventBus 로 전달한다.
 """
 
 import logging
@@ -28,23 +26,23 @@ from .pattern_record import PatternRecord
 from .event_bus import EventBus
 from .performance_metrics import get_metrics, LatencyTimer
 
-# Phase 3
+# Validation and Guard layers
 from .validation import DefaultSnapshotValidator, SnapshotValidator
 from .guard import DefaultGuard
 
-# Phase 4
+# Record enrichment
 from .phase4_enricher import DefaultRecordEnricher, RecordEnricher
 
 
 class Observer:
     """
-    QTS-Observer-Core Orchestrator (Phase 4)
+    QTS-Observer-Core Orchestrator
 
     역할:
     - ObservationSnapshot 수신
     - Validation → Guard
     - PatternRecord 생성
-    - (Phase 4) Record Enrichment
+    - Record Enrichment (메타데이터 보강)
     - EventBus dispatch
 
     절대 하지 않는 것:
@@ -61,7 +59,7 @@ class Observer:
         event_bus: EventBus,
         validator: SnapshotValidator | None = None,
         guard: DefaultGuard | None = None,
-        enricher: RecordEnricher | None = None,  # Phase 4 hook
+        enricher: RecordEnricher | None = None,  # Record enrichment hook
     ) -> None:
         self._log = logging.getLogger("Observer")
         self._running = False
@@ -70,13 +68,13 @@ class Observer:
         self.mode = mode
         self._event_bus = event_bus
 
-        # Phase 3 defaults
+        # Validation and Guard defaults
         self._validator = validator or DefaultSnapshotValidator()
         self._guard = guard or DefaultGuard()
 
-        # Phase 4 defaults
+        # Record enrichment defaults
         # - None이면 기본 Enricher를 사용한다.
-        # - 향후 Phase 5에서 다른 Enricher로 교체 가능.
+        # - 향후 다른 Enricher로 교체 가능.
         self._enricher = enricher or DefaultRecordEnricher(
             producer="observer_core",
             build_id="observer_core_v1",
@@ -126,9 +124,9 @@ class Observer:
                 v = self._validator.validate(snapshot)
             
             if not v.is_valid:
-            # Record performance metrics (Task 06)
-            # SAFETY: Metrics are purely observational, do NOT affect behavior
-            get_metrics().increment_counter("snapshots_blocked_validation")
+                # Record performance metrics (Task 06)
+                # SAFETY: Metrics are purely observational, do NOT affect behavior
+                get_metrics().increment_counter("snapshots_blocked_validation")
                 self._log.warning(
                     "Snapshot validation failed (blocked)",
                     extra={

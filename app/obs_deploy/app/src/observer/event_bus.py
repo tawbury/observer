@@ -6,12 +6,12 @@ event_bus.py
 Observer-Core에서 생성된 PatternRecord를
 "어디로 보낼지"를 관리하는 전달 계층(Event Bus)
 
-초보자 가이드
+초보자 가이드:
 - Observer는 기록을 '직접 저장'하지 않는다.
 - Observer는 EventBus에게 "이 기록을 처리해줘"라고 맡긴다.
 - EventBus는 여러 Sink(출력 대상)에게 전달할 수 있다.
 
-Phase F 규칙:
+경로 관리 규칙:
 - Observer 이벤트 로그는 '운영 자산'으로 간주된다.
 - 모든 Observer JSONL 로그는 paths.py가 정의한
   canonical observer asset directory에 저장된다.
@@ -74,7 +74,7 @@ class JsonlFileSink(SnapshotSink):
     - 1 PatternRecord = 1 JSON line
     - 실행 위치(CWD)에 상관없이 항상 동일한 경로 사용
 
-    Phase F 규칙:
+    경로 관리:
     - Observer 로그는 '운영 자산'이다.
     - 실제 저장 경로는 paths.py가 유일하게 결정한다.
 
@@ -104,7 +104,7 @@ class JsonlFileSink(SnapshotSink):
         """
 
         # --------------------------------------------------
-        # Phase F: 경로 책임은 paths.py 단일 SSoT
+        # 경로 관리: 경로 책임은 paths.py 단일 SSoT
         # --------------------------------------------------
         self.base_dir = observer_asset_dir()
         

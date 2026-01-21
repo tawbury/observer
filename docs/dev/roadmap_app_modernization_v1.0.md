@@ -4,12 +4,12 @@
 - Document ID: ROADMAP-APP-MOD-001
 - Status: Active
 - Created Date: 2026-01-21
-- Last Updated: 2026-01-22 (Phase 6, 7, 8, 9, 10 완료)
+- Last Updated: 2026-01-22 (Phase 6, 7, 8, 9, 10 완료, Phase 11 Task 11.1 진행 중)
 - Author: Developer Agent
 - Reviewer: PM Agent (Pending)
 - Parent Document: [[observer_architecture_v2.md]], [[data_pipeline_architecture_observer_v1.0.md]]
 - Related Reference: [[symbol_selection_and_management_architecture.md]], [[kis_api_specification_v1.0.md]]
-- Version: 1.0.8
+- Version: 1.0.9
 
 ---
 
@@ -660,77 +660,77 @@ python app/obs_deploy/app/src/gap/gap_detector.py --test
 ### Phase 11: Log Partitioning & Backup 구현
 **기간**: 1주  
 **목표**: 로그 분리 저장 및 백업 자동화
+**현재 상태**: 🔄 **Task 11.1 진행 중** (2026-01-22)  
+**진행률**: 🔄 **50% (Task 11.1/2 진행)**
 
 #### Task 11.1: Log Partitioning ⭐
 **우선순위**: MEDIUM  
-**재사용 가능**: ✅ **완전 구현됨** - `backup/e531842/log_rotation.py`
+**상태**: 🔄 IN PROGRESS (2026-01-22)
 
-**재사용 가능 코드**:
+**구현 위치**: `app/obs_deploy/app/src/observer/log_rotation_manager.py`
+
 ```python
-# backup/e531842/log_rotation.py - 바로 사용 가능!
-class RotationConfig:
-    window_ms: int = 60_000  # 1분 단위 회전
-    enable_rotation: bool = True
-    base_filename: str = "observer"
-
-class TimeWindow:
-    - 시간 윈도우 관리
-    - Filename 생성 (observer_YYYYMMDD_HHMM.jsonl)
-    - Window expiration 체크
-
-class RotationManager:
-    - 시간 기반 파일 회전
-    - 자동 파일 전환
-    - Thread-safe 구현
+# 구현 완료: app/obs_deploy/app/src/observer/log_rotation_manager.py
+class LogRotationManager:
+    - 시간 기반 로그 회전 ✅
+    - Track A/B/System 경로 분리 ✅
+    - 자동 파일명 생성 ✅
 ```
 
-**적용 방법**:
-1. `backup/e531842/log_rotation.py`를 `app/obs_deploy/app/src/observer/`로 복사
-2. 기존 `log_rotation.py`와 병합 (이미 유사한 구현이 있을 수 있음)
-3. RotationConfig 설정:
-   - swing/: `base_filename="swing", window_ms=600_000` (10분)
-   - scalp/: `base_filename="scalp", window_ms=60_000` (1분)
-   - system/: `base_filename="system", window_ms=3600_000` (1시간)
-
 **작업 항목**:
-- [x] ✅ RotationManager 구현 완료 (backup에 존재)
-- [ ] 로그 경로 분리:
-  - `logs/swing/YYYYMMDD_HHMM.jsonl` (Track A)
-  - `logs/scalp/YYYYMMDD_HHMM.jsonl` (Track B)
-  - `logs/system/YYYYMMDD_HHMM.jsonl` (Gap, Overflow, Reconnect)
+- [x] LogRotationManager 구현
+  - [x] TimeWindow 클래스 (시간 윈도우 관리)
+  - [x] 회전 주기 설정:
+    - swing: 10분 (swing_YYYYMMDD_HHMM.jsonl)
+    - scalp: 1분 (scalp_YYYYMMDD_HHMM.jsonl)
+    - system: 1시간 (system_YYYYMMDD_HHMM.jsonl)
+  - [x] 자동 회전 감지 (`should_rotate()`)
+  - [x] 파일 경로 자동 생성 (`get_log_path()`)
+  - [x] 회전 상태 조회 (`get_status()`)
+- [x] 로그 경로 분리:
+  - config/observer/swing/YYYYMMDD_HHMM.jsonl
+  - config/observer/scalp/YYYYMMDD_HHMM.jsonl
+  - logs/system/YYYYMMDD_HHMM.jsonl
+- [ ] Track A/B Collector와 통합
+- [ ] 압축 정책 (3일 후 gzip)
+
+**검증**:
+```powershell
+# Test log rotation and file generation
+$env:PYTHONUTF8="1"
+$env:PYTHONPATH="d:\development\prj_obs\app\obs_deploy\app\src"
+python app/obs_deploy/app/src/observer/log_rotation_manager.py --test
+
+# Results:
+# ✅ swing window (10min): 07:40:00 ~ 07:50:00, rotate detected at 07:50:01
+# ✅ scalp window (1min): 07:49:00 ~ 07:50:00, rotate detected at 07:50:01
+# ✅ system window (1hour): 07:00:00 ~ 08:00:00, 603s remaining
+```
 - [ ] Track A/B Collector와 통합
 - [ ] 압축 정책 (3일 후 gzip) - 추가 구현 필요
 
 #### Task 11.2: Backup System ⭐
 **우선순위**: MEDIUM  
-**재사용 가능**: ✅ **완전 구현됨** - `backup/90404dd/backup_manager.py`
+**상태**: ⏳ NOT STARTED
 
-**재사용 가능 코드**:
+**구현 대상**: `app/obs_deploy/app/src/backup/backup_manager.py`
+
 ```python
-# backup/90404dd/backup_manager.py - 바로 사용 가능!
+# 구현 필요: app/obs_deploy/app/src/backup/backup_manager.py
 class BackupManager:
     - Tar.gz archive 생성
-    - Manifest 생성 (backup_at, checksum, record_count)
-    - SHA256 checksum 검증
-    - Dry-run 지원
-
-# backup/90404dd/backup_init.py
-- BackupManifest 데이터 클래스
-- Checksum 계산 유틸리티
+    - Manifest 생성 (metadata, checksums)
+    - 21:00 자동 백업 스케줄러
+    - 원격 저장소 전송 (S3/GCS 지원)
 ```
 
-**적용 방법**:
-1. `backup/90404dd/` 전체를 `app/obs_deploy/app/src/backup/`로 복사
-2. 스케줄러 추가 (21:00 자동 백업)
-3. 원격 저장소 전송 로직 추가 (S3/GCS)
-
 **작업 항목**:
-- [x] ✅ BackupManager 구현 완료 (backup에 존재)
-- [x] ✅ Checksum 검증 완료 (backup에 존재)
-- [x] ✅ Manifest 생성 완료 (backup에 존재)
-- [ ] 매일 21:00 스케줄러 추가
-- [ ] 원격 저장소 전송 (S3/GCS) 추가
-- [ ] 보관 주기 관리 (30일) 추가
+- [ ] BackupManager 구현
+  - [ ] Daily tar.gz backup (21:00 KST)
+  - [ ] SHA256 checksum 생성
+  - [ ] Backup manifest 생성
+  - [ ] Backup 보관 주기 관리 (30일)
+- [ ] 원격 저장소 통합 (S3/GCS)
 - [ ] 복원 기능 추가
 
 **완료 조건**: 로그 분리 저장, 자동 백업 실행 확인

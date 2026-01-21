@@ -71,3 +71,4 @@ mcp-cli/dist/
 *.bak
 backup/
 backups/
+!app/obs_deploy/app/backup/backup_manager.py

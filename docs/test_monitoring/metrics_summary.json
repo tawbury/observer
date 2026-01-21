@@ -1,0 +1,63 @@
+{
+  "timestamp": "2026-01-22T08:08:08.200480+09:00",
+  "metrics": {
+    "observer_universe_size": 2050.0,
+    "observer_universe_created_total": 5.0,
+    "observer_universe_deleted_total": 1.0,
+    "observer_track_a_snapshots_total": 1.0,
+    "observer_track_a_collection_duration_seconds": {
+      "count": 1,
+      "sum": 0.234,
+      "avg": 0.234,
+      "buckets": {
+        "1.0": 1,
+        "10.0": 1
+      }
+    },
+    "observer_track_b_slots_total": 41.0,
+    "observer_track_b_slots_allocated": 5.0,
+    "observer_track_b_triggers_total": 2.0,
+    "observer_track_b_collection_speed": 125.5,
+    "observer_token_refreshes_total": 1.0,
+    "observer_token_validity_seconds": 86400,
+    "observer_gaps_detected_total": 6.0,
+    "observer_gaps_low_total": 2.0,
+    "observer_gaps_medium_total": 2.0,
+    "observer_gaps_high_total": 2.0,
+    "observer_gap_detection_duration_seconds": {
+      "count": 1,
+      "sum": 0.045,
+      "avg": 0.045,
+      "buckets": {
+        "0.1": 1,
+        "1.0": 1,
+        "10.0": 1
+      }
+    },
+    "observer_rate_limit_tokens_total": 50.0,
+    "observer_rate_limit_delays_total": 1.0,
+    "observer_rate_limit_delay_duration_seconds": {
+      "count": 1,
+      "sum": 0.012,
+      "avg": 0.012,
+      "buckets": {
+        "0.1": 1,
+        "1.0": 1,
+        "10.0": 1
+      }
+    },
+    "observer_api_requests_total": 3.0,
+    "observer_api_request_duration_seconds": {
+      "count": 3,
+      "sum": 0.67,
+      "avg": 0.22333333333333336,
+      "buckets": {
+        "1.0": 3,
+        "10.0": 3,
+        "0.1": 1
+      }
+    },
+    "observer_api_errors_total": 1.0,
+    "observer_system_uptime_seconds": 0.0019989013671875
+  }
+}

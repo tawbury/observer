@@ -1,0 +1,71 @@
+{
+  "timestamp": "2026-01-22T08:08:08.208478+09:00",
+  "total_tests": 4,
+  "passed": 4,
+  "failed": 0,
+  "pass_rate": "100.0%",
+  "test_results": [
+    {
+      "test_name": "Prometheus_Metrics_Collection",
+      "status": "PASSED",
+      "duration_seconds": "0.004",
+      "details": {
+        "metrics_collected": 23,
+        "universe_size": 2050,
+        "track_a_snapshots": 1,
+        "track_b_slots_allocated": 5,
+        "gaps_detected": 6,
+        "api_requests": 3,
+        "files_saved": 2
+      },
+      "error": ""
+    },
+    {
+      "test_name": "Grafana_Dashboard_Configuration",
+      "status": "PASSED",
+      "duration_seconds": "0.002",
+      "details": {
+        "total_panels": 19,
+        "panel_types": [
+          "stat",
+          "histogram",
+          "piechart",
+          "timeseries"
+        ],
+        "dashboard_title": "Observer System Monitoring Dashboard",
+        "refresh_rate": "30s",
+        "dashboard_file": "d:\\development\\prj_obs\\docs\\grafana_dashboard.json"
+      },
+      "error": ""
+    },
+    {
+      "test_name": "Alerting_Rules_Configuration",
+      "status": "PASSED",
+      "duration_seconds": "0.002",
+      "details": {
+        "total_rules": 19,
+        "critical_alerts": 9,
+        "warning_alerts": 10,
+        "yaml_file": "d:\\development\\prj_obs\\docs\\prometheus_alerting_rules.yaml",
+        "json_file": "d:\\development\\prj_obs\\docs\\prometheus_alerting_rules.json"
+      },
+      "error": ""
+    },
+    {
+      "test_name": "Docker_Monitoring_Setup",
+      "status": "PASSED",
+      "duration_seconds": "0.002",
+      "details": {
+        "docker_compose_file": "d:\\development\\prj_obs\\docs\\docker_compose_monitoring.json",
+        "prometheus_config": "d:\\development\\prj_obs\\docs\\prometheus.yml",
+        "grafana_datasources": "d:\\development\\prj_obs\\docs\\grafana_datasources.yml",
+        "services": [
+          "prometheus",
+          "grafana",
+          "alertmanager"
+        ]
+      },
+      "error": ""
+    }
+  ]
+}

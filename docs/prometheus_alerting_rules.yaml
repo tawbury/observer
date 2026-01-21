@@ -1,0 +1,197 @@
+# Observer System Alerting Rules
+# This file contains alerting rules for monitoring the Observer system
+
+groups:
+  - name: observer_system_alerts
+    interval: 30s
+    rules:
+
+      - alert: HighAPIErrorRate
+        expr: (rate(observer_api_errors_total[5m]) / rate(observer_api_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: observer
+        annotations:
+          summary: HighAPIErrorRate triggered
+          description: API error rate exceeds 5%
+
+      - alert: SystemDowntime
+        expr: observer_system_uptime_seconds < 60
+        for: 2m
+        labels:
+          severity: critical
+          service: observer
+        annotations:
+          summary: SystemDowntime triggered
+          description: System has been running for less than 1 minute
+
+      - alert: UniverseSizeAnomaly
+        expr: abs(observer_universe_size - avg_over_time(observer_universe_size[1h])) > avg_over_time(observer_universe_size[1h]) * 0.5
+        for: 10m
+        labels:
+          severity: warning
+          service: observer
+        annotations:
+          summary: UniverseSizeAnomaly triggered
+          description: Universe size deviates significantly from average
+
+      - alert: RapidUniverseExpansion
+        expr: rate(observer_universe_created_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: observer
+        annotations:
+          summary: RapidUniverseExpansion triggered
+          description: Universe expansion rate exceeds 100 symbols/sec
+
+      - alert: TrackACollectionDelayed
+        expr: histogram_quantile(0.99, rate(observer_track_a_collection_duration_seconds_bucket[5m])) > 1.0
+        for: 10m
+        labels:
+          severity: warning
+          service: observer
+        annotations:
+          summary: TrackACollectionDelayed triggered
+          description: Track A collection p99 latency exceeds 1 second
+
+      - alert: TrackANoSnapshots
+        expr: rate(observer_track_a_snapshots_total[5m]) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+          service: observer
+        annotations:
+          summary: TrackANoSnapshots triggered
+          description: Track A snapshot collection has stopped or is too slow
+
+      - alert: TrackBSlotStarvation
+        expr: (observer_track_b_slots_allocated / observer_track_b_slots_total) > 0.95
+        for: 5m
+        labels:
+          severity: critical
+          service: observer
+        annotations:
+          summary: TrackBSlotStarvation triggered
+          description: Track B slot utilization exceeds 95%
+
+      - alert: TrackBCollectionSlow
+        expr: observer_track_b_collection_speed < 50
+        for: 10m
+        labels:
+          severity: warning
+          service: observer
+        annotations:
+          summary: TrackBCollectionSlow triggered
+          description: Track B collection speed drops below 50 items/sec
+
+      - alert: TokenValidityLow
+        expr: observer_token_validity_seconds < 3600
+        for: 1m
+        labels:
+          severity: warning
+          service: observer
+        annotations:
+          summary: TokenValidityLow triggered
+          description: Token validity less than 1 hour remaining
+
+      - alert: TokenExpired
+        expr: observer_token_validity_seconds < 0
+        for: 1m
+        labels:
+          severity: critical
+          service: observer
+        annotations:
+          summary: TokenExpired triggered
+          description: Token has expired
+
+      - alert: TokenRefreshFailure
+        expr: rate(observer_token_refreshes_total[1h]) < 1
+        for: 30m
+        labels:
+          severity: critical
+          service: observer
+        annotations:
+          summary: TokenRefreshFailure triggered
+          description: Token refresh rate is abnormally low
+
+      - alert: HighGapDetectionRate
+        expr: rate(observer_gaps_detected_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: observer
+        annotations:
+          summary: HighGapDetectionRate triggered
+          description: Gap detection rate exceeds 10 gaps/sec
+
+      - alert: HighSeverityGapsDetected
+        expr: rate(observer_gaps_high_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: critical
+          service: observer
+        annotations:
+          summary: HighSeverityGapsDetected triggered
+          description: High severity gaps being detected
+
+      - alert: GapDetectionLatency
+        expr: histogram_quantile(0.99, rate(observer_gap_detection_duration_seconds_bucket[5m])) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          service: observer
+        annotations:
+          summary: GapDetectionLatency triggered
+          description: Gap detection p99 latency exceeds 500ms
+
+      - alert: RateLimitTokenStarvation
+        expr: rate(observer_rate_limit_delays_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: observer
+        annotations:
+          summary: RateLimitTokenStarvation triggered
+          description: High rate limiter delay rate (>10 delays/sec)
+
+      - alert: RateLimitHighDelay
+        expr: histogram_quantile(0.99, rate(observer_rate_limit_delay_duration_seconds_bucket[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: observer
+        annotations:
+          summary: RateLimitHighDelay triggered
+          description: Rate limiter p99 delay exceeds 100ms
+
+      - alert: APILatencyHigh
+        expr: histogram_quantile(0.99, rate(observer_api_request_duration_seconds_bucket[5m])) > 2.0
+        for: 10m
+        labels:
+          severity: warning
+          service: observer
+        annotations:
+          summary: APILatencyHigh triggered
+          description: API request p99 latency exceeds 2 seconds
+
+      - alert: APIUnresponsive
+        expr: rate(observer_api_requests_total[5m]) < 1
+        for: 5m
+        labels:
+          severity: critical
+          service: observer
+        annotations:
+          summary: APIUnresponsive triggered
+          description: API requests dropped below 1 per second
+
+      - alert: APICatastrophicErrors
+        expr: (rate(observer_api_errors_total[1m]) / rate(observer_api_requests_total[1m])) > 0.5
+        for: 2m
+        labels:
+          severity: critical
+          service: observer
+        annotations:
+          summary: APICatastrophicErrors triggered
+          description: API error rate exceeds 50% (critical condition)

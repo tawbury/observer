@@ -4,9 +4,6 @@ app/obs_deploy/MANIFEST.txt
 app/obs_deploy/start_observer.sh
 app/obs_deploy/app/data/
 
-# AI System
-.ai/
-
 # Docs
 docs/
 
@@ -64,3 +61,16 @@ Desktop.ini
 
 # Security
 secrets.*
+
+# MCP
+mcp-cli/
+mcp-cli/node_modules/
+mcp-cli/dist/
+
+# .claude
+ claude/
+
+# backup files
+*.bak
+backup/
+backups/

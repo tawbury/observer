@@ -167,3 +167,24 @@ Whenever a user requests to "create a new role" or "evaluate a position":
 ## 9. Additional Rules
 ### Additional Rule 1
 - **Rule Description**: This is an additional rule
+
+## 10. Workflow System v2 Rules
+
+### Metadata-First Linking (Enforced)
+- All document relationships MUST be declared in the document metadata.
+- If a relationship is not present in metadata fields (e.g., Parent Document, Related Reference), it is considered non-existent for operational purposes.
+- Body text may explain context, but must not be the only place where relationships are defined.
+- Use Obsidian internal links for relationships: [[filename.md]].
+
+### Operational Loop Rules (Enforced)
+- Core loop: Roadmap -> Task -> Run Record -> Roadmap update
+- Roadmap drives work selection and phase/session status.
+- Task is the smallest executable unit; Task must reference its Roadmap via metadata (Parent Document).
+- Run Record is execution evidence; it must reference the executed Task (Parent Document) and relevant Roadmap (Related Reference).
+- Roadmap updates MUST cite Run Records as evidence (in change history or related links).
+- Wildcard links are forbidden in Obsidian links (no patterns like task_*.md). Use real filenames only.
+
+### Operational Loop Templates
+- [[roadmap_template.md]]
+- [[run_record_template.md]]
+- [[task_template.md]]

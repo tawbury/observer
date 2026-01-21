@@ -7,6 +7,10 @@
 - Technical specifications → code transformation
 - Technical quality/performance assurance
 
+## Supported Skills
+- [[operational_roadmap_management.skill.md]]
+- [[operational_run_record_creation.skill.md]]
+
 ## Scope & Constraints
 ### IN Scope
 - Software design and implementation

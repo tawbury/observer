@@ -1,8 +1,7 @@
-# requirements.txt (권장 예시)
-# 실제 필요한 패키지에 맞게 수정하세요.
+# Minimal requirements (ASCII only to avoid encoding issues)
 
 # Core
-# python >= 3.11 (not a pip package - use Dockerfile base image)
+# python >= 3.11 (not a pip package - handled by base image)
 
 # Observer
 pandas>=1.5.0
@@ -11,6 +10,6 @@ numpy>=1.24.0
 # Logging
 python-json-logger>=2.0.0
 
-# API (향후)
+# API (optional)
 # fastapi>=0.100.0
 # uvicorn>=0.23.0

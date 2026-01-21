@@ -1,11 +1,14 @@
 # Validators Directory
 
-This directory contains validation definitions for document structure verification and quality assurance.
+Validation framework for document structure, template compliance, and quality assurance.
+
+**Status**: Aligned to Workflow System v2.0 (Stable)  
+**Focus**: Metadata-first validation | Operational loop compliance | Template structure
 
 ## Purpose
-- Task document structure validation
-- Meta field completeness verification
-- Document format standard compliance checking
+- Document structure validation (meta, contents, formats)
+- Operational loop artifact validation (Roadmap, Task, Run Record)
+- Template compliance checking
 - L2 senior-level work validation
 - Cross-agent collaboration validation
 
@@ -165,10 +168,11 @@ validators/
 - **Synergy Assessment**: Combined value creation, resource optimization
 
 ## Related Documents
-- `.ai/skills/hr/hr_onboarding.skill.md` - Validation logic implementation
-- `.ai/.cursorrules` - Validation rules definition
-- `.ai/workflows/l2_review_workflow.md` - L2 review process
-- `.ai/validators/l2_review_validator.md` - L2 review validation framework
+- **Workflows**: [[../workflows/workflow_index.md]]
+- **Operational skills**: [[../skills/_shared/operational_roadmap_management.skill.md]], [[../skills/_shared/operational_run_record_creation.skill.md]]
+- **Templates**: [[../templates/README.md]]
+- **Agents**: [[../agents/]]
+- **Base validators**: [[_base/README.md]]
 
 ## Integration Points
 - **HR Agent**: Level assessment and validation

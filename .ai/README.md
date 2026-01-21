@@ -1,9 +1,19 @@
-[Updated: 2026-01-16]
+[Updated: 2026-01-21]
 
 # AI System Directory
 
+**Status**: Workflow System v2.0 (Stable)  
+**Core Loop**: Roadmap → Task → Run Record → Roadmap update  
+**Foundation**: Metadata-first linking | Session-resilient continuity
+
 ## Purpose
-Multi-agent AI system with specialized skills for organizational task management and contents creation.
+Multi-agent AI system with specialized skills for task management, contents creation, and continuous operational loop execution.
+
+## Quick Start
+- **Workflow index**: [[workflows/workflow_index.md]] (all workflows, operational loop guide)
+- **Operational skills**: [[skills/_shared/operational_roadmap_management.skill.md]], [[skills/_shared/operational_run_record_creation.skill.md]]
+- **Templates**: [[templates/README.md]]
+- **Rules**: [.cursorrules](.cursorrules)
 
 ## Structure
 ### agents/
@@ -138,22 +148,26 @@ Document templates for various agent workflows and task types
 - `performance_test.md` - Performance testing framework
 
 ## Key Features
-- **Multi-Agent Architecture**: Specialized agents for different domains
-- **Cross-Agent Integration**: Seamless collaboration between agents
-- **Skill-Based System**: Modular skill components for each agent
-- **L1/L2 Skill Differentiation**: Junior and senior level skill classification
-- **Template Standardization**: Consistent document structures
-- **Quality Validation**: Built-in validation frameworks
+- **Operational Loop**: Roadmap → Task → Run Record → Roadmap update for session-resilient continuity
+- **Metadata-First Linking**: All relationships in meta section; [[Obsidian links]] only
+- **Multi-Agent Architecture**: Developer, HR, PM, Finance, Contents-Creator agents
+- **Shared Operational Skills**: [[operational_roadmap_management.skill.md]], [[operational_run_record_creation.skill.md]]
+- **Skill-Based System**: Modular skills per agent; frameworks in _shared/
+- **L1/L2 Differentiation**: Junior and senior skill levels
+- **Core Templates**: Roadmap and Run Record as loop foundation
+- **Quality Validation**: Built-in validators and base validator framework
 - **L2 Review System**: Senior-level verification and review capabilities
 - **Performance Optimization**: Context usage optimization and monitoring
 
-## Execution Flow
-1. Task document input
-2. Agent selection based on task type
-3. Skill execution for task processing
-4. Validation and quality assurance
-5. L2 review (for senior-level tasks)
-6. Report generation and output
+## Operational Loop (v2.0 Core)
+1. **Roadmap**: Phase/session structure with Task references; updated after each Run Record
+2. **Task**: Executable unit linked to Roadmap; input for skill execution
+3. **Skill Execution**: Agent processes Task using assigned skills
+4. **Run Record**: Evidence document created after work; proposes Roadmap updates
+5. **Roadmap Update**: Review Run Record, update Roadmap status, plan next session
+6. Loop back to step 2 with new Task or continue phase
+
+**Session Resilience**: If interrupted, next session reads Roadmap + Run Records to understand state and resume
 
 ## L1/L2 Skill System
 - **L1 (Junior)**: Basic implementation, task execution, standard procedures
@@ -161,9 +175,11 @@ Document templates for various agent workflows and task types
 - **L2 Review Validators**: Specialized validation for senior-level work
 - **Mentorship System**: Knowledge transfer from L2 to L1 agents
 
-## Constraints
+## Constraints (Enforced in .cursorrules)
+- Metadata-first linking required; no wildcard Obsidian links (e.g., no [[task_*.md]])
+- All internal references use [[filename.md]] syntax
 - Base document creation/modification prohibited ❌
 - Task-external reasoning prohibited ❌
-- Meta information interpretation prohibited ❌
 - Maintain 100% technical functionality while using optimized English context
 - Context usage monitoring for performance optimization
+- See [.cursorrules](.cursorrules) for complete enforcement rules

@@ -7,6 +7,11 @@
 - Concept/requirements → diverse contents asset transformation
 - Visual quality/contents quality/brand consistency assurance
 
+## Supported Skills
+- [[operational_roadmap_management.skill.md]]
+- [[operational_run_record_creation.skill.md]]
+- **Note**: 운영 루프 공통 스킬은 문서 연결/추적을 위한 참조용이며, 본 Agent의 핵심 업무 로직과 분리됩니다.
+
 ## Scope & Constraints
 ### IN Scope
 - Visual contents creation (graphics, images, video)

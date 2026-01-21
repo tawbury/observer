@@ -8,6 +8,10 @@
 - Market requirements → Product requirements transformation
 - Business goals ↔ Development execution interface
 
+## Supported Skills
+- [[operational_roadmap_management.skill.md]]
+- [[operational_run_record_creation.skill.md]]
+
 ## Scope & Constraints
 ### IN Scope
 - Product strategy definition and roadmap planning

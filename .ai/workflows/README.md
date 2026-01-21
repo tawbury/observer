@@ -1,21 +1,29 @@
 # Workflows Directory
 
-This directory contains AI system workflow definitions and related documentation.
+Workflow definitions and operational loop patterns for Workflow System v2.0 (Stable).
+
+**Primary Resource**: See [[workflow_index.md]] for complete workflow reference, operational loop guide, and session resilience patterns.
 
 ## Purpose
-- HR evaluation workflow definition
-- Software development process management
-- Contents creation workflow management
-- Financial management process definition
-- Project management workflow management
-- Integrated development process management
+All workflows implement the **operational loop**: Roadmap → Task → Run Record → Roadmap update
+- **Session-resilient continuity**: Interruptions resolved via Roadmap + Run Record state
+- **Metadata-first linking**: All relationships via [[Obsidian links]] in meta sections
+- **Shared operational skills**: [[../skills/_shared/operational_roadmap_management.skill.md]], [[../skills/_shared/operational_run_record_creation.skill.md]]
+
+Domain workflows:
+- HR evaluation workflow
+- Stock trading system development (integrated pattern)
+- Contents creation workflow
+- Financial management workflow
+- Project management workflow
+- Integrated development workflow
 - L2 review and validation workflows
-- Inter-agent task flow management
-- Automated process sequence documentation
 
 ## Workflow Types
 
-### HR Evaluation Workflow
+**See [[workflow_index.md]] for complete workflow definitions.**
+
+Quick overview below:
 - **File**: `hr_evaluation.workflow.md`
 - **Purpose**: HR evaluation process automation
 - **Primary Agent**: HR Agent
@@ -115,13 +123,12 @@ workflows/
 - Cross-agent validation for integrated workflows
 
 ## Related Documents
-- `.ai/.cursorrules` - System-wide rules
-- `.ai/agents/` - Agent definitions
-- `.ai/skills/` - Skill definitions
-- `.ai/validators/` - Validation frameworks
-- `.ai/validators/senior_review_validator.md` - Senior review validation
-- `.ai/workflows/l2_review.workflow.md` - Senior review process
-- `.ai/templates/workflow_template.md` - Workflow definition template
+- **Single source of truth**: [[workflow_index.md]] for all workflows, operational loop, and agent role definitions
+- **Base pattern**: [[_base/workflow_base.md]] for L1/L2 role definitions and standard 4-stage structure
+- **Agent definitions**: [[../agents/]] directory
+- **Operational skills**: [[../skills/_shared/operational_roadmap_management.skill.md]], [[../skills/_shared/operational_run_record_creation.skill.md]]
+- **Templates**: [[../templates/]] directory (especially [[../templates/roadmap_template.md]], [[../templates/run_record_template.md]])
+- **System rules**: [[../.cursorrules]]
 
 ## Junior/Senior Agent Roles
 

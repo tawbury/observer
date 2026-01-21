@@ -1,34 +1,50 @@
 # Templates Directory
 
-This directory contains all template documents used by the AI system for standardized document creation.
+All document templates for Workflow System v2.0 (Stable).
 
-## Purpose
-- Task template standardization
-- Report template management
-- Document format consistency maintenance
-- Template usage guidelines and optimization
+**Status**: Updated for operational loop (Roadmap → Task → Run Record) as core pattern.
 
-## Structure
-```
-templates/
-├── task_template.md              # Standard task template
-├── report_template.md            # Standard report template
-├── anchor_template.md            # Anchor document template (strategic foundation)
-├── architecture_template.md      # Architecture document template
-├── spec_template.md              # Specification template (API included)
-├── prd_template.md              # Product requirements template
-├── decision_template.md          # Decision record template
-├── workflow_template.md          # Workflow definition template
-└── README.md                     # Templates guide
-```
+## Operational Loop Templates (Core)
 
-**Current Status**: All 9 template files are present and updated with:
-- Standardized meta section structure
-- Korean language compliance for docs/ folder
-- Checkbox format for task criteria
-- Template variables support ({{CURRENT_DATE}}, {{USER}})
-- Contents separator (`---`) implementation
-- Reviewer field for document review and approval workflow
+These two templates are foundational for all workflows:
+
+| Template | Purpose | Usage |
+|----------|---------|-------|
+| [[roadmap_template.md]] | Phase/session structure; Task and Run Record tracking; Roadmap status | Every workflow root level |
+| [[run_record_template.md]] | Execution evidence; session closure; Roadmap update proposals | After any meaningful work within a session |
+
+**Why core**: The operational loop requires these templates for session-resilient continuity. Interrupted sessions resume by reading current Roadmap state + latest Run Records.
+
+## Domain Stage Templates
+
+Used in the standard 4-stage workflow pattern:
+
+| Template | Stage | Usage |
+|----------|-------|-------|
+| [[prd_template.md]] | 1. Planning | Product/domain requirements and strategy |
+| [[architecture_template.md]] | 2. Design | System/domain architecture design |
+| [[spec_template.md]] | 3. Specification | Technical specifications and interfaces |
+| [[decision_template.md]] | 4. Decision | Decision records and rationale |
+
+**Note**: These templates are for stage outputs; all stages must link to Roadmap and include Run Records.
+## All Templates
+
+| Template | File | Purpose | Domain |
+|----------|------|---------|--------|
+| Roadmap | [[roadmap_template.md]] | Phase/session and Task tracking | **Operational Loop** |
+| Run Record | [[run_record_template.md]] | Execution evidence and Roadmap proposals | **Operational Loop** |
+| Task | [[task_template.md]] | Executable unit (HR evaluation, sessions) | Operational |
+| PRD | [[prd_template.md]] | Product/domain requirements | Stage 1: Planning |
+| Architecture | [[architecture_template.md]] | System/domain design | Stage 2: Design |
+| Specification | [[spec_template.md]] | Technical specifications, API | Stage 3: Specification |
+| Decision | [[decision_template.md]] | Decision records and rationale | Stage 4: Decision |
+| Anchor | [[anchor_template.md]] | Strategic foundation (business goals) | Strategic |
+| Report | [[report_template.md]] | Evaluation and review results | Reporting |
+| Workflow | [[workflow_template.md]] | Workflow definition structure | Workflow (English) |
+| Risk Management | [[risk_management_template.md]] | Risk analysis and mitigation (Finance) | Finance |
+| Trading Strategy | [[trading_strategy_template.md]] | Trading strategy specification | Finance/Dev |
+| Backtesting Report | [[backtesting_report_template.md]] | Trading backtesting results | Finance/Dev |
+| Data Pipeline Spec | [[data_pipeline_spec_template.md]] | Data pipeline specification | Development |
 
 ## Template Types
 
@@ -143,11 +159,11 @@ All templates support standardized variables:
 - **Contents-Creator Agent**: Uses templates for content strategy documentation
 
 ## Related Documents
-- `.ai/.cursorrules` - Template definitions and usage rules
-- `.ai/validators/task_validator.md` - Template structure validation
-- `.ai/workflows/` - Template usage in workflows
-- `docs/tasks/` - Task template usage examples
-- `docs/reports/` - Report template usage examples
+- **Workflows**: [[../workflows/workflow_index.md]] (all workflows and operational loop guide)
+- **Operational skills**: [[../skills/_shared/operational_roadmap_management.skill.md]], [[../skills/_shared/operational_run_record_creation.skill.md]]
+- **Validators**: [[../validators/README.md]] (template structure validation)
+- **System rules**: [[../.cursorrules]]
+- **Agent definitions**: [[../agents/]]
 
 ## Template Optimization
 - **Context Efficiency**: Optimized for minimal context usage

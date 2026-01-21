@@ -270,6 +270,64 @@ class KISAuth:
     # WebSocket Approval Key
     # ============================================================
     
+    async def force_refresh(self) -> str:
+        """
+        Force token refresh regardless of expiration status.
+        
+        This method bypasses the expiration check and forces a new token
+        to be issued. Useful for pre-market token refresh or recovery scenarios.
+        
+        Returns:
+            New access token
+            
+        Raises:
+            RuntimeError: If token refresh fails
+        """
+        logger.info("Forcing token refresh...")
+        
+        # Clear existing token to force refresh
+        old_token = self.access_token
+        self.access_token = None
+        
+        try:
+            # Use file lock to coordinate with other instances
+            lock_file = self.token_cache_path.parent / f".token_refresh_lock_{self.mode}.lock"
+            
+            for attempt in range(10):  # 20 second timeout (10 * 2s)
+                try:
+                    # Try to acquire lock (exclusive)
+                    lock_file.touch(exist_ok=False)
+                    
+                    try:
+                        # Actually refresh the token
+                        logger.info("Acquired token refresh lock, forcing refresh...")
+                        await self._refresh_token()
+                        logger.info("✅ Forced token refresh completed")
+                        return self.access_token
+                        
+                    finally:
+                        # Release lock
+                        try:
+                            lock_file.unlink()
+                            logger.info("Released token refresh lock")
+                        except:
+                            pass
+                            
+                except FileExistsError:
+                    # Another instance holds the lock, wait and retry
+                    logger.debug("Waiting for token refresh lock...")
+                    await asyncio.sleep(2)
+            
+            # Timeout waiting for lock
+            raise RuntimeError("Timeout waiting for token refresh lock during force refresh")
+        
+        except Exception as e:
+            # Restore old token on failure
+            if old_token:
+                self.access_token = old_token
+                logger.warning("Force refresh failed, restored old token")
+            raise
+    
     async def get_approval_key(self) -> str:
         """
         Get WebSocket approval key.

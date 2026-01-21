@@ -1,0 +1,119 @@
+{
+  "timestamp": "2026-01-22T08:04:51.497738+09:00",
+  "total_tests": 6,
+  "passed": 6,
+  "failed": 0,
+  "skipped": 0,
+  "pass_rate": "100.0%",
+  "average_improvement_percent": "-7017.2%",
+  "test_results": [
+    {
+      "test_name": "Task_Pool_Optimization",
+      "status": "PASSED",
+      "duration_seconds": "1.715",
+      "improvement_percent": "89.9%",
+      "before": {
+        "method": "sequential",
+        "time_seconds": "1.556",
+        "tasks": 100
+      },
+      "after": {
+        "method": "task_pool",
+        "time_seconds": "0.158",
+        "concurrent_limit": 10,
+        "tasks": 100
+      },
+      "error": ""
+    },
+    {
+      "test_name": "Batch_Processing_Efficiency",
+      "status": "PASSED",
+      "duration_seconds": "0.016",
+      "improvement_percent": "-42283.8%",
+      "before": {
+        "method": "individual_writes",
+        "time_seconds": "0.000",
+        "items": 100
+      },
+      "after": {
+        "method": "batch_processing",
+        "time_seconds": "0.015",
+        "batch_size": 50,
+        "batches": 2,
+        "items": 100
+      },
+      "error": ""
+    },
+    {
+      "test_name": "Rate_Limiting_Smoothness",
+      "status": "PASSED",
+      "duration_seconds": "0.809",
+      "improvement_percent": "0.0%",
+      "before": {
+        "method": "no_limiting",
+        "expected_time_seconds": "0.001"
+      },
+      "after": {
+        "method": "token_bucket",
+        "actual_time_seconds": "0.808",
+        "expected_time_seconds": "1.000",
+        "rate": "50 tokens/sec",
+        "burst": 10,
+        "efficiency": "100.0%"
+      },
+      "error": ""
+    },
+    {
+      "test_name": "Buffered_IO_Efficiency",
+      "status": "PASSED",
+      "duration_seconds": "0.008",
+      "improvement_percent": "0.0%",
+      "before": {
+        "method": "unbuffered",
+        "operations": 100
+      },
+      "after": {
+        "method": "buffered",
+        "time_seconds": "0.006",
+        "items": 100,
+        "file_size_bytes": 12320,
+        "flushes": 1,
+        "efficiency_bytes_per_flush": "3080"
+      },
+      "error": ""
+    },
+    {
+      "test_name": "Memory_Mapped_IO_Performance",
+      "status": "PASSED",
+      "duration_seconds": "0.012",
+      "improvement_percent": "0.0%",
+      "before": {
+        "method": "sequential_read"
+      },
+      "after": {
+        "method": "memory_mapped",
+        "time_seconds": "0.011",
+        "bytes_read": 12320,
+        "reads": 1
+      },
+      "error": ""
+    },
+    {
+      "test_name": "Compression_Efficiency",
+      "status": "PASSED",
+      "duration_seconds": "0.003",
+      "improvement_percent": "90.8%",
+      "before": {
+        "method": "uncompressed",
+        "size_bytes": 3890
+      },
+      "after": {
+        "method": "gzip_compressed",
+        "size_bytes": 356,
+        "original_size_bytes": 3890,
+        "compression_ratio_percent": "90.8%"
+      },
+      "error": ""
+    }
+  ]
+}

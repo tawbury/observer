@@ -1,0 +1,431 @@
+"""
+Track B Collector - Real-time WebSocket data collection for 41 slots
+
+Key Responsibilities:
+- Monitor Track A data for trigger events (via TriggerEngine)
+- Manage 41 WebSocket subscription slots (via SlotManager)
+- Subscribe/unsubscribe symbols dynamically based on triggers
+- Collect real-time 2Hz data from WebSocket
+- Log scalp data to config/observer/scalp/YYYYMMDD.jsonl
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+from dataclasses import dataclass
+from datetime import datetime, date, time, timedelta
+from typing import List, Dict, Any, Optional, Callable
+from pathlib import Path
+
+# Ensure 'paths.py' (at app root) is importable alongside src modules
+import sys
+APP_ROOT = str(Path(__file__).resolve().parents[2])
+if APP_ROOT not in sys.path:
+    sys.path.append(APP_ROOT)
+
+try:
+    from zoneinfo import ZoneInfo
+except Exception:  # pragma: no cover
+    ZoneInfo = None  # type: ignore
+
+from provider import ProviderEngine
+from trigger.trigger_engine import TriggerEngine, PriceSnapshot
+from slot.slot_manager import SlotManager, SlotCandidate
+from paths import observer_asset_dir
+
+log = logging.getLogger("TrackBCollector")
+
+
+@dataclass
+class TrackBConfig:
+    tz_name: str = "Asia/Seoul"
+    market: str = "kr_stocks"
+    session_id: str = "track_b_session"
+    mode: str = "PROD"
+    max_slots: int = 41  # KIS WebSocket limit
+    min_dwell_seconds: int = 120  # 2 minutes minimum slot occupancy
+    daily_log_subdir: str = "scalp"  # under config/observer/{subdir}
+    trading_start: time = time(9, 30)  # Track B starts 30min after market open
+    trading_end: time = time(15, 0)   # Track B ends before close
+    track_a_check_interval_seconds: int = 60  # Check Track A for triggers every 60s
+
+
+class TrackBCollector:
+    """
+    Track B Collector - WebSocket-based real-time data collector.
+    
+    Features:
+    - Trigger-based symbol selection from Track A data
+    - Dynamic 41-slot WebSocket subscription management
+    - 2Hz real-time price data collection
+    - Scalp log partitioning by date
+    """
+    
+    def __init__(
+        self,
+        engine: ProviderEngine,
+        trigger_engine: TriggerEngine,
+        config: Optional[TrackBConfig] = None,
+        on_error: Optional[Callable[[str], None]] = None,
+    ) -> None:
+        self.engine = engine
+        self.trigger_engine = trigger_engine
+        self.cfg = config or TrackBConfig()
+        self._tz = ZoneInfo(self.cfg.tz_name) if ZoneInfo else None
+        
+        # Slot manager for 41 WebSocket subscriptions
+        self.slot_manager = SlotManager(
+            max_slots=self.cfg.max_slots,
+            min_dwell_seconds=self.cfg.min_dwell_seconds
+        )
+        
+        self._on_error = on_error
+        self._running = False
+        self._subscribed_symbols: Dict[str, int] = {}  # symbol -> slot_id
+        
+    # -----------------------------------------------------
+    # Scheduling
+    # -----------------------------------------------------
+    def _now(self) -> datetime:
+        if self._tz:
+            return datetime.now(self._tz)
+        return datetime.now()
+
+    def _in_trading_hours(self, dt: datetime) -> bool:
+        t = dt.time()
+        return self.cfg.trading_start <= t <= self.cfg.trading_end
+    
+    async def start(self) -> None:
+        """
+        Start Track B collector.
+        
+        Main loop:
+        1. Check trading hours
+        2. Monitor Track A data for triggers
+        3. Update slots based on trigger candidates
+        4. Subscribe/unsubscribe WebSocket symbols
+        5. Collect and log real-time data
+        """
+        log.info("TrackBCollector started (max_slots=%d)", self.cfg.max_slots)
+        self._running = True
+        
+        # Register WebSocket price update callback
+        self._register_websocket_callback()
+        
+        # Start WebSocket provider
+        await self._start_websocket()
+        
+        try:
+            while self._running:
+                now = self._now()
+                
+                if not self._in_trading_hours(now):
+                    log.info("Outside trading hours, waiting...")
+                    await asyncio.sleep(60)
+                    continue
+                
+                # Check Track A for triggers
+                await self._check_triggers()
+                
+                # Wait before next check
+                await asyncio.sleep(self.cfg.track_a_check_interval_seconds)
+                
+        except Exception as e:
+            log.error(f"TrackBCollector error: {e}", exc_info=True)
+            if self._on_error:
+                self._on_error(str(e))
+        finally:
+            await self._stop_websocket()
+    
+    def stop(self) -> None:
+        """Stop the collector"""
+        log.info("TrackBCollector stopping...")
+        self._running = False
+    
+    # -----------------------------------------------------
+    # Trigger Detection & Slot Management
+    # -----------------------------------------------------
+    async def _check_triggers(self) -> None:
+        """
+        Check Track A data for triggers and update slots.
+        
+        Process:
+        1. Read latest Track A snapshots
+        2. Feed to TriggerEngine
+        3. Get trigger candidates
+        4. Allocate/replace slots via SlotManager
+        5. Update WebSocket subscriptions
+        """
+        try:
+            # Read Track A snapshots from latest log file
+            snapshots = await self._read_track_a_snapshots()
+            if not snapshots:
+                log.debug("No Track A snapshots available")
+                return
+            
+            # Detect triggers
+            candidates = self.trigger_engine.update(snapshots)
+            
+            if not candidates:
+                log.debug("No trigger candidates detected")
+                return
+            
+            log.info(f"🎯 Detected {len(candidates)} trigger candidates")
+            
+            # Process each candidate
+            for candidate in candidates:
+                slot_candidate = SlotCandidate(
+                    symbol=candidate.symbol,
+                    trigger_type=candidate.trigger_type,
+                    priority_score=candidate.priority_score,
+                    detected_at=candidate.detected_at
+                )
+                
+                result = self.slot_manager.assign_slot(slot_candidate)
+                
+                if result.success:
+                    log.info(
+                        f"✅ Slot {result.slot_id}: {candidate.symbol} "
+                        f"(priority={candidate.priority_score:.2f}, "
+                        f"trigger={candidate.trigger_type})"
+                    )
+                    
+                    # Subscribe to WebSocket if not already subscribed
+                    await self._subscribe_symbol(candidate.symbol, result.slot_id)
+                    
+                    # Unsubscribe replaced symbol if any
+                    if result.replaced_symbol:
+                        await self._unsubscribe_symbol(result.replaced_symbol)
+                        log.info(f"🔄 Replaced {result.replaced_symbol} with {candidate.symbol}")
+                
+                elif result.overflow:
+                    log.warning(f"⚠️ Overflow: {candidate.symbol} (priority={candidate.priority_score:.2f})")
+        
+        except Exception as e:
+            log.error(f"Error checking triggers: {e}", exc_info=True)
+    
+    async def _read_track_a_snapshots(self) -> List[PriceSnapshot]:
+        """
+        Read latest Track A snapshots from swing log file.
+        
+        Returns latest 10 minutes of data for trigger detection.
+        """
+        try:
+            now = self._now()
+            date_str = now.strftime("%Y%m%d")
+            
+            # Track A log path: config/observer/swing/YYYYMMDD.jsonl
+            base_dir = observer_asset_dir()
+            log_file = base_dir / self.cfg.daily_log_subdir.replace("scalp", "swing") / f"{date_str}.jsonl"
+            
+            if not log_file.exists():
+                return []
+            
+            # Read last 10 minutes of snapshots
+            cutoff_time = now - timedelta(minutes=10)
+            snapshots = []
+            
+            with open(log_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        record = json.loads(line.strip())
+                        timestamp = datetime.fromisoformat(record["timestamp"])
+                        
+                        if timestamp < cutoff_time:
+                            continue
+                        
+                        snapshot = PriceSnapshot(
+                            symbol=record["symbol"],
+                            timestamp=timestamp,
+                            close=float(record["price"]["close"]),
+                            volume=int(record["volume"]["current"]),
+                            price_change_pct=float(record.get("price_change_pct", 0.0))
+                        )
+                        snapshots.append(snapshot)
+                    except (KeyError, ValueError, TypeError) as e:
+                        log.warning(f"Failed to parse Track A record: {e}")
+                        continue
+            
+            return snapshots
+        
+        except Exception as e:
+            log.error(f"Error reading Track A snapshots: {e}", exc_info=True)
+            return []
+    
+    # -----------------------------------------------------
+    # WebSocket Management
+    # -----------------------------------------------------
+    async def _start_websocket(self) -> None:
+        """Start WebSocket provider"""
+        try:
+            log.info("Starting WebSocket provider...")
+            success = await self.engine.start_stream()
+            if success:
+                log.info("WebSocket provider started")
+            else:
+                log.error("WebSocket provider failed to start")
+        except Exception as e:
+            log.error(f"Failed to start WebSocket: {e}", exc_info=True)
+            raise
+    
+    async def _stop_websocket(self) -> None:
+        """Stop WebSocket provider"""
+        try:
+            log.info("Stopping WebSocket provider...")
+            await self.engine.stop_stream()
+            log.info("WebSocket provider stopped")
+        except Exception as e:
+            log.error(f"Failed to stop WebSocket: {e}", exc_info=True)
+    
+    def _register_websocket_callback(self) -> None:
+        """Register callback for WebSocket price updates"""
+        def on_price_update(data: Dict[str, Any]) -> None:
+            """Handle real-time price updates from WebSocket"""
+            try:
+                self._log_scalp_data(data)
+            except Exception as e:
+                log.error(f"Error handling price update: {e}", exc_info=True)
+        
+        # Set callback on provider engine
+        self.engine.on_price_update = on_price_update
+    
+    async def _subscribe_symbol(self, symbol: str, slot_id: int) -> None:
+        """Subscribe to a symbol via WebSocket"""
+        try:
+            if symbol in self._subscribed_symbols:
+                log.debug(f"Symbol {symbol} already subscribed")
+                return
+            
+            success = await self.engine.subscribe(symbol)
+            if success:
+                self._subscribed_symbols[symbol] = slot_id
+                log.info(f"📡 Subscribed: {symbol} (slot {slot_id})")
+            else:
+                log.warning(f"Failed to subscribe {symbol}: returned False")
+        
+        except Exception as e:
+            log.error(f"Failed to subscribe {symbol}: {e}", exc_info=True)
+    
+    async def _unsubscribe_symbol(self, symbol: str) -> None:
+        """Unsubscribe from a symbol via WebSocket"""
+        try:
+            if symbol not in self._subscribed_symbols:
+                log.debug(f"Symbol {symbol} not subscribed")
+                return
+            
+            success = await self.engine.unsubscribe(symbol)
+            if success:
+                del self._subscribed_symbols[symbol]
+                log.info(f"📴 Unsubscribed: {symbol}")
+            else:
+                log.warning(f"Failed to unsubscribe {symbol}: returned False")
+        
+        except Exception as e:
+            log.error(f"Failed to unsubscribe {symbol}: {e}", exc_info=True)
+    
+    # -----------------------------------------------------
+    # Data Logging
+    # -----------------------------------------------------
+    def _log_scalp_data(self, data: Dict[str, Any]) -> None:
+        """
+        Log real-time scalp data to JSONL file.
+        
+        File: config/observer/scalp/YYYYMMDD.jsonl
+        """
+        try:
+            now = self._now()
+            date_str = now.strftime("%Y%m%d")
+            
+            # Scalp log path: config/observer/scalp/YYYYMMDD.jsonl
+            base_dir = observer_asset_dir()
+            log_dir = base_dir / self.cfg.daily_log_subdir
+            log_dir.mkdir(parents=True, exist_ok=True)
+            
+            log_file = log_dir / f"{date_str}.jsonl"
+            
+            # Prepare record
+            record = {
+                "timestamp": now.isoformat(),
+                "symbol": data.get("symbol", ""),
+                "price": data.get("price", {}),
+                "volume": data.get("volume", {}),
+                "source": "websocket",
+                "session_id": self.cfg.session_id
+            }
+            
+            # Write to file
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        
+        except Exception as e:
+            log.error(f"Error logging scalp data: {e}", exc_info=True)
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get collector statistics"""
+        slot_stats = self.slot_manager.get_stats()
+        return {
+            "subscribed_symbols": len(self._subscribed_symbols),
+            "slot_stats": slot_stats,
+            "running": self._running
+        }
+
+
+# ---- CLI for Testing ----
+
+async def main():
+    """CLI for testing TrackBCollector"""
+    import argparse
+    from provider import KISAuth
+    
+    parser = argparse.ArgumentParser(description="Track B Collector Test CLI")
+    parser.add_argument("--mode", choices=["PROD", "VIRTUAL"], default="VIRTUAL", help="KIS mode")
+    parser.add_argument("--run-for", type=int, default=300, help="Run for N seconds (default: 300)")
+    args = parser.parse_args()
+    
+    # Load .env if exists
+    env_file = Path("d:/development/prj_obs/app/obs_deploy/.env")
+    if env_file.exists():
+        from dotenv import load_dotenv
+        load_dotenv(env_file)
+    
+    # Setup
+    auth = KISAuth(mode=args.mode)
+    engine = ProviderEngine(auth=auth, mode=args.mode)
+    trigger_engine = TriggerEngine()
+    
+    collector = TrackBCollector(
+        engine=engine,
+        trigger_engine=trigger_engine
+    )
+    
+    print(f"🚀 Starting TrackBCollector (mode={args.mode}, duration={args.run_for}s)")
+    print()
+    
+    # Run collector for specified duration
+    try:
+        collector_task = asyncio.create_task(collector.start())
+        
+        # Wait for specified duration
+        await asyncio.sleep(args.run_for)
+        
+        # Stop collector
+        collector.stop()
+        await collector_task
+    
+    except KeyboardInterrupt:
+        print("\n⚠️ Interrupted by user")
+        collector.stop()
+    
+    finally:
+        stats = collector.get_stats()
+        print()
+        print(f"📊 Final Stats: {stats}")
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    )
+    asyncio.run(main())

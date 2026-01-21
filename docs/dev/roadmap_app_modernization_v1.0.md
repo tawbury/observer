@@ -4,12 +4,12 @@
 - Document ID: ROADMAP-APP-MOD-001
 - Status: Active
 - Created Date: 2026-01-21
-- Last Updated: 2026-01-22 (Phase 6, 7, Task 8.1 완료)
+- Last Updated: 2026-01-22 (Phase 6, 7 완료, Phase 8 Task 8.1~8.2 완료)
 - Author: Developer Agent
 - Reviewer: PM Agent (Pending)
 - Parent Document: [[observer_architecture_v2.md]], [[data_pipeline_architecture_observer_v1.0.md]]
 - Related Reference: [[symbol_selection_and_management_architecture.md]], [[kis_api_specification_v1.0.md]]
-- Version: 1.0.4
+- Version: 1.0.5
 
 ---
 
@@ -403,8 +403,8 @@ C:/Users/tawbu/AppData/Local/Programs/Python/Python311/python.exe app/obs_deploy
 ### Phase 8: Track B Collector (WebSocket/Scalp) 구현
 **기간**: 2주  
 **목표**: 실시간 고빈도 데이터 수집 (2Hz, 41 슬롯)
-**현재 상태**: 🔄 **Task 8.1 완료, Task 8.2 진행 중** (2026-01-22)  
-**진행률**: 🔄 **33% (Task 8.1/3 완료)**
+**현재 상태**: 🔄 **Task 8.1, 8.2 완료, Task 8.3 진행 중** (2026-01-22)  
+**진행률**: 🔄 **67% (Task 8.1, 8.2/3 완료)**
 
 #### Task 8.1: Trigger Engine 구현 ⭐⭐⭐
 **우선순위**: CRITICAL  
@@ -461,38 +461,47 @@ python app/obs_deploy/app/src/trigger/trigger_engine.py --log config/observer/sw
 
 #### Task 8.2: Slot Manager 구현 ⭐⭐⭐
 **우선순위**: CRITICAL  
+**상태**: ✅ COMPLETED (2026-01-22)
 **참조**: `symbol_selection_and_management_architecture.md` 섹션 "Slot Management"
 
+**구현 위치**: `app/obs_deploy/app/src/slot/slot_manager.py`
+
 ```python
-# 구현 대상: app/obs_deploy/app/src/slot/slot_manager.py
+# 구현 완료: app/obs_deploy/app/src/slot/slot_manager.py
 class SlotManager:
-    - 41개 슬롯 상태 관리
-    - 트리거 기반 종목 교체
-    - Overflow Ledger 기록
+    - 41개 슬롯 상태 관리 ✅
+    - 트리거 기반 종목 교체 ✅
+    - Overflow Ledger 기록 ✅
 ```
 
 **작업 항목**:
-- [ ] `slot_manager.py` 구현
-  - [ ] 슬롯 할당 (`assign_slot(candidate)`)
-  - [ ] 슬롯 해제 (`release_slot(slot_id)`)
-  - [ ] 슬롯 교체 (`replace_slot(slot_id, new_candidate)`)
-  - [ ] Overflow 처리 (41개 초과 시)
-- [ ] 슬롯 교체 정책:
+- [x] `slot_manager.py` 구현
+  - [x] 슬롯 할당 (`assign_slot(candidate)`)
+  - [x] 슬롯 해제 (`release_slot(slot_id)`, `release_symbol(symbol)`)
+  - [x] 슬롯 교체 (우선순위 기반 자동 교체)
+  - [x] Overflow 처리 (41개 초과 시)
+  - [x] 중복 할당 방지 (동일 심볼 재할당 시 우선순위 업데이트)
+- [x] 슬롯 교체 정책:
   - 우선순위가 낮은 슬롯 먼저 교체
-  - 최소 체류 시간 (2분) 보장
-- [ ] Overflow Ledger: `logs/system/overflow_YYYYMMDD.jsonl`
+  - 최소 체류 시간 (2분, `min_dwell_seconds=120`) 보장
+- [x] Overflow Ledger: `logs/system/overflow_YYYYMMDD.jsonl`
+- [x] CLI 테스트 도구
 
 **검증**:
-```python
-manager = SlotManager(max_slots=41)
-# 41개 슬롯 할당 확인
-for i in range(45):
-    result = manager.assign_slot(candidates[i])
-    if i < 41:
-        assert result.success == True
-    else:
-        assert result.overflow == True  # 42번째부터 Overflow
+```powershell
+# 45개 후보 할당 테스트 (41개 성공, 4개 overflow)
+$env:PYTHONUTF8="1"
+$env:PYTHONPATH="d:\development\prj_obs\app\obs_deploy\app\src"
+python app/obs_deploy/app/src/slot/slot_manager.py --test
+
+# 결과:
+# - 41개 슬롯 할당 성공
+# - 4개 overflow (logs/system/overflow_20260122.jsonl에 기록)
+# - High-priority 후보가 low-priority 슬롯 교체 성공
+# - Stats: allocations=41, replacements=1, overflows=4, releases=0
 ```
+
+**완료 조건**: Slot Manager 구현 및 테스트 완료 ✅
 
 #### Task 8.3: Track B Collector 구현 ⭐⭐
 **우선순위**: HIGH

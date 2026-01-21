@@ -10,7 +10,7 @@
 - Author: 
 - Reviewer: 
 - Parent Document: [[observer_architecture_v2.md]]
-- Related Reference: [[data_pipeline_architecture_observer_v1.0.md]], [[obs_architecture.md]], [[kis_api_specification_v1.0.md]]
+- Related Reference: [[data_pipeline_architecture_observer_v1.0.md]], [[obs_architecture.md]], [[kis_api_specification_v1.0.md]], [[DB_MIGRATION_INTEGRATION_GUIDE.md]]
 - Version: v2.0
 
 ---

@@ -1,6 +1,32 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: observer-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=observer_db_pwd
+      - POSTGRES_DB=observer
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - observer-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   observer:
     build: .
     container_name: observer
@@ -10,6 +36,11 @@ services:
       - PYTHONPATH=/app/src:/app
       - OBSERVER_DATA_DIR=/app/data/observer
       - OBSERVER_LOG_DIR=/app/logs
+      - DB_HOST=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=observer_db_pwd
+      - DB_NAME=observer
+      - DB_PORT=5432
     volumes:
       - ./data:/app/data/observer
       - ./logs:/app/logs
@@ -18,6 +49,9 @@ services:
       - "8000:8000"
     networks:
       - observer-network
+    depends_on:
+      postgres:
+        condition: service_healthy
     # 배포 최적화: 리소스 제한
     deploy:
       resources:
@@ -37,3 +71,6 @@ services:
 networks:
   observer-network:
     driver: bridge
+
+volumes:
+  postgres_data:

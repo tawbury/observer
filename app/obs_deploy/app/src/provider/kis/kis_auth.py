@@ -23,9 +23,12 @@ Reference:
 """
 
 import asyncio
+import json
 import logging
 import os
+import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Dict, Optional
 import aiohttp
 
@@ -80,6 +83,9 @@ class KISAuth:
         # WebSocket approval key
         self.approval_key: Optional[str] = None
         
+        # Token cache file path (shared across instances)
+        self._token_cache_path = self._get_token_cache_path()
+        
         # Validation
         if not self.app_key or not self.app_secret:
             raise ValueError(
@@ -109,8 +115,58 @@ class KISAuth:
         Raises:
             RuntimeError: If token refresh fails
         """
+        # Try to load from cache first
+        if not self.access_token:
+            self._load_token_from_cache()
+        
         if not self.access_token or self._is_token_expired():
-            await self._refresh_token()
+            # Use file lock to prevent multiple instances from issuing tokens simultaneously
+            lock_file = self._token_cache_path.parent / f"token_{self.is_virtual}.lock"
+            
+            # Try to acquire lock with timeout
+            max_wait = 120  # 2 minutes max wait
+            start_time = time.time()
+            
+            while (time.time() - start_time) < max_wait:
+                try:
+                    # Try to create lock file (atomic operation)
+                    lock_fd = os.open(str(lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                    os.write(lock_fd, str(os.getpid()).encode())
+                    os.close(lock_fd)
+                    
+                    try:
+                        # We got the lock, check cache one more time
+                        self._load_token_from_cache()
+                        if self.access_token and not self._is_token_expired():
+                            logger.info("Token was refreshed by another instance")
+                            return self.access_token
+                        
+                        # Actually refresh the token
+                        logger.info("Acquired token refresh lock, refreshing...")
+                        await self._refresh_token()
+                        return self.access_token
+                        
+                    finally:
+                        # Release lock
+                        try:
+                            lock_file.unlink()
+                            logger.info("Released token refresh lock")
+                        except:
+                            pass
+                            
+                except FileExistsError:
+                    # Another instance holds the lock, wait and retry
+                    logger.debug("Waiting for token refresh lock...")
+                    await asyncio.sleep(2)
+                    
+                    # Try to load from cache (the other instance might have finished)
+                    self._load_token_from_cache()
+                    if self.access_token and not self._is_token_expired():
+                        logger.info("Using token refreshed by another instance")
+                        return self.access_token
+            
+            # Timeout waiting for lock
+            raise RuntimeError("Timeout waiting for token refresh lock")
         
         return self.access_token
     
@@ -196,6 +252,8 @@ class KISAuth:
                                 "expires_in_hours": expires_in / 3600,
                             }
                         )
+                        # Save to cache for reuse
+                        self._save_token_to_cache()
                         break
             else:
                 # for/else executes when no break occurred
@@ -297,10 +355,79 @@ class KISAuth:
         }
     
     # ============================================================
+    # Token Caching (to avoid 1/min issuance limit)
+    # ============================================================
+    
+    def _get_token_cache_path(self) -> Path:
+        """Get token cache file path."""
+        cache_dir = Path.home() / ".kis_cache"
+        cache_dir.mkdir(exist_ok=True)
+        mode_suffix = "virtual" if self.is_virtual else "real"
+        return cache_dir / f"token_{mode_suffix}.json"
+    
+    def _load_token_from_cache(self) -> None:
+        """Load token from cache file if valid."""
+        try:
+            if not self._token_cache_path.exists():
+                return
+            
+            with open(self._token_cache_path, "r") as f:
+                cache = json.load(f)
+            
+            # Validate cache structure
+            if not all(k in cache for k in ("access_token", "issued_at", "expires_at")):
+                return
+            
+            # Parse timestamps
+            issued_at = datetime.fromisoformat(cache["issued_at"])
+            expires_at = datetime.fromisoformat(cache["expires_at"])
+            
+            # Check if still valid (with 1-hour buffer)
+            now = datetime.now(timezone.utc)
+            if (expires_at - now).total_seconds() < 3600:
+                logger.info("Cached token expired or expiring soon, will refresh")
+                return
+            
+            # Load cached token
+            self.access_token = cache["access_token"]
+            self.token_issued_at = issued_at
+            self.token_expires_at = expires_at
+            
+            logger.info(
+                "Loaded token from cache",
+                extra={
+                    "issued_at": issued_at.isoformat(),
+                    "expires_at": expires_at.isoformat(),
+                    "remaining_hours": (expires_at - now).total_seconds() / 3600,
+                }
+            )
+        
+        except Exception as e:
+            logger.warning(f"Failed to load token from cache: {e}")
+    
+    def _save_token_to_cache(self) -> None:
+        """Save current token to cache file."""
+        try:
+            cache = {
+                "access_token": self.access_token,
+                "issued_at": self.token_issued_at.isoformat(),
+                "expires_at": self.token_expires_at.isoformat(),
+            }
+            
+            with open(self._token_cache_path, "w") as f:
+                json.dump(cache, f, indent=2)
+            
+            logger.debug(f"Token saved to cache: {self._token_cache_path}")
+        
+        except Exception as e:
+            logger.warning(f"Failed to save token to cache: {e}")
+    
+    # ============================================================
     # Lifecycle Management
     # ============================================================
     
     async def close(self) -> None:
         """Clean up resources."""
+        # Token cache persists across sessions intentionally
         logger.info("KISAuth closed")
         # No persistent connections to close in this implementation

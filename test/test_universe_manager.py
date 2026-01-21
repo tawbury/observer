@@ -31,26 +31,38 @@ async def main():
     auth = KISAuth(app_key, app_secret, is_virtual=False)
     engine = ProviderEngine(auth, is_virtual=False)
 
-    # Small candidate list just for smoke; set min_count low to avoid failures here
-    candidates = [
-        "005930", "000660", "005380", "373220", "207940",
-        "035420", "035720", "051910", "005490", "068270",
-    ]
-    manager = UniverseManager(engine, min_price=4000, min_count=1, candidate_symbols=candidates)
+    # Test with file-based candidate list (avoids API rate limits)
+    # Use min_price=4000 for price filter (Task 6.1 requirement), min_count=100 for validation
+    manager = UniverseManager(engine, min_price=4000, min_count=100)
 
     today = date.today().isoformat()
     try:
+        print("Creating universe snapshot from file-based candidates...")
+        print("  min_price=4000 (Task 6.1 price filter), min_count=100")
         path = await manager.create_daily_snapshot(today)
+        
+        # Load and verify
+        universe = manager.load_universe(today)
+        
         print({
             "ok": True,
             "snapshot_path": path,
-            "message": "Universe snapshot created",
+            "universe_count": len(universe),
+            "message": f"Universe snapshot created with {len(universe)} symbols",
         })
+        
+        if len(universe) >= 100:
+            print(f"✅ Validation passed: Universe has {len(universe)} symbols (>= 100)")
+        else:
+            print(f"❌ Validation failed: Only {len(universe)} symbols (need >= 100)")
+            
     except Exception as e:
         print({
             "ok": False,
             "error": str(e),
         })
+    finally:
+        await engine.close()
 
 
 if __name__ == "__main__":

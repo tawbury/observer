@@ -34,7 +34,8 @@ class UniverseManager:
         self.min_price = int(min_price)
         self.min_count = int(min_count)
         # Default snapshot dir inside obs_deploy config
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "config"))
+        # From app/obs_deploy/app/src/universe -> app/obs_deploy/config
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "config"))
         self.universe_dir = universe_dir or os.path.join(base_dir, "universe")
         os.makedirs(self.universe_dir, exist_ok=True)
         self._candidate_symbols = list(candidate_symbols) if candidate_symbols else None
@@ -162,18 +163,21 @@ class UniverseManager:
             return list(dict.fromkeys(self._candidate_symbols))
 
         # Try file-based candidates: config/symbols/kr_all_symbols.(txt|csv)
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "config"))
+        # From app/obs_deploy/app/src/universe -> app/obs_deploy/config
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "config"))
         symbols_dir = os.path.join(base_dir, "symbols")
         txt_path = os.path.join(symbols_dir, "kr_all_symbols.txt")
         csv_path = os.path.join(symbols_dir, "kr_all_symbols.csv")
         result: List[str] = []
 
         if os.path.exists(txt_path):
+            print(f"[DEBUG] Loading candidates from: {txt_path}")
             with open(txt_path, "r", encoding="utf-8") as f:
                 for line in f:
                     s = line.strip()
                     if s:
                         result.append(s)
+            print(f"[DEBUG] Loaded {len(result)} candidates from file")
         elif os.path.exists(csv_path):
             # Minimal CSV reader without dependency
             with open(csv_path, "r", encoding="utf-8") as f:

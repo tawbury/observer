@@ -51,7 +51,7 @@ from .pattern_record import PatternRecord
 from .event_bus import (
     EventBus,
     JsonlFileSink,
-    IEventSink,
+    SnapshotSink,
 )
 
 # Entry points

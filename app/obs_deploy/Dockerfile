@@ -22,15 +22,24 @@ COPY app/src/ /app/src/
 
 # 필수 디렉토리 생성
 RUN mkdir -p /app/data/observer \
-    && mkdir -p /app/logs \
-    && mkdir -p /app/config
+    && mkdir -p /app/logs/system \
+    && mkdir -p /app/logs/maintenance \
+    && mkdir -p /app/config/observer \
+    && mkdir -p /app/secrets/.kis_cache
 
 # 환경 변수 설정 (Standalone 모드)
 ENV OBSERVER_STANDALONE=1
 ENV PYTHONPATH=/app/src:/app
+ENV PATH=/root/.local/bin:$PATH
+
+# 경로 환경변수 (paths.py에서 사용)
 ENV OBSERVER_DATA_DIR=/app/data/observer
 ENV OBSERVER_LOG_DIR=/app/logs
-ENV PATH=/root/.local/bin:$PATH
+ENV OBSERVER_SYSTEM_LOG_DIR=/app/logs/system
+ENV OBSERVER_MAINTENANCE_LOG_DIR=/app/logs/maintenance
+ENV OBSERVER_CONFIG_DIR=/app/config
+ENV KIS_TOKEN_CACHE_DIR=/app/secrets/.kis_cache
+ENV OBSERVER_ENV_FILE=/app/secrets/.env
 
 # 보안: 비-root 사용자로 실행
 RUN groupadd -r observer && useradd -r -g observer observer

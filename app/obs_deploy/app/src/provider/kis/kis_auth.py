@@ -32,6 +32,11 @@ from pathlib import Path
 from typing import Dict, Optional
 import aiohttp
 
+try:
+    from paths import kis_token_cache_dir
+except ImportError:
+    kis_token_cache_dir = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 
@@ -417,9 +422,13 @@ class KISAuth:
     # ============================================================
     
     def _get_token_cache_path(self) -> Path:
-        """Get token cache file path."""
-        cache_dir = Path.home() / ".kis_cache"
-        cache_dir.mkdir(exist_ok=True)
+        """Get token cache file path (Docker-compatible)."""
+        if kis_token_cache_dir is not None:
+            cache_dir = kis_token_cache_dir()
+        else:
+            # Fallback: use home directory
+            cache_dir = Path.home() / ".kis_cache"
+            cache_dir.mkdir(exist_ok=True)
         mode_suffix = "virtual" if self.is_virtual else "real"
         return cache_dir / f"token_{mode_suffix}.json"
     

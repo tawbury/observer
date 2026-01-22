@@ -260,3 +260,114 @@ def google_credentials_path() -> Path:
     Validation is responsibility of the consumer.
     """
     return schema_secrets_dir() / "google_credentials.json"
+
+
+# ============================================================
+# Docker-compatible paths (Environment variable overrides)
+# ============================================================
+
+def log_dir() -> Path:
+    """
+    Canonical log root directory.
+
+    Environment variable: OBSERVER_LOG_DIR
+    Default: {project_root}/logs
+
+    Policy:
+    - All log files MUST be placed under this directory.
+    - Auto-creates directory if not exists.
+    """
+    if env_path := os.environ.get("OBSERVER_LOG_DIR"):
+        path = Path(env_path)
+    else:
+        path = project_root() / "logs"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def system_log_dir() -> Path:
+    """
+    System log directory for gap detector and slot overflow.
+
+    Environment variable: OBSERVER_SYSTEM_LOG_DIR
+    Default: {log_dir}/system
+
+    Used by:
+    - GapDetector (gap_YYYYMMDD.jsonl)
+    - SlotManager (overflow_YYYYMMDD.jsonl)
+    """
+    if env_path := os.environ.get("OBSERVER_SYSTEM_LOG_DIR"):
+        path = Path(env_path)
+    else:
+        path = log_dir() / "system"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def maintenance_log_dir() -> Path:
+    """
+    Maintenance log directory.
+
+    Environment variable: OBSERVER_MAINTENANCE_LOG_DIR
+    Default: {log_dir}/maintenance
+
+    Used by:
+    - Cleanup operations
+    - Backup operations
+    """
+    if env_path := os.environ.get("OBSERVER_MAINTENANCE_LOG_DIR"):
+        path = Path(env_path)
+    else:
+        path = log_dir() / "maintenance"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def kis_token_cache_dir() -> Path:
+    """
+    KIS API token cache directory.
+
+    Environment variable: KIS_TOKEN_CACHE_DIR
+    Default (Docker): {project_root}/secrets/.kis_cache
+    Default (Local): ~/.kis_cache
+
+    Replaces Path.home() / ".kis_cache" for Docker compatibility.
+    """
+    if env_path := os.environ.get("KIS_TOKEN_CACHE_DIR"):
+        path = Path(env_path)
+    elif os.environ.get("OBSERVER_STANDALONE") == "1":
+        # Docker mode: use secrets directory
+        path = project_root() / "secrets" / ".kis_cache"
+    else:
+        # Local development: use home directory
+        path = Path.home() / ".kis_cache"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def env_file_path() -> Path:
+    """
+    Get .env file path.
+
+    Environment variable: OBSERVER_ENV_FILE
+    Default: searches common locations
+
+    Resolution order:
+    1. OBSERVER_ENV_FILE environment variable
+    2. {project_root}/.env
+    3. {project_root}/secrets/.env (Docker)
+    """
+    if env_path := os.environ.get("OBSERVER_ENV_FILE"):
+        return Path(env_path)
+
+    # Check common locations
+    candidates = [
+        project_root() / ".env",
+        project_root() / "secrets" / ".env",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    # Default (even if not exists)
+    return project_root() / ".env"

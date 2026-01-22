@@ -23,6 +23,11 @@ try:
 except Exception:  # pragma: no cover
     ZoneInfo = None  # type: ignore
 
+try:
+    from paths import system_log_dir
+except ImportError:
+    system_log_dir = None  # type: ignore
+
 log = logging.getLogger("GapDetector")
 
 
@@ -78,8 +83,8 @@ class GapDetectorConfig:
     track_b_major_threshold_seconds: int = 60     # 60 seconds
     track_b_critical_threshold_seconds: int = 300  # 5 minutes
     
-    # Gap log settings
-    gap_ledger_dir: str = "d:/development/prj_obs/logs/system"
+    # Gap log settings (resolved via paths.py or fallback)
+    gap_ledger_dir: str = ""  # Empty = use system_log_dir() from paths.py
 
 
 class GapDetector:
@@ -102,7 +107,13 @@ class GapDetector:
         self._track_b_last_updates: Dict[str, datetime] = {}  # symbol -> timestamp
         
         # Ensure gap ledger directory exists
-        self.gap_ledger_dir = Path(self.cfg.gap_ledger_dir)
+        if self.cfg.gap_ledger_dir:
+            self.gap_ledger_dir = Path(self.cfg.gap_ledger_dir)
+        elif system_log_dir is not None:
+            self.gap_ledger_dir = system_log_dir()
+        else:
+            # Fallback: relative to current file
+            self.gap_ledger_dir = Path(__file__).resolve().parents[4] / "logs" / "system"
         self.gap_ledger_dir.mkdir(parents=True, exist_ok=True)
         
     # -----------------------------------------------------

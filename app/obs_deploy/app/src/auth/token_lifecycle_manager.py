@@ -28,6 +28,11 @@ APP_ROOT = str(Path(__file__).resolve().parents[2])
 if APP_ROOT not in sys.path:
     sys.path.append(APP_ROOT)
 
+try:
+    from paths import env_file_path
+except ImportError:
+    env_file_path = None  # type: ignore
+
 from provider import KISAuth, ProviderEngine
 
 log = logging.getLogger("TokenLifecycleManager")
@@ -335,8 +340,11 @@ async def main():
     parser.add_argument("--run-for", type=int, default=60, help="Run for N seconds (default: 60)")
     args = parser.parse_args()
     
-    # Load .env if exists
-    env_file = Path("d:/development/prj_obs/app/obs_deploy/.env")
+    # Load .env if exists (Docker-compatible)
+    if env_file_path is not None:
+        env_file = env_file_path()
+    else:
+        env_file = Path(__file__).resolve().parents[3] / ".env"
     if env_file.exists():
         load_dotenv(env_file)
     

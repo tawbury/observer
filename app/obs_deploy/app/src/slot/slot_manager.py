@@ -15,6 +15,11 @@ from dataclasses import dataclass, asdict
 from typing import Optional, List, Dict
 from collections import deque
 
+try:
+    from paths import system_log_dir
+except ImportError:
+    system_log_dir = None  # type: ignore
+
 
 @dataclass
 class SlotCandidate:
@@ -87,18 +92,14 @@ class SlotManager:
         # Slot state: slot_id -> SlotInfo
         self.slots: Dict[int, Optional[SlotInfo]] = {i: None for i in range(max_slots)}
         
-        # Overflow ledger
-        if overflow_ledger_dir is None:
-            # Default to logs/system/ from project root
-            # __file__ is in app/obs_deploy/app/src/slot/slot_manager.py
-            # project_root is 5 levels up: slot -> src -> app -> obs_deploy -> app -> project_root
-            # Actually: app/obs_deploy/app/src/slot/slot_manager.py
-            # So: slot -> src -> app -> obs_deploy -> app -> project_root
-            # This is wrong - need to go up 5 levels
-            # Let's use absolute path from common root
-            overflow_ledger_dir = Path("d:/development/prj_obs/logs/system")
-        
-        self.overflow_ledger_dir = Path(overflow_ledger_dir)
+        # Overflow ledger - resolve via paths.py or fallback
+        if overflow_ledger_dir is not None:
+            self.overflow_ledger_dir = Path(overflow_ledger_dir)
+        elif system_log_dir is not None:
+            self.overflow_ledger_dir = system_log_dir()
+        else:
+            # Fallback: relative to current file
+            self.overflow_ledger_dir = Path(__file__).resolve().parents[4] / "logs" / "system"
         self.overflow_ledger_dir.mkdir(parents=True, exist_ok=True)
         
         # Statistics

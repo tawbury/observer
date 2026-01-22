@@ -34,6 +34,11 @@ from trigger.trigger_engine import TriggerEngine, PriceSnapshot
 from slot.slot_manager import SlotManager, SlotCandidate
 from paths import observer_asset_dir
 
+try:
+    from paths import env_file_path
+except ImportError:
+    env_file_path = None  # type: ignore
+
 log = logging.getLogger("TrackBCollector")
 
 
@@ -383,8 +388,11 @@ async def main():
     parser.add_argument("--run-for", type=int, default=300, help="Run for N seconds (default: 300)")
     args = parser.parse_args()
     
-    # Load .env if exists
-    env_file = Path("d:/development/prj_obs/app/obs_deploy/.env")
+    # Load .env if exists (Docker-compatible)
+    if env_file_path is not None:
+        env_file = env_file_path()
+    else:
+        env_file = Path(__file__).resolve().parents[3] / ".env"
     if env_file.exists():
         from dotenv import load_dotenv
         load_dotenv(env_file)

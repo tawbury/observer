@@ -114,8 +114,9 @@ def config_dir() -> Path:
 
     Policy:
     - Long-lived operational assets live here.
+    - Located under app/obs_deploy/app/config/ for Docker compatibility
     """
-    path = project_root() / "config"
+    path = project_root() / "app" / "obs_deploy" / "app" / "config"
     path.mkdir(parents=True, exist_ok=True)
     return path
 

@@ -176,7 +176,7 @@ async def main():
     
     # 데이터 소스 경로
     project_root = Path(__file__).parent.parent.parent.parent.parent.parent
-    swing_data_dir = project_root / 'config' / 'observer' / 'swing'
+    swing_data_dir = project_root / 'app' / 'obs_deploy' / 'app' / 'config' / 'observer' / 'swing'
     
     logger.info("=" * 70)
     logger.info("Phase 13 Task 13.2: JSONL → PostgreSQL 마이그레이션")

@@ -3,6 +3,8 @@ infra/output/
 app/obs_deploy/MANIFEST.txt
 app/obs_deploy/start_observer.sh
 app/obs_deploy/app/data/
+app/obs_deploy/app/config/observer/
+app/obs_deploy/app/logs/
 
 # Python
 __pycache__/

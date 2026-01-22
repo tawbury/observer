@@ -238,12 +238,13 @@ class LogRotationManager:
 def main():
     """CLI for testing LogRotationManager"""
     import argparse
+    from paths import observer_asset_dir
     
     parser = argparse.ArgumentParser(description="Log Rotation Manager Test CLI")
     parser.add_argument("--test", action="store_true", help="Run test scenario")
     args = parser.parse_args()
     
-    base_dir = Path("d:/development/prj_obs/config/observer")
+    base_dir = observer_asset_dir()
     manager = LogRotationManager(base_dir)
     
     if args.test:

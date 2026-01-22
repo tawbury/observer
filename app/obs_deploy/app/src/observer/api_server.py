@@ -413,14 +413,30 @@ async def get_prometheus_metrics():
 
     # Observer-specific metrics from performance_metrics module
     try:
-        observer_metrics = get_metrics()
-        if observer_metrics:
-            for key, value in observer_metrics.items():
-                if isinstance(value, (int, float)):
-                    safe_key = key.replace(" ", "_").replace("-", "_").lower()
-                    metrics_lines.append(f"# HELP observer_{safe_key} Observer metric: {key}")
-                    metrics_lines.append(f"# TYPE observer_{safe_key} gauge")
-                    metrics_lines.append(f"observer_{safe_key} {value}")
+        metrics_obj = get_metrics()
+        observer_metrics = metrics_obj.get_metrics_summary()
+
+        # Counters -> Prometheus counters
+        for key, value in observer_metrics.get("counters", {}).items():
+            safe_key = key.replace(" ", "_").replace("-", "_").lower()
+            metrics_lines.append(f"# HELP observer_{safe_key}_total Observer counter: {key}")
+            metrics_lines.append(f"# TYPE observer_{safe_key}_total counter")
+            metrics_lines.append(f"observer_{safe_key}_total {value}")
+
+        # Gauges -> Prometheus gauges
+        for key, value in observer_metrics.get("gauges", {}).items():
+            safe_key = key.replace(" ", "_").replace("-", "_").lower()
+            metrics_lines.append(f"# HELP observer_{safe_key} Observer gauge: {key}")
+            metrics_lines.append(f"# TYPE observer_{safe_key} gauge")
+            metrics_lines.append(f"observer_{safe_key} {value}")
+
+        # Timing stats (export avg_ms as gauge)
+        for key, stats in observer_metrics.get("timing_stats", {}).items():
+            safe_key = key.replace(" ", "_").replace("-", "_").lower()
+            if "avg_ms" in stats:
+                metrics_lines.append(f"# HELP observer_{safe_key}_avg_ms Observer timing avg for {key}")
+                metrics_lines.append(f"# TYPE observer_{safe_key}_avg_ms gauge")
+                metrics_lines.append(f"observer_{safe_key}_avg_ms {stats['avg_ms']}")
     except Exception as e:
         logger.error(f"Error collecting observer metrics: {e}")
 
@@ -438,9 +454,9 @@ async def get_observer_metrics():
     Returns:
         Observer and system metrics in JSON format
     """
-    observer_metrics = {}
+    observer_metrics: Dict[str, Any] = {}
     try:
-        observer_metrics = get_metrics()
+        observer_metrics = get_metrics().get_metrics_summary()
     except Exception as e:
         logger.error(f"Error collecting observer metrics: {e}")
         observer_metrics = {"error": str(e)}

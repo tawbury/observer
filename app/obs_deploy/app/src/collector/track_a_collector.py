@@ -72,9 +72,18 @@ class TrackACollector:
     async def start(self) -> None:
         """Run every interval during trading hours."""
         log.info("TrackACollector started (interval=%dm)", self.cfg.interval_minutes)
+        last_in_trading: Optional[bool] = None
         while True:
             now = self._now()
-            if self._in_trading_hours(now):
+            in_trading = self._in_trading_hours(now)
+            if in_trading:
+                if last_in_trading is False:
+                    log.info(
+                        "Trading window open (%s-%s KST) - resuming collection",
+                        self.cfg.trading_start,
+                        self.cfg.trading_end,
+                    )
+                last_in_trading = True
                 try:
                     await self.collect_once()
                 except Exception as e:
@@ -86,6 +95,13 @@ class TrackACollector:
                             pass
                 await asyncio.sleep(self.cfg.interval_minutes * 60)
             else:
+                if last_in_trading is not False:
+                    log.info(
+                        "Outside trading hours (%s-%s KST) - sleeping 60s",
+                        self.cfg.trading_start,
+                        self.cfg.trading_end,
+                    )
+                last_in_trading = False
                 # Sleep until next minute to re-check window quickly
                 await asyncio.sleep(60)
 

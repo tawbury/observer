@@ -47,6 +47,9 @@ services:
       - KIS_APP_KEY=${KIS_APP_KEY}
       - KIS_APP_SECRET=${KIS_APP_SECRET}
       - KIS_IS_VIRTUAL=${KIS_IS_VIRTUAL:-false}
+      # Track A/B Collectors
+      - TRACK_A_ENABLED=${TRACK_A_ENABLED:-true}
+      - TRACK_B_ENABLED=${TRACK_B_ENABLED:-false}
       # Database settings
       - DB_HOST=postgres
       - DB_USER=postgres

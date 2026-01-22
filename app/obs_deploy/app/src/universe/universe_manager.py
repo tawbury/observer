@@ -35,7 +35,7 @@ class UniverseManager:
         self.min_count = int(min_count)
         # Default snapshot dir inside obs_deploy config
         # From app/obs_deploy/app/src/universe -> app/obs_deploy/config
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "config"))
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "config"))
         self.universe_dir = universe_dir or os.path.join(base_dir, "universe")
         os.makedirs(self.universe_dir, exist_ok=True)
         self._candidate_symbols = list(candidate_symbols) if candidate_symbols else None

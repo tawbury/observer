@@ -40,6 +40,14 @@
 - Task는 Roadmap 항목에 메타데이터로 연결된 최소 실행 단위
 - Run Records는 의미 있는 작업 후 루프 종료
 
+### Deployment Scripts
+- [scripts/deploy/deploy.ps1](scripts/deploy/deploy.ps1): 기본 전체 배포 스크립트 (env 검증/업로드, 아티팩트 업로드, server_deploy.sh 실행, 헬스 체크 포함). `-EnvOnly` 스위치로 env 업데이트만 수행 가능 (아티팩트/배포 단계 스킵).
+- [scripts/deploy/deploy_simple.ps1](scripts/deploy/deploy_simple.ps1): 호환성 래퍼. 내부적으로 deploy.ps1 `-EnvOnly`를 호출하여 빠른 환경 변수 업데이트만 실행.
+- EnvOnly 예시:
+```
+powershell -File scripts\deploy\deploy.ps1 -ServerHost "<host>" -SshUser "<user>" -SshKeyPath "<path_to_key>" -DeployDir "/home/azureuser/observer-deploy" -LocalEnvFile "app\obs_deploy\.env.server" -EnvOnly
+```
+
 ---
 
 ## Workflow Stages

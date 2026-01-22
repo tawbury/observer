@@ -1,0 +1,83 @@
+# Observer Deployment Targets Configuration
+# 용도: 배포 대상 서버 정보 중앙화
+# 버전: v1.0.0
+# 참고: 현재는 선택적 설정 파일입니다. deploy.ps1에서 직접 값을 입력하거나 이 파일을 읽도록 확장 가능
+
+targets:
+  # 스테이징 환경
+  staging:
+    server_name: "Azure VM - Staging"
+    host: "your_staging_server_ip"
+    ssh_user: "azureuser"
+    ssh_key_path: "${HOME}/.ssh/id_rsa"
+    deploy_dir: "/home/azureuser/observer-deploy"
+    compose_file: "docker-compose.server.yml"
+    health_endpoint: "http://localhost:8000/health"
+    description: "스테이징 환경 Observer 배포"
+    
+  # 프로덕션 환경
+  production:
+    server_name: "Azure VM - Production"
+    host: "your_prod_server_ip"
+    ssh_user: "azureuser"
+    ssh_key_path: "${HOME}/.ssh/id_rsa"
+    deploy_dir: "/home/azureuser/observer-deploy"
+    compose_file: "docker-compose.server.yml"
+    health_endpoint: "http://localhost:8000/health"
+    description: "프로덕션 환경 Observer 배포"
+    
+  # 개발 환경 (로컬)
+  dev:
+    server_name: "Local Development"
+    host: "localhost"
+    ssh_user: "dev_user"
+    ssh_key_path: "${HOME}/.ssh/id_rsa_dev"
+    deploy_dir: "/home/dev_user/observer-deploy"
+    compose_file: "docker-compose.yml"
+    health_endpoint: "http://localhost:8000/health"
+    description: "로컬 개발 환경"
+
+# ============================================================================
+# 사용법 (향후)
+# ============================================================================
+# 
+# PowerShell에서 YAML 읽기:
+#   $config = ConvertFrom-Yaml (Get-Content .ai/runtime/targets.yml -Raw)
+#   $staging = $config.targets.staging
+#   .\scripts\deploy\deploy.ps1 -ServerHost $staging.host -SshUser $staging.ssh_user
+#
+# Bash에서 YAML 읽기:
+#   yq eval '.targets.staging.host' .ai/runtime/targets.yml
+#   yq eval '.targets.staging.ssh_user' .ai/runtime/targets.yml
+
+# ============================================================================
+# 사전 설정
+# ============================================================================
+# 
+# 본 파일을 사용하려면 다음을 구성하세요:
+# 
+# 1. 서버 IP 업데이트:
+#    - your_staging_server_ip → 실제 스테이징 서버 IP
+#    - your_prod_server_ip → 실제 프로덕션 서버 IP
+#
+# 2. SSH 키 경로 확인:
+#    - ${HOME}/.ssh/id_rsa 가 올바른지 확인
+#
+# 3. 배포 디렉토리 확인:
+#    - 각 서버의 /home/azureuser/observer-deploy 존재 여부 확인
+#
+# 4. PowerShell 스크립트 통합 (선택적):
+#    - deploy.ps1 파일에 YAML 읽기 로직 추가
+
+# ============================================================================
+# 보안 주의사항
+# ============================================================================
+#
+# ⚠️ 이 파일에 자격증명 저장 금지
+#    - 서버 IP, 사용자명만 저장
+#    - KIS_APP_KEY, KIS_APP_SECRET 절대 기록 금지
+#
+# ✅ 권장 보안 설정:
+#    - targets.yml을 .gitignore에 추가 (선택적)
+#    - SSH 키는 chmod 600 유지
+#    - 배포 대상 서버는 백업으로 설정 (read-only)

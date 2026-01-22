@@ -8,10 +8,11 @@ This is the main entry point for Docker container deployment.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import sys
 import os
+import signal
+import threading
 from pathlib import Path
 from uuid import uuid4
 
@@ -20,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from observer.observer import Observer
 from observer.event_bus import EventBus, JsonlFileSink
-from observer.api_server import run_api_server, get_status_tracker
+from observer.api_server import start_api_server_background, get_status_tracker
 from datetime import datetime, timezone
 
 def configure_environment():
@@ -32,7 +33,7 @@ def configure_environment():
     # For backward compatibility with deployment paths module
     os.environ.setdefault("OBSERVER_DEPLOYMENT_MODE", "docker")
 
-async def run_observer_with_api():
+def run_observer_with_api():
     """Run Observer system with FastAPI server"""
     configure_environment()
 
@@ -68,42 +69,54 @@ async def run_observer_with_api():
 
     try:
         # Start observer
-        await observer.start()
-        status_tracker.mark_observer_started()
-        status_tracker.mark_eventbus_connected(True)
+        observer.start()
+        status_tracker.update_state("running", ready=True)
 
         log.info("Observer system fully operational")
         log.info("Event archive: /app/data/observer/")
         log.info("Logs: /app/logs/")
         log.info("Starting FastAPI server on 0.0.0.0:8000")
 
-        # Start API server in background
-        api_task = asyncio.create_task(run_api_server(host="0.0.0.0", port=8000))
+        # Start API server in background thread
+        api_thread = start_api_server_background(host="0.0.0.0", port=8000)
 
         log.info("FastAPI server started - accessible at http://localhost:8000")
         log.info("Health check: http://localhost:8000/health")
         log.info("Status endpoint: http://localhost:8000/status")
         log.info("Metrics endpoint: http://localhost:8000/metrics")
 
-        # Keep running
-        await api_task
+        # Setup signal handlers for graceful shutdown
+        def signal_handler(sig, frame):
+            log.info("Received shutdown signal, stopping Observer system...")
+            status_tracker.update_state("stopping")
+            observer.stop()
+            status_tracker.update_state("stopped", ready=False)
+            log.info("Observer system stopped")
+            sys.exit(0)
+
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+
+        # Keep main thread alive - wait for API thread
+        api_thread.join()
 
     except KeyboardInterrupt:
         log.info("Shutting down Observer system...")
-        status_tracker.mark_observer_stopped()
+        status_tracker.update_state("stopping")
     except Exception as e:
         log.error(f"Observer system error: {e}")
-        status_tracker.mark_observer_stopped()
+        status_tracker.update_state("error")
         import traceback
         traceback.print_exc()
     finally:
         # Cleanup
-        await observer.stop()
+        observer.stop()
+        status_tracker.update_state("stopped", ready=False)
         log.info("Observer system stopped")
 
 if __name__ == "__main__":
     try:
-        asyncio.run(run_observer_with_api())
+        run_observer_with_api()
     except KeyboardInterrupt:
         print("\nObserver stopped by user")
     except Exception as e:

@@ -196,6 +196,16 @@ def observer_data_dir() -> Path:
     return path
 
 
+def observer_log_dir() -> Path:
+    """
+    Canonical Observer log directory.
+
+    Returns the log directory for Observer system.
+    Uses log_dir() as base.
+    """
+    return log_dir()
+
+
 # ------------------------------------------------------------
 # Test-related paths (read-only usage)
 # ------------------------------------------------------------

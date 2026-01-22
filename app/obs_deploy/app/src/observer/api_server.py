@@ -178,6 +178,12 @@ class ObserverStatusTracker:
 # Global status tracker instance
 status_tracker = ObserverStatusTracker()
 
+
+def get_status_tracker() -> ObserverStatusTracker:
+    """Get the global status tracker instance."""
+    return status_tracker
+
+
 # FastAPI application
 app = FastAPI(
     title="Observer API",
@@ -238,7 +244,7 @@ def perform_readiness_checks() -> Dict[str, bool]:
 
     # Check if asset directory exists
     try:
-        checks["asset_dir_exists"] = os.path.exists(observer_asset_dir)
+        checks["asset_dir_exists"] = os.path.exists(observer_asset_dir())
     except Exception:
         checks["asset_dir_exists"] = False
 
@@ -350,8 +356,8 @@ async def get_status():
         last_update=status_tracker.get_last_update().isoformat(),
         system=system_metrics,
         paths={
-            "asset_dir": observer_asset_dir,
-            "log_dir": observer_log_dir
+            "asset_dir": str(observer_asset_dir()),
+            "log_dir": str(observer_log_dir())
         }
     )
 

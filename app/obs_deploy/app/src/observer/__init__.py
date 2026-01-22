@@ -64,7 +64,6 @@ from .api_server import (
 # Deployment modes
 from .deployment_mode import (
     IDeploymentMode,
-    DeploymentMode,
     DeploymentModeType,
     DeploymentConfig,
     create_deployment_mode,

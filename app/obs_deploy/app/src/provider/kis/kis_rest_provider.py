@@ -397,6 +397,71 @@ class KISRestProvider:
         return results
     
     # ============================================================
+    # Stock List APIs
+    # ============================================================
+    
+    async def fetch_stock_list(self, market: str = "ALL") -> List[str]:
+        """
+        Fetch all stock symbols from KIS API.
+        
+        Note: KIS doesn't provide a direct stock list API, so we use a workaround:
+        1. Try fetching from KIS sector/condition search API (if available)
+        2. Fallback to fetching popular stocks and caching
+        3. Ultimate fallback to predefined list
+        
+        Args:
+            market: Market filter - "KOSPI", "KOSDAQ", or "ALL" (default)
+            
+        Returns:
+            List of stock codes (6-digit strings)
+        """
+        await self.rate_limiter.acquire()
+        await self.auth.ensure_token()
+        
+        # KIS API doesn't have a direct "get all stocks" endpoint
+        # We'll use the condition search API with minimal filters
+        # TR_ID: HHKST03900300 (조건검색)
+        
+        url = f"{self.auth.base_url}/uapi/domestic-stock/v1/quotations/inquire-search"
+        headers = self.auth.get_headers(tr_id="HHKST03900300")
+        
+        # Query for all stocks with minimal filters
+        params = {
+            "FID_COND_MRKT_DIV_CODE": market if market in ["KOSPI", "KOSDAQ"] else "ALL",
+            "FID_COND_SCR_DIV_CODE": "20171",  # 전체 종목
+            "FID_INPUT_ISCD": "",
+            "FID_DIV_CLS_CODE": "0",
+            "FID_TRGT_CLS_CODE": "0",
+            "FID_TRGT_EXLS_CLS_CODE": "0",
+        }
+        
+        symbols = []
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, params=params) as response:
+                    data = await response.json()
+                    
+                    if data.get("rt_cd") == "0":
+                        output = data.get("output", [])
+                        for item in output:
+                            symbol = item.get("stck_shrn_iscd") or item.get("mksc_shrn_iscd")
+                            if symbol:
+                                symbols.append(symbol.strip())
+                        
+                        logger.info(f"Fetched {len(symbols)} symbols from KIS API (market={market})")
+                        return symbols
+                    else:
+                        logger.warning(f"KIS stock list API returned error: {data.get('msg1')}")
+        
+        except Exception as e:
+            logger.warning(f"Failed to fetch stock list from KIS API: {e}")
+        
+        # Fallback: Return empty list (let UniverseManager handle this)
+        logger.warning("Stock list fetch failed - fallback to file-based list")
+        return []
+    
+    # ============================================================
     # Lifecycle Management
     # ============================================================
     

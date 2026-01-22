@@ -76,6 +76,10 @@ class ProviderEngine:
 
     async def fetch_daily_prices(self, symbol: str, days: int = 30) -> Any:
         return await self.rest.fetch_daily_prices(symbol, days=days)
+    
+    async def fetch_stock_list(self, market: str = "ALL") -> list[str]:
+        """Fetch all available stock symbols from provider."""
+        return await self.rest.fetch_stock_list(market=market)
 
     # ---------------------------------------------------------------------
     # Subscriptions

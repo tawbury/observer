@@ -22,7 +22,10 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from observer.observer import Observer
 from observer.event_bus import EventBus, JsonlFileSink
 from observer.api_server import start_api_server_background, get_status_tracker
+from universe.universe_scheduler import UniverseScheduler, SchedulerConfig
+from provider import KISAuth, ProviderEngine
 from datetime import datetime, timezone
+import asyncio
 
 def configure_environment():
     """Configure environment variables for Docker deployment"""
@@ -34,7 +37,7 @@ def configure_environment():
     os.environ.setdefault("OBSERVER_DEPLOYMENT_MODE", "docker")
 
 def run_observer_with_api():
-    """Run Observer system with FastAPI server"""
+    """Run Observer system with FastAPI server and Universe Scheduler"""
     configure_environment()
 
     # Ensure log directory exists
@@ -66,6 +69,40 @@ def run_observer_with_api():
 
     log.info("Starting Observer Docker system with API server | session_id=%s", session_id)
 
+    # Setup KIS credentials for Universe Scheduler
+    kis_app_key = os.environ.get("KIS_APP_KEY")
+    kis_app_secret = os.environ.get("KIS_APP_SECRET")
+    kis_is_virtual = os.environ.get("KIS_IS_VIRTUAL", "false").lower() in ("true", "1", "yes")
+    
+    universe_scheduler = None
+    if kis_app_key and kis_app_secret:
+        log.info("KIS credentials found - Universe Scheduler will be enabled")
+        try:
+            kis_auth = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
+            provider_engine = ProviderEngine(kis_auth, is_virtual=kis_is_virtual)
+            
+            scheduler_config = SchedulerConfig(
+                hour=5,  # 05:00 AM KST
+                minute=0,
+                min_price=4000,
+                min_count=100,
+                market="kr_stocks",
+                anomaly_ratio=0.30
+            )
+            
+            universe_scheduler = UniverseScheduler(
+                engine=provider_engine,
+                config=scheduler_config,
+                on_alert=lambda alert_type, data: log.warning(
+                    f"Universe Alert: {alert_type} | {data}"
+                )
+            )
+            log.info("Universe Scheduler configured: daily run at 05:00 KST")
+        except Exception as e:
+            log.error(f"Failed to initialize Universe Scheduler: {e}")
+    else:
+        log.warning("KIS_APP_KEY/SECRET not found - Universe Scheduler disabled")
+
     # Setup event bus with file sink
     observer_data_dir = Path(os.environ.get("OBSERVER_DATA_DIR", "/app/data/observer"))
     observer_data_dir.mkdir(parents=True, exist_ok=True)
@@ -86,6 +123,25 @@ def run_observer_with_api():
 
     # Get status tracker for monitoring
     status_tracker = get_status_tracker()
+
+    # Start Universe Scheduler in background if enabled
+    scheduler_task = None
+    if universe_scheduler:
+        def run_scheduler_async():
+            """Run scheduler in asyncio event loop"""
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                log.info("Starting Universe Scheduler background task...")
+                loop.run_until_complete(universe_scheduler.run_forever())
+            except Exception as e:
+                log.error(f"Universe Scheduler error: {e}")
+            finally:
+                loop.close()
+        
+        scheduler_thread = threading.Thread(target=run_scheduler_async, daemon=True)
+        scheduler_thread.start()
+        log.info("Universe Scheduler thread started")
 
     try:
         # Start observer

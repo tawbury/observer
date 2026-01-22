@@ -159,11 +159,33 @@ class UniverseManager:
         return target - timedelta(days=1)
 
     async def _load_candidates(self) -> List[str]:
+        """
+        Load candidate symbols from multiple sources in priority order:
+        1. API fetch from provider (most up-to-date)
+        2. Cached file (kr_all_symbols.txt/csv) - updated from last API fetch
+        3. Constructor-provided candidate_symbols
+        4. Built-in fallback list (minimal)
+        """
+        # Priority 1: Try API fetch
+        try:
+            print("[INFO] Fetching stock list from KIS API...")
+            api_symbols = await self.engine.fetch_stock_list(market="ALL")
+            if api_symbols and len(api_symbols) > 100:
+                print(f"[SUCCESS] Fetched {len(api_symbols)} symbols from API")
+                # Cache to file for future use
+                await self._cache_symbols_to_file(api_symbols)
+                return list(dict.fromkeys(api_symbols))
+            else:
+                print(f"[WARNING] API returned insufficient symbols ({len(api_symbols)}), trying file...")
+        except Exception as e:
+            print(f"[WARNING] API fetch failed: {e}, falling back to file...")
+        
+        # Priority 2: Constructor-provided symbols
         if self._candidate_symbols is not None:
+            print(f"[INFO] Using constructor-provided symbols ({len(self._candidate_symbols)})")
             return list(dict.fromkeys(self._candidate_symbols))
-
-        # Try file-based candidates: config/symbols/kr_all_symbols.(txt|csv)
-        # From app/obs_deploy/app/src/universe -> app/obs_deploy/config
+        
+        # Priority 3: File-based candidates
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "config"))
         symbols_dir = os.path.join(base_dir, "symbols")
         txt_path = os.path.join(symbols_dir, "kr_all_symbols.txt")
@@ -171,15 +193,18 @@ class UniverseManager:
         result: List[str] = []
 
         if os.path.exists(txt_path):
-            print(f"[DEBUG] Loading candidates from: {txt_path}")
+            print(f"[INFO] Loading cached symbols from: {txt_path}")
             with open(txt_path, "r", encoding="utf-8") as f:
                 for line in f:
                     s = line.strip()
                     if s:
                         result.append(s)
-            print(f"[DEBUG] Loaded {len(result)} candidates from file")
-        elif os.path.exists(csv_path):
-            # Minimal CSV reader without dependency
+            print(f"[INFO] Loaded {len(result)} symbols from file")
+            if result:
+                return list(dict.fromkeys(result))
+        
+        if os.path.exists(csv_path):
+            print(f"[INFO] Loading cached symbols from: {csv_path}")
             with open(csv_path, "r", encoding="utf-8") as f:
                 header = f.readline()
                 cols = [c.strip().lower() for c in header.split(",")]
@@ -189,23 +214,38 @@ class UniverseManager:
                         sym_idx = i
                         break
                 if sym_idx is None:
-                    # Fallback assume first column is symbol
                     sym_idx = 0
                 for line in f:
                     parts = [p.strip() for p in line.split(",")]
                     if parts and parts[0]:
                         result.append(parts[sym_idx])
-        else:
-            # Built-in small fallback; may not satisfy min_count
-            result = [
-                "005930", "000660", "005380", "373220", "207940",
-                "035420", "035720", "051910", "005490", "068270",
-                "028260", "006400", "105560", "055550", "012330",
-                "096770", "034730", "003550", "259960", "066570",
-            ]
-
-        # Deduplicate while preserving order
+            if result:
+                return list(dict.fromkeys(result))
+        
+        # Priority 4: Built-in minimal fallback
+        print("[WARNING] No API/file source available, using built-in fallback (20 symbols)")
+        result = [
+            "005930", "000660", "005380", "373220", "207940",
+            "035420", "035720", "051910", "005490", "068270",
+            "028260", "006400", "105560", "055550", "012330",
+            "096770", "034730", "003550", "259960", "066570",
+        ]
         return list(dict.fromkeys(result))
+    
+    async def _cache_symbols_to_file(self, symbols: List[str]) -> None:
+        """Cache fetched symbols to file for future fallback use."""
+        try:
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "config"))
+            symbols_dir = os.path.join(base_dir, "symbols")
+            os.makedirs(symbols_dir, exist_ok=True)
+            
+            cache_path = os.path.join(symbols_dir, "kr_all_symbols.txt")
+            with open(cache_path, "w", encoding="utf-8") as f:
+                for sym in symbols:
+                    f.write(f"{sym}\n")
+            print(f"[INFO] Cached {len(symbols)} symbols to {cache_path}")
+        except Exception as e:
+            print(f"[WARNING] Failed to cache symbols to file: {e}")
 
     def _extract_prev_close(self, payload: Any) -> Optional[int]:
         """Extract close price from ProviderEngine.fetch_daily_prices() result.

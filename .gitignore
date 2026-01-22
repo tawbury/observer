@@ -19,8 +19,24 @@ __pycache__/
 *.log
 *.sqlite3
 *.db
+# Security & Secrets
 *.env
 .env.*
+secrets.*
+secrets/
+app/obs_deploy/secrets/
+**/.env
+**/.env.*
+**/secrets/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+api_keys.txt
+credentials.json
+
+# Python virtual environments
 .venv/
 venv/
 
@@ -76,3 +92,15 @@ backups/
 app/obs_deploy/app/config/backups/archives/
 app/obs_deploy/app/config/backups/manifests/
 !app/obs_deploy/app/backup/backup_manager.py
+
+# Universe cache files (auto-generated from API)
+app/obs_deploy/config/symbols/kr_all_symbols.txt
+app/obs_deploy/config/symbols/kr_all_symbols.csv
+app/obs_deploy/app/config/symbols/kr_all_symbols.txt
+app/obs_deploy/app/config/symbols/kr_all_symbols.csv
+
+# Runtime data
+app/obs_deploy/data/
+app/obs_deploy/logs/
+app/obs_deploy/config/universe/*.json
+app/obs_deploy/app/config/universe/*.json

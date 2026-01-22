@@ -67,7 +67,7 @@ mcp-cli/node_modules/
 mcp-cli/dist/
 
 # .claude
- claude/
+ .claude/
 
 # backup files
 *.bak

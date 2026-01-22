@@ -37,10 +37,28 @@ def run_observer_with_api():
     """Run Observer system with FastAPI server"""
     configure_environment()
 
-    # Setup basic logging
+    # Ensure log directory exists
+    log_dir = Path(os.environ.get("OBSERVER_LOG_DIR", "/app/logs"))
+    log_dir.mkdir(parents=True, exist_ok=True)
+    system_log_dir = log_dir / "system"
+    system_log_dir.mkdir(parents=True, exist_ok=True)
+
+    # Setup logging with both console and file outputs
+    log_file = system_log_dir / "observer.log"
+    
+    # Configure logging with flushing enabled
+    file_handler = logging.FileHandler(str(log_file), mode='a')
+    file_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s"))
+    file_handler.setLevel(logging.INFO)
+    
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s"))
+    console_handler.setLevel(logging.INFO)
+    
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+        handlers=[file_handler, console_handler],
+        force=True
     )
 
     log = logging.getLogger("ObserverDocker")
@@ -52,6 +70,8 @@ def run_observer_with_api():
     observer_data_dir = Path(os.environ.get("OBSERVER_DATA_DIR", "/app/data/observer"))
     observer_data_dir.mkdir(parents=True, exist_ok=True)
     jsonl_path = observer_data_dir / "observer.jsonl"
+    
+    log.info("Event archive will be saved to: %s", jsonl_path)
     
     event_bus = EventBus([
         JsonlFileSink(str(jsonl_path))
@@ -73,8 +93,9 @@ def run_observer_with_api():
         status_tracker.update_state("running", ready=True)
 
         log.info("Observer system fully operational")
-        log.info("Event archive: /app/data/observer/")
-        log.info("Logs: /app/logs/")
+        log.info("Event archive: %s", observer_data_dir)
+        log.info("Logs: %s", log_dir)
+        log.info("Log file: %s", log_file)
         log.info("Starting FastAPI server on 0.0.0.0:8000")
 
         # Start API server in background thread
@@ -92,6 +113,9 @@ def run_observer_with_api():
             observer.stop()
             status_tracker.update_state("stopped", ready=False)
             log.info("Observer system stopped")
+            # Flush all logging handlers
+            for handler in logging.root.handlers:
+                handler.flush()
             sys.exit(0)
 
         signal.signal(signal.SIGINT, signal_handler)
@@ -113,6 +137,11 @@ def run_observer_with_api():
         observer.stop()
         status_tracker.update_state("stopped", ready=False)
         log.info("Observer system stopped")
+        # Ensure all logs are written
+        for handler in logging.root.handlers:
+            handler.flush()
+            if hasattr(handler, 'close'):
+                handler.close()
 
 if __name__ == "__main__":
     try:

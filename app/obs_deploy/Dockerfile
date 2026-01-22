@@ -5,7 +5,7 @@ WORKDIR /build
 
 # requirements.txt 복사 및 의존성 설치 (캐시 최적화)
 COPY requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 런타임 스테이지: 최소 이미지
 FROM python:3.11-slim
@@ -13,7 +13,8 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # 빌더 스테이지에서 의존성 복사
-COPY --from=builder /root/.local /root/.local
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
 # 애플리케이션 파일 복사 (소스는 ./app 하위에 위치)
 COPY app/observer.py /app/
@@ -30,7 +31,6 @@ RUN mkdir -p /app/data/observer \
 # 환경 변수 설정 (Standalone 모드)
 ENV OBSERVER_STANDALONE=1
 ENV PYTHONPATH=/app/src:/app
-ENV PATH=/root/.local/bin:$PATH
 
 # 경로 환경변수 (paths.py에서 사용)
 ENV OBSERVER_DATA_DIR=/app/data/observer

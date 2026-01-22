@@ -5,7 +5,7 @@ WORKDIR /build
 
 # requirements.txt 복사 및 의존성 설치 (캐시 최적화)
 COPY requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt || true
+RUN pip install --user --no-cache-dir -r requirements.txt
 
 # 런타임 스테이지: 최소 이미지
 FROM python:3.11-slim

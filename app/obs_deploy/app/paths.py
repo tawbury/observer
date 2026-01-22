@@ -116,7 +116,11 @@ def config_dir() -> Path:
     - Long-lived operational assets live here.
     - Located under app/obs_deploy/app/config/ for Docker compatibility
     """
-    path = project_root() / "app" / "obs_deploy" / "app" / "config"
+    # Check for Docker standalone mode environment variable first
+    if os.environ.get("OBSERVER_CONFIG_DIR"):
+        path = Path(os.environ["OBSERVER_CONFIG_DIR"])
+    else:
+        path = project_root() / "app" / "obs_deploy" / "app" / "config"
     path.mkdir(parents=True, exist_ok=True)
     return path
 

@@ -48,8 +48,12 @@ async def run_observer_with_api():
     log.info("Starting Observer Docker system with API server | session_id=%s", session_id)
 
     # Setup event bus with file sink
+    observer_data_dir = Path(os.environ.get("OBSERVER_DATA_DIR", "/app/data/observer"))
+    observer_data_dir.mkdir(parents=True, exist_ok=True)
+    jsonl_path = observer_data_dir / "observer.jsonl"
+    
     event_bus = EventBus([
-        JsonlFileSink("observer.jsonl")
+        JsonlFileSink(str(jsonl_path))
     ])
 
     # Create observer

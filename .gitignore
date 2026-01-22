@@ -104,3 +104,11 @@ app/obs_deploy/data/
 app/obs_deploy/logs/
 app/obs_deploy/config/universe/*.json
 app/obs_deploy/app/config/universe/*.json
+# Deployment artifacts (manage separately with Git LFS or direct SCP transfer)
+# Docker images and bundles
+app/obs_deploy/*.tar
+app/obs_deploy/*.tar.gz
+app/obs_deploy/*.tar.bak
+observer-image.tar
+observer-compose-*.tar.gz
+obs_deploy_package.tar.gz

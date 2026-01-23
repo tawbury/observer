@@ -85,8 +85,15 @@ jobs:
 
             cd "$DEPLOY_DIR"
 
-            # 배포 스크립트 실행
-            ./server_deploy.sh deploy "$IMAGE_TAG"
+            # Preflight 검증 (디버깅용)
+            echo "Current directory: $(pwd)"
+            echo "Available files:"
+            ls -la | head -10
+            echo "IMAGE_TAG is set: $([ -n "$IMAGE_TAG" ] && echo "true" || echo "false")"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            # 배포 스크립트 실행 (올바른 인자 순서: DEPLOY_DIR COMPOSE_FILE IMAGE_TAG MODE)
+            ./server_deploy.sh "$DEPLOY_DIR" docker-compose.server.yml "$IMAGE_TAG" deploy
 
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "✅ Deployment completed successfully"

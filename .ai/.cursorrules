@@ -126,7 +126,7 @@ Whenever a user requests to "create a new role" or "evaluate a position":
 - **Backup File Name**: Backup file name should include the original file name and a timestamp (e.g., "file.md_YYYYMMDD_HHMMSS.bak")
 
 ### Template Variables
-- **{{CURRENT_DATE}}**: Replace with actual current date (YYYY-MM-DD HH:MM format)
+- **{{CURRENT_DATE}}**: Replace with actual current date (yyyyMMdd-HHmmss format)
 - **{{USER}}**: Replace with actual user name
 - **File Naming**: Follow consistent naming conventions across all document types
 

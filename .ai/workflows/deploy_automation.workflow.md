@@ -113,6 +113,9 @@ powershell -File scripts\deploy\deploy.ps1 -ServerHost "<host>" -SshUser "<user>
   - 컨테이너 기반 리허설 테스트 환경 구성
   - 배포 전 최종 검증 수행
   - 검증된 이미지를 서버에서 사용 가능 상태로 준비한다. (배포 채널: 레지스트리 pull / 이미지 tar 전달 등은 환경에 따라 선택; 본 문서는 방법을 고정하지 않는다.)
+  - Exit Criteria: 선택된 이미지/버전 식별자(tag) 기록, 해당 식별자에 맞춰 전달 채널 준비 완료, 서버가 동일 이미지를 확보하거나 즉시 로드 가능함을 최소 확인
+
+※ Image Availability Contract: 서버가 선택된 전달 채널을 통해 동일 이미지에 접근 가능함이 확인되어야 Stage 7로 진행 가능.
 
 ### 7. Server Deployment & Runtime Validation
 - **Responsible**: Developer Agent + Ops Agent
@@ -181,6 +184,7 @@ powershell -File scripts\deploy\deploy.ps1 -ServerHost "<host>" -SshUser "<user>
 - **설정 파일**: env.template 및 compose/run 정의 읽기 전용
 - **바이너리/실행 파일**: 배포된 패키지 읽기 전용
 - **라이브러리 디렉토리**: 의존성 읽기 전용
+- **추가 원칙**: 위 허용 영역 외 코드/구성/compose는 불변으로 취급하고, 교체가 필요하면 배포 절차를 통해서만 반영 (서버 현장 편집 금지)
 
 ### 향후 강화 단계
 - **안정화 후 최소 권한 원칙 적용**
@@ -197,6 +201,7 @@ powershell -File scripts\deploy\deploy.ps1 -ServerHost "<host>" -SshUser "<user>
 - **Server**: 실제 .env 파일 (운영 환경 값)
 - **Template Control**: 템플릿이 필수 키/구조 제어
 - **Server Updates**: 값만 안전하게 업데이트, 구조는 템플릿 따름
+- **Ownership**: 환경 값 SSoT은 로컬 .env이며 서버 .env는 배포 스크립트/워크플로우를 통해서만 갱신 (서버 직접 편집 금지)
 
 ### 런타임 전용 주입 (향후 업그레이드 경로)
 - **현재**: 구현하지 않음 (선택적)
@@ -212,6 +217,7 @@ powershell -File scripts\deploy\deploy.ps1 -ServerHost "<host>" -SshUser "<user>
 - **롤백 명령**: 이전 안정 태그로 되돌리기 (수동)
 - **향후 자동 롤백**: 메트릭 임계치 초과 시 자동 복귀 (향후 업그레이드 경로)
 - **롤백 기록**: 모든 롤백 작업 Run Record에 기록
+- **Tag SSoT**: 롤백 대상은 태그(또는 동등 버전 식별자)를 단일 SSoT로 삼아 선택하며, 해당 식별자로 이미지/패키지를 지정
 
 ### 데이터/스키마 변경 가정
 - **가정**: 데이터/스키마 변경은 거의 없음

@@ -28,7 +28,9 @@ services:
         max-file: "3"
 
   observer:
-    build: .
+    build:
+      context: ../..
+      dockerfile: app/obs_deploy/Dockerfile
     container_name: observer
     restart: unless-stopped
     environment:

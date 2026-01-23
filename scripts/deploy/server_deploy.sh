@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
 # Observer Deployment Server Runner (Linux/Bash)
-# 용도: 서버에서 Docker 이미지 로드, Compose 실행, 운영 체크
-# 버전: v1.0.0
+# 용도: 서버에서 GHCR 이미지 배포/롤백, Compose 실행, 운영 체크
+# 버전: v1.1.0
 ################################################################################
 
 set -euo pipefail
@@ -12,11 +12,16 @@ set -euo pipefail
 # ============================================================================
 DEPLOY_DIR="${1:-.}"
 COMPOSE_FILE="${2:-docker-compose.server.yml}"
-IMAGE_TAR="${3:-observer-image.tar}"
+IMAGE_TAG_INPUT="${3:-}"
+MODE="${4:-deploy}"
+IMAGE_NAME="ghcr.io/tawbury/observer"
+LAST_GOOD_FILE="$DEPLOY_DIR/runtime/state/last_good_tag"
+BACKUP_DIR="$DEPLOY_DIR/backups/archives"
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 HEALTH_ENDPOINT="http://localhost:8000/health"
 MAX_RETRIES=5
 RETRY_DELAY=3
+IMAGE_TAG=""
 
 # 색상 정의
 RED='\033[0;31m'
@@ -64,47 +69,61 @@ validate_inputs() {
         log_error "Compose 파일 없음: $DEPLOY_DIR/$COMPOSE_FILE"
         return 1
     fi
-    
+
     log_debug "Compose 파일: $COMPOSE_FILE"
-    
-    # 이미지 TAR 파일 확인
-    if [ ! -f "$DEPLOY_DIR/$IMAGE_TAR" ]; then
-        log_warn "이미지 TAR 파일 없음: $DEPLOY_DIR/$IMAGE_TAR (기존 이미지 사용)"
-    else
-        log_debug "이미지 TAR 파일: $IMAGE_TAR"
-    fi
     
     # .env 파일 확인
     if [ ! -f "$DEPLOY_DIR/.env" ]; then
         log_error ".env 파일 없음: $DEPLOY_DIR/.env"
         return 1
     fi
-    
+
     log_debug ".env 파일 존재 확인됨"
+
+    # 모드별 태그 확인
+    if [ "$MODE" = "deploy" ] && [ -z "$IMAGE_TAG_INPUT" ]; then
+        log_error "IMAGE_TAG 입력 필요 (예: 20260123-123456)"
+        return 1
+    fi
+    if [ "$MODE" = "rollback" ] && [ ! -f "$LAST_GOOD_FILE" ]; then
+        log_error "last_good_tag 없음: $LAST_GOOD_FILE"
+        return 1
+    fi
     
     log_info "✅ 입력 검증 완료"
     return 0
 }
 
 # ============================================================================
-# 함수: Docker 이미지 로드
+# 함수: 이미지 태그 결정 (deploy/rollback)
 # ============================================================================
-load_docker_image() {
-    log_info "=== Docker 이미지 로드 중 ==="
-    
-    if [ ! -f "$DEPLOY_DIR/$IMAGE_TAR" ]; then
-        log_warn "이미지 TAR 없음, 스킵"
-        return 0
+resolve_image_tag() {
+    if [ "$MODE" = "rollback" ]; then
+        IMAGE_TAG=$(cat "$LAST_GOOD_FILE" 2>/dev/null || true)
+        if [ -z "$IMAGE_TAG" ]; then
+            log_error "last_good_tag를 읽을 수 없습니다"
+            return 1
+        fi
+        log_info "롤백 태그 사용: $IMAGE_TAG"
+    else
+        IMAGE_TAG="$IMAGE_TAG_INPUT"
+        log_info "배포 태그 사용: $IMAGE_TAG"
     fi
-    
+    return 0
+}
+
+# ============================================================================
+# 함수: Docker 이미지 Pull
+# ============================================================================
+pull_docker_image() {
+    log_info "=== Docker 이미지 Pull 중 ==="
     cd "$DEPLOY_DIR"
-    log_debug "현재 디렉토리: $(pwd)"
-    
-    if docker load -i "$IMAGE_TAR"; then
-        log_info "✅ Docker 이미지 로드 완료"
+    local image_ref="${IMAGE_NAME}:${IMAGE_TAG}"
+    if docker pull "$image_ref"; then
+        log_info "✅ 이미지 Pull 완료: $image_ref"
         return 0
     else
-        log_error "Docker 이미지 로드 실패"
+        log_error "이미지 Pull 실패: $image_ref"
         return 1
     fi
 }
@@ -124,6 +143,8 @@ create_required_directories() {
         "logs/maintenance"
         "config"
         "secrets"
+        "runtime/state"
+        "backups/archives"
     )
     
     for dir in "${required_dirs[@]}"; do
@@ -149,7 +170,7 @@ start_compose_stack() {
     
     log_debug "Compose 파일: $COMPOSE_FILE"
     
-    if docker compose -f "$COMPOSE_FILE" up -d; then
+    if IMAGE_TAG="$IMAGE_TAG" docker compose -f "$COMPOSE_FILE" up -d --remove-orphans; then
         log_info "✅ Docker Compose 스택 시작 완료"
         log_info "⏳ PostgreSQL 헬스 체크 대기 중 (10초)..."
         sleep 10
@@ -237,6 +258,39 @@ check_health_endpoint() {
 }
 
 # ============================================================================
+# 함수: 이미지 백업 및 last_good_tag 갱신
+# ============================================================================
+save_image_tar() {
+    log_info "=== 이미지 백업(TAR) 생성 ==="
+    mkdir -p "$BACKUP_DIR"
+    local image_ref="${IMAGE_NAME}:${IMAGE_TAG}"
+    local tar_path="$BACKUP_DIR/observer-image_${IMAGE_TAG}.tar"
+    if docker save "$image_ref" -o "$tar_path"; then
+        log_info "✅ TAR 생성: $tar_path"
+        return 0
+    else
+        log_warn "TAR 생성 실패 (무시)"
+        return 0
+    fi
+}
+
+prune_old_tars() {
+    log_info "=== TAR 보관 (최근 3개 유지) ==="
+    if ls "$BACKUP_DIR"/observer-image_*.tar >/dev/null 2>&1; then
+        ls -1t "$BACKUP_DIR"/observer-image_*.tar | tail -n +4 | xargs -r rm -f
+        log_info "✅ 불필요 TAR 정리 완료"
+    else
+        log_info "TAR 없음, 정리 스킵"
+    fi
+}
+
+update_last_good_tag() {
+    mkdir -p "$(dirname "$LAST_GOOD_FILE")"
+    echo -n "$IMAGE_TAG" > "$LAST_GOOD_FILE"
+    log_info "✅ last_good_tag 업데이트: $IMAGE_TAG"
+}
+
+# ============================================================================
 # 함수: 최종 운영 체크
 # ============================================================================
 operational_summary() {
@@ -288,7 +342,8 @@ main() {
     log_info "배포 설정:"
     log_info "  · 배포 디렉토리: $DEPLOY_DIR"
     log_info "  · Compose 파일: $COMPOSE_FILE"
-    log_info "  · 이미지 TAR: $IMAGE_TAR"
+    log_info "  · 모드: $MODE"
+    log_info "  · 입력 태그: ${IMAGE_TAG_INPUT:-<none>}"
     echo ""
     
     # 1단계: 입력 검증
@@ -297,9 +352,13 @@ main() {
         return 1
     fi
     
-    # 2단계: Docker 이미지 로드
-    if ! load_docker_image; then
-        log_error "Docker 이미지 로드 실패"
+    # 2단계: 태그 확정 및 이미지 Pull
+    if ! resolve_image_tag; then
+        log_error "이미지 태그 확인 실패"
+        return 1
+    fi
+    if ! pull_docker_image; then
+        log_error "Docker 이미지 Pull 실패"
         return 1
     fi
     
@@ -326,6 +385,13 @@ main() {
     
     # 8단계: 최종 운영 체크
     operational_summary || true
+
+    # 9단계: 백업 및 last_good_tag (deploy 모드만)
+    if [ "$MODE" = "deploy" ]; then
+        save_image_tar || true
+        prune_old_tars || true
+        update_last_good_tag || true
+    fi
     
     # 완료
     echo ""

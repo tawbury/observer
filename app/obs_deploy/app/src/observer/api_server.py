@@ -415,30 +415,44 @@ async def get_prometheus_metrics():
     try:
         metrics_obj = get_metrics()
         observer_metrics = metrics_obj.get_metrics_summary()
+        
+        # Defensive: ensure observer_metrics is a dict
+        if not isinstance(observer_metrics, dict):
+            raise TypeError(f"Expected dict, got {type(observer_metrics).__name__}")
 
         # Counters -> Prometheus counters
-        for key, value in observer_metrics.get("counters", {}).items():
-            safe_key = key.replace(" ", "_").replace("-", "_").lower()
-            metrics_lines.append(f"# HELP observer_{safe_key}_total Observer counter: {key}")
-            metrics_lines.append(f"# TYPE observer_{safe_key}_total counter")
-            metrics_lines.append(f"observer_{safe_key}_total {value}")
+        counters = observer_metrics.get("counters", {})
+        if isinstance(counters, dict):
+            for key, value in counters.items():
+                safe_key = key.replace(" ", "_").replace("-", "_").lower()
+                metrics_lines.append(f"# HELP observer_{safe_key}_total Observer counter: {key}")
+                metrics_lines.append(f"# TYPE observer_{safe_key}_total counter")
+                metrics_lines.append(f"observer_{safe_key}_total {value}")
 
         # Gauges -> Prometheus gauges
-        for key, value in observer_metrics.get("gauges", {}).items():
-            safe_key = key.replace(" ", "_").replace("-", "_").lower()
-            metrics_lines.append(f"# HELP observer_{safe_key} Observer gauge: {key}")
-            metrics_lines.append(f"# TYPE observer_{safe_key} gauge")
-            metrics_lines.append(f"observer_{safe_key} {value}")
+        gauges = observer_metrics.get("gauges", {})
+        if isinstance(gauges, dict):
+            for key, value in gauges.items():
+                safe_key = key.replace(" ", "_").replace("-", "_").lower()
+                metrics_lines.append(f"# HELP observer_{safe_key} Observer gauge: {key}")
+                metrics_lines.append(f"# TYPE observer_{safe_key} gauge")
+                metrics_lines.append(f"observer_{safe_key} {value}")
 
         # Timing stats (export avg_ms as gauge)
-        for key, stats in observer_metrics.get("timing_stats", {}).items():
-            safe_key = key.replace(" ", "_").replace("-", "_").lower()
-            if "avg_ms" in stats:
-                metrics_lines.append(f"# HELP observer_{safe_key}_avg_ms Observer timing avg for {key}")
-                metrics_lines.append(f"# TYPE observer_{safe_key}_avg_ms gauge")
-                metrics_lines.append(f"observer_{safe_key}_avg_ms {stats['avg_ms']}")
+        timing_stats = observer_metrics.get("timing_stats", {})
+        if isinstance(timing_stats, dict):
+            for key, stats in timing_stats.items():
+                if isinstance(stats, dict) and "avg_ms" in stats:
+                    safe_key = key.replace(" ", "_").replace("-", "_").lower()
+                    metrics_lines.append(f"# HELP observer_{safe_key}_avg_ms Observer timing avg for {key}")
+                    metrics_lines.append(f"# TYPE observer_{safe_key}_avg_ms gauge")
+                    metrics_lines.append(f"observer_{safe_key}_avg_ms {stats['avg_ms']}")
     except Exception as e:
         logger.error(f"Error collecting observer metrics: {e}")
+        # Defensive: add error counter if metrics collection fails
+        metrics_lines.append(f"# HELP observer_metrics_errors_total Total metrics collection errors")
+        metrics_lines.append(f"# TYPE observer_metrics_errors_total counter")
+        metrics_lines.append(f"observer_metrics_errors_total 1")
 
     return "\n".join(metrics_lines) + "\n"
 
@@ -456,20 +470,34 @@ async def get_observer_metrics():
     """
     observer_metrics: Dict[str, Any] = {}
     try:
-        observer_metrics = get_metrics().get_metrics_summary()
+        metrics_obj = get_metrics()
+        summary = metrics_obj.get_metrics_summary()
+        
+        # Defensive: ensure summary is a dict
+        if not isinstance(summary, dict):
+            raise TypeError(f"Expected dict from get_metrics_summary, got {type(summary).__name__}")
+        
+        observer_metrics = summary
     except Exception as e:
         logger.error(f"Error collecting observer metrics: {e}")
-        observer_metrics = {"error": str(e)}
+        observer_metrics = {
+            "error": str(e),
+            "uptime_seconds": 0.0,
+            "counters": {},
+            "gauges": {},
+            "timing_stats": {}
+        }
 
     system_metrics = get_system_metrics()
 
     # Add status tracker metrics
-    observer_metrics.update({
-        "state": status_tracker.get_state(),
-        "ready": status_tracker.is_ready(),
-        "error_count": status_tracker.get_error_count(),
-        "last_error": status_tracker.get_last_error()
-    })
+    if isinstance(observer_metrics, dict):
+        observer_metrics.update({
+            "state": status_tracker.get_state(),
+            "ready": status_tracker.is_ready(),
+            "error_count": status_tracker.get_error_count(),
+            "last_error": status_tracker.get_last_error()
+        })
 
     return MetricsResponse(
         timestamp=datetime.utcnow().isoformat(),

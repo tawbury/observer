@@ -23,7 +23,7 @@ services:
         max-file: "3"
 
   observer:
-    image: obs_deploy-observer:latest
+    image: ghcr.io/tawbury/observer:${IMAGE_TAG:?IMAGE_TAG required}
     container_name: observer
     restart: unless-stopped
     environment:

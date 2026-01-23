@@ -10,10 +10,12 @@ param(
     [string]$SshKeyPath = "$env:USERPROFILE\.ssh\id_rsa",
     [string]$DeployDir = "/home/azureuser/observer-deploy",
     [string]$ComposeFile = "docker-compose.server.yml",
-    [string]$LocalEnvFile = "app\obs_deploy\.env.server",
+    [string]$LocalEnvFile = "app\obs_deploy\.env",
     [string]$EnvTemplate = "app\obs_deploy\env.template",
     [string]$ArtifactDir = "app\obs_deploy",
-    [switch]$EnvOnly
+    [string]$ImageTag,
+    [switch]$EnvOnly,
+    [switch]$Rollback
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,9 +23,8 @@ $VerbosePreference = "Continue"
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $logFile = "ops\run_records\deploy_${timestamp}.log"
 
-# 필수 아티팩트 목록 (env.server 제외: 별도 처리)
+# 필수 아티팩트 목록 (deploy 모드에서만 사용)
 $requiredArtifacts = @(
-    "observer-image.tar",
     "docker-compose.server.yml"
 )
 
@@ -55,7 +56,7 @@ function Validate-LocalEnv {
     Log-Message "[STEP] 로컬 환경 검증" "INFO"
 
     if (-not (Test-Path $EnvTemplate)) { Log-Message "env.template 없음: $EnvTemplate" "ERROR"; return $false }
-    if (-not (Test-Path $LocalEnvFile)) { Log-Message ".env.server 없음: $LocalEnvFile" "ERROR"; return $false }
+    if (-not (Test-Path $LocalEnvFile)) { Log-Message ".env 없음: $LocalEnvFile" "ERROR"; return $false }
 
     $templateKeys = @()
     Get-Content $EnvTemplate | ForEach-Object { if ($_ -match '^([A-Z0-9_]+)=') { $templateKeys += $Matches[1] } }
@@ -162,7 +163,9 @@ function Execute-ServerDeploy {
     $serverScriptLocal = "scripts\deploy\server_deploy.sh"
     if (-not (Test-Path $serverScriptLocal)) { Log-Message "server_deploy.sh 없음" "WARN"; return $true }
     scp -i $SshKeyPath -o StrictHostKeyChecking=accept-new $serverScriptLocal "${SshUser}@${ServerHost}:${DeployDir}/"
-    $null = ssh -i $SshKeyPath -o StrictHostKeyChecking=accept-new "${SshUser}@${ServerHost}" "cd $DeployDir; chmod +x server_deploy.sh; bash ./server_deploy.sh $DeployDir $ComposeFile observer-image.tar"
+    $mode = $Rollback ? "rollback" : "deploy"
+    $tagArg = $Rollback ? "" : $ImageTag
+    $null = ssh -i $SshKeyPath -o StrictHostKeyChecking=accept-new "${SshUser}@${ServerHost}" "cd $DeployDir; chmod +x server_deploy.sh; bash ./server_deploy.sh $DeployDir $ComposeFile $tagArg $mode"
     if ($LASTEXITCODE -ne 0) { Log-Message "서버 배포 스크립트 종료 코드: $LASTEXITCODE" "WARN" }
     Log-Message "서버 배포 스크립트 완료" "SUCCESS"; return $true
 }
@@ -188,15 +191,30 @@ function Main {
     Log-Message "DeployDir: $DeployDir" "INFO"
     Log-Message "Compose: $ComposeFile" "INFO"
     if ($EnvOnly) { Log-Message "Mode: EnvOnly (env 업데이트만 수행)" "INFO" }
+    if ($Rollback) { Log-Message "Mode: Rollback (last_good_tag 사용)" "INFO" }
+    if (-not $EnvOnly -and -not $Rollback) { Log-Message "ImageTag: $ImageTag" "INFO" }
 
-    if (-not (Validate-LocalEnv)) { return 1 }
-    if (-not $EnvOnly -and -not (Validate-Artifacts)) { return 1 }
+    if (-not $Rollback) {
+        if (-not (Validate-LocalEnv)) { return 1 }
+    }
+    if (-not $EnvOnly -and -not $Rollback -and -not (Validate-Artifacts)) { return 1 }
     if (-not (Test-SshConnection)) { return 1 }
     if (-not (Test-ServerDeployDir)) { return 1 }
+
+    if ($Rollback) {
+        if (-not (Execute-ServerDeploy)) { return 1 }
+        Health-Check | Out-Null
+        Log-Message "롤백 완료" "SUCCESS"
+        Log-Message "로컬 로그: $logFile" "INFO"
+        return 0
+    }
+
+    # Deploy 또는 EnvOnly
     if (-not (Backup-ServerEnv)) { return 1 }
     if (-not (Upload-EnvFile)) { return 1 }
 
     if (-not $EnvOnly) {
+        if (-not $ImageTag) { Log-Message "ImageTag 필수: 예) 20260123-123456" "ERROR"; return 1 }
         if (-not (Upload-Artifacts)) { return 1 }
         if (-not (Execute-ServerDeploy)) { return 1 }
         Health-Check | Out-Null

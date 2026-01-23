@@ -1,6 +1,22 @@
 # Terraform 인프라 변경 롤백 절차
 
-이 문서는 QTS Ops 프로젝트의 Terraform 기반 Azure 인프라 변경 시 롤백(복구) 절차를 정리합니다.
+⚠️ **주의: 본 문서는 deprecated되었습니다.**
+
+Terraform/infra 자동화가 Design A 정책(로컬 build/push, Actions deploy-only)에 따라 제거되었습니다:
+- `infra/` 디렉토리 전체 삭제
+- `terraform.yml` GitHub Actions 워크플로우 삭제
+- Terraform 기반 인프라 자동화 중단
+
+현재 배포는 다음 구성을 따릅니다:
+- 로컬: `docker build → docker push` (GHCR)
+- 서버: `scripts/deploy/server_deploy.sh` (GHCR pull + compose)
+- 롤백: `server_deploy.sh` (last_good_tag 기반 자동 복구)
+
+---
+
+## ⛔️ 레거시 Terraform 절차 (더이상 사용 안함)
+
+이하는 아카이빙 목적의 레거시 문서입니다:
 
 ## 1. 상태 파일(tfstate) 복구
 - Azure Storage(tfstate 컨테이너)에 백업해둔 terraform.tfstate 파일을 복원(업로드)

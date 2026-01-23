@@ -1,43 +1,52 @@
 # Deployment Automation
 
-**목적:** GitHub Actions/Terraform 기반 배포 자동화와 Secrets/Config 계약 정의  
-**상태:** 현재 운영 중, 환경변수 표준화 필요  
+**목적:** GitHub Actions & GHCR 기반 배포 자동화 정책 및 Secrets/Config 계약 정의  
+**상태:** Design A 구현 중 (로컬 build/push, Actions deploy-only)  
 **SSoT:** 배포 자동화 관련 단일 진실 소스
 
 ---
 
-## 1. GitHub Actions 파이프라인 요약
+## 1. 배포 구조 (Design A)
 
-### 1.1 파이프라인 흐름
+### 1.1 배포 흐름
 ```
+로컬 개발 환경
+    ↓ (docker build → docker push GHCR)
+    ↓ (git tag v1.2.3)
 GitHub Repository
-    ↓ (Push/Trigger)
-GitHub Actions
-    ├── 테스트 (Unit/Integration)
-    ├── Docker 빌드
-    ├── Registry 푸시
-    ├── Terraform 실행
-    └── 헬스체크
+    ↓ (Tag push trigger)
+GitHub Actions (Deploy-only)
+    ├── 이미지 태그 추출
+    ├── 서버 SSH 접근
+    └── server_deploy.sh 실행
     ↓
 Azure VM (Production)
+    ↓ (server_deploy.sh)
+    ├── GHCR 이미지 pull
+    ├── docker-compose.server.yml 실행
+    ├── last_good_tag 저장
+    └── tar 백업
 ```
 
-### 1.2 주요 워크플로우
-| 워크플로우 | 목적 | 트리거 |
-|------------|------|--------|
-| `deploy.yml` | 전체 배포 | main 브랜치 푸시 |
-| `deploy-infrastructure.yml` | 인프라 배포 | Terraform 변경 |
-| `scheduled-ops.yml` | 정기 작업 | Cron 스케줄 |
+### 1.2 주요 변경사항
+- ❌ 삭제: `deploy.yml` (ACR), `terraform.yml`, `scheduled-ops.yml`
+- ❌ 삭제: `infra/` Terraform 디렉토리
+- ✅ 유지: `scripts/deploy/` (로컬 배포 스크립트)
+- ✅ 준비: GitHub Actions deploy-only 워크플로우 (추후 작성)
 
 ---
 
-## 2. Terraform/컨테이너 배포 구성
+## 2. 로컬 배포 스크립트
 
-### 2.1 Terraform 구성 요소
-- **프로바이더:** Azure
-- **리소스:** VM, Storage, Network
-- **상태:** Remote Storage
-- **모듈:** resource_group 등 분리
+### 2.1 배포 자동화 스크립트 위치
+- `scripts/deploy/deploy.ps1` (v1.1.0) - Windows 배포 오케스트레이터
+- `scripts/deploy/server_deploy.sh` (v1.1.0) - Linux 서버 실행기
+
+### 2.2 GHCR 이미지 레퍼런스
+- 레지스트리: `ghcr.io/tawbury/observer`
+- 태그 패턴: git tag (예: v1.2.3)
+- compose 파일: `app/obs_deploy/docker-compose.server.yml`
+- 이미지 필수 옵션: `${IMAGE_TAG:?IMAGE_TAG required}`
 
 ### 2.2 컨테이너 배포 구성
 ```yaml

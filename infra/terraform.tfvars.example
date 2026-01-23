@@ -1,8 +1,0 @@
-# 민감 정보 및 환경별 변수 분리 예시
-
-# 기본 변수 파일
-resource_group_name = "rg-observer-test"
-location           = "Korea South"
-
-# 예시: 민감 정보(비밀번호 등)는 별도 파일에 분리
-# admin_password = "<your_password>"

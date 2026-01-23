@@ -2,33 +2,61 @@
 
 이 문서는 QTS Ops 프로젝트의 Docker 이미지 버전 관리 및 롤백(복구) 전략을 정리합니다.
 
-## 1. 이미지 태깅 정책
-- GitHub Actions에서 빌드 시, 다음과 같이 여러 태그를 자동 부여
-  - 커밋 SHA, 브랜치명, latest, 버전(semver) 등
-- 예시: qts-observer:20260111-120000, qts-observer:main-<sha>, qts-observer:latest
+## 1. 현재 이미지 태깅 정책 (Design A)
 
-## 2. 이미지 저장소 관리
-- Azure Container Registry(ACR)에 모든 빌드 이미지를 푸시 및 보관
-- 불필요한 오래된 이미지는 주기적으로 정리(보존 정책 적용)
+### 1.1 태그 표준화
+- Git tag (예: v1.2.3) = GHCR 이미지 태그
+- 로컬에서 `docker build -t ghcr.io/tawbury/observer:v1.2.3`으로 빌드
+- GHCR에 push: `docker push ghcr.io/tawbury/observer:v1.2.3`
 
-## 3. 롤백 절차
-1. 롤백 대상 이미지 태그 확인 (ACR 또는 git 커밋 기록)
-2. docker-compose.yml 또는 배포 스크립트에서 해당 태그로 이미지 지정
-   - 예시:
-     ```yaml
-     image: observerregistry.azurecr.io/qts-observer:20260111-120000
-     ```
-3. 컨테이너 재배포
-   - 예시:
-     ```sh
-     docker-compose pull
-     docker-compose up -d
-     ```
+### 1.2 이미지 저장소
+- Registry: GHCR (`ghcr.io/tawbury/observer`)
+- 태그 기반 버전 관리 (semver: v{MAJOR}.{MINOR}.{PATCH})
 
-## 4. 자동화
-- GitHub Actions에서 이미지 태깅/푸시 자동화 (deploy.yml 참고)
-- 롤백 스크립트/명령어는 운영 가이드에 포함
+## 2. 롤백 절차
 
-## 참고
-- 이미지 태그/이력은 ACR 포털 또는 az acr repository show-tags 명령으로 확인
-- 롤백 시 반드시 배포 후 정상 동작 여부를 검증
+### 2.1 자동 롤백 (권장)
+```powershell
+# Windows에서 이전 버전으로 자동 롤백
+.\scripts\deploy\deploy.ps1 -ServerHost <IP> -Rollback
+
+# 동작:
+# 1. server_deploy.sh가 last_good_tag 파일에서 이전 버전 읽음
+# 2. GHCR에서 해당 이미지 pull
+# 3. docker-compose.server.yml로 배포
+# 4. 성공 시 새 last_good_tag 파일 생성
+```
+
+### 2.2 수동 롤백
+```bash
+# 서버에서 직접 실행
+cd /home/azureuser/observer-deploy
+IMAGE_TAG=v1.2.0 bash scripts/deploy/server_deploy.sh . docker-compose.server.yml v1.2.0 deploy
+
+# 또는 GHCR에서 이미지 태그 확인 후 ImageTag 지정
+.\scripts\deploy\deploy.ps1 -ServerHost <IP> -ImageTag v1.2.0
+```
+
+## 3. 배포 히스토리 추적
+
+### 3.1 last_good_tag 파일
+```
+/home/azureuser/observer-deploy/runtime/state/last_good_tag
+```
+- 마지막 성공 배포의 이미지 태그 저장
+- 롤백 시 자동으로 읽힘
+
+### 3.2 tar 백업 위치
+```
+/home/azureuser/observer-deploy/backups/archives/
+observer-image_v1.2.3.tar  (최근 3개만 유지)
+observer-image_v1.2.2.tar
+observer-image_v1.2.1.tar
+```
+
+## 4. 참고 사항
+
+⚠️ **변경사항:**
+- 레거시 ACR 기반 배포 (`deploy.yml`) 제거
+- Terraform 기반 인프라 자동화 제거
+- 현재: GHCR 기반 로컬 build/push + deploy-only Actions (준비 중)

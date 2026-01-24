@@ -23,6 +23,9 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Determine IMAGE_TAG
         id: tag
         run: |
@@ -72,6 +75,25 @@ jobs:
             echo "   Deployment will proceed without strict host checking"
             echo "   Consider adding SSH_KNOWN_HOSTS secret for security"
           fi
+
+      - name: Upload docker-compose file
+        run: |
+          echo "📦 Uploading docker-compose.server.yml to server..."
+
+          # Create temporary SSH key file
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # Upload file
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            app/obs_deploy/docker-compose.server.yml \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.SERVER_DEPLOY_DIR || '/home/azureuser/observer-deploy' }}/
+
+          # Cleanup
+          rm -f ~/.ssh/deploy_key
+
+          echo "✅ docker-compose.server.yml uploaded successfully"
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3

@@ -4,8 +4,8 @@ FROM python:3.11-slim AS builder
 WORKDIR /build
 
 # requirements.txt 복사 및 의존성 설치 (캐시 최적화)
-# 빌드 컨텍스트: 리포지토리 루트 (따라서 app/obs_deploy/ 경로 사용)
-COPY app/obs_deploy/requirements.txt .
+# 빌드 컨텍스트: app/observer
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 런타임 스테이지: 최소 이미지
@@ -17,13 +17,13 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# 애플리케이션 파일 복사 (소스는 app/observer/ 하위에 위치)
-# 빌드 컨텍스트: 리포지토리 루트
-COPY app/observer/observer.py /app/
-COPY app/observer/paths.py /app/
-COPY app/observer/src/ /app/src/
-COPY app/observer/__init__.py /app/
-COPY app/observer/__main__.py /app/
+# 애플리케이션 파일 복사 (소스는 app/observer 하위)
+# 빌드 컨텍스트: app/observer
+COPY observer.py /app/
+COPY paths.py /app/
+COPY src/ /app/src/
+COPY __init__.py /app/
+COPY __main__.py /app/
 
 # 필수 디렉토리 생성
 RUN mkdir -p /app/data/observer \

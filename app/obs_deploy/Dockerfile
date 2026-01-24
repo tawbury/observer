@@ -17,13 +17,13 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# 애플리케이션 파일 복사 (소스는 app/obs_deploy/app/ 하위에 위치)
+# 애플리케이션 파일 복사 (소스는 app/observer/ 하위에 위치)
 # 빌드 컨텍스트: 리포지토리 루트
-COPY app/obs_deploy/app/observer.py /app/
-COPY app/obs_deploy/app/paths.py /app/
-COPY app/obs_deploy/app/src/ /app/src/
-COPY app/obs_deploy/app/__init__.py /app/
-COPY app/obs_deploy/app/__main__.py /app/
+COPY app/observer/observer.py /app/
+COPY app/observer/paths.py /app/
+COPY app/observer/src/ /app/src/
+COPY app/observer/__init__.py /app/
+COPY app/observer/__main__.py /app/
 
 # 필수 디렉토리 생성
 RUN mkdir -p /app/data/observer \

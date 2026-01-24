@@ -14,10 +14,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 from pathlib import Path
 
-try:
-    from zoneinfo import ZoneInfo
-except Exception:  # pragma: no cover
-    ZoneInfo = None  # type: ignore
+from shared.timezone import ZoneInfo
+from shared.time_helpers import TimeAwareMixin
 
 log = logging.getLogger("LogRotationManager")
 
@@ -110,7 +108,7 @@ class TimeWindow:
         return f"{base_filename}_{date_str}_{time_str}{extension}"
 
 
-class LogRotationManager:
+class LogRotationManager(TimeAwareMixin):
     """
     Manages time-based log file rotation.
     
@@ -133,8 +131,9 @@ class LogRotationManager:
             tz_name: Timezone name
         """
         self.base_dir = Path(base_dir)
-        self._tz = ZoneInfo(tz_name) if ZoneInfo else None
-        
+        self._tz_name = tz_name
+        self._init_timezone()
+
         # Rotation configs for different tracks
         self.configs = {
             "swing": RotationConfig(
@@ -161,12 +160,7 @@ class LogRotationManager:
         for track in self.configs.keys():
             track_dir = self.base_dir / track
             track_dir.mkdir(parents=True, exist_ok=True)
-    
-    def _now(self) -> datetime:
-        if self._tz:
-            return datetime.now(self._tz)
-        return datetime.now()
-    
+
     def get_log_path(self, track: str, timestamp: Optional[datetime] = None) -> Path:
         """
         Get the log file path for a track.

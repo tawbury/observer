@@ -18,16 +18,9 @@ from datetime import datetime, date, time, timedelta
 from typing import List, Dict, Any, Optional, Callable
 from pathlib import Path
 
-# Ensure 'paths.py' (at app root) is importable alongside src modules
-import sys
-APP_ROOT = str(Path(__file__).resolve().parents[2])
-if APP_ROOT not in sys.path:
-    sys.path.append(APP_ROOT)
-
-try:
-    from zoneinfo import ZoneInfo
-except Exception:  # pragma: no cover
-    ZoneInfo = None  # type: ignore
+from shared.timezone import ZoneInfo
+from shared.time_helpers import TimeAwareMixin
+from shared.trading_hours import in_trading_hours
 
 from provider import ProviderEngine
 from trigger.trigger_engine import TriggerEngine, PriceSnapshot
@@ -56,7 +49,7 @@ class TrackBConfig:
     track_a_check_interval_seconds: int = 60  # Check Track A for triggers every 60s
 
 
-class TrackBCollector:
+class TrackBCollector(TimeAwareMixin):
     """
     Track B Collector - WebSocket-based real-time data collector.
     
@@ -77,8 +70,9 @@ class TrackBCollector:
         self.engine = engine
         self.trigger_engine = trigger_engine
         self.cfg = config or TrackBConfig()
-        self._tz = ZoneInfo(self.cfg.tz_name) if ZoneInfo else None
-        
+        self._tz_name = self.cfg.tz_name
+        self._init_timezone()
+
         # Slot manager for 41 WebSocket subscriptions
         self.slot_manager = SlotManager(
             max_slots=self.cfg.max_slots,
@@ -92,15 +86,6 @@ class TrackBCollector:
     # -----------------------------------------------------
     # Scheduling
     # -----------------------------------------------------
-    def _now(self) -> datetime:
-        if self._tz:
-            return datetime.now(self._tz)
-        return datetime.now()
-
-    def _in_trading_hours(self, dt: datetime) -> bool:
-        t = dt.time()
-        return self.cfg.trading_start <= t <= self.cfg.trading_end
-    
     async def start(self) -> None:
         """
         Start Track B collector.
@@ -125,7 +110,7 @@ class TrackBCollector:
             while self._running:
                 now = self._now()
                 
-                if not self._in_trading_hours(now):
+                if not in_trading_hours(now, self.cfg.trading_start, self.cfg.trading_end):
                     log.info("Outside trading hours, waiting...")
                     await asyncio.sleep(60)
                     continue

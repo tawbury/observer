@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import json
-from hashlib import sha256
 from typing import Any, Dict, Optional, Tuple
+
+from shared.serialization import order_hint_fingerprint
 
 from decision_pipeline.contracts.order_decision import OrderDecision
 from decision_pipeline.contracts.execution_hint import ExecutionHint
@@ -11,21 +11,6 @@ from .execution_context import ExecutionContext
 from .execution_mode import ExecutionMode
 from .execution_result import ExecutionResult, ExecutionStatus
 from .iexecution import IExecution
-
-
-def _safe_to_dict(obj: Any) -> Dict[str, Any]:
-    if obj is None:
-        return {}
-    d = getattr(obj, "__dict__", None)
-    if isinstance(d, dict):
-        return dict(d)
-    return {}
-
-
-def _fingerprint(order: Any, hint: Any) -> str:
-    payload = {"order": _safe_to_dict(order), "hint": _safe_to_dict(hint)}
-    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
-    return sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
 class SimExecutor(IExecution):
@@ -48,7 +33,7 @@ class SimExecutor(IExecution):
     ) -> ExecutionResult:
 
         decision_id = getattr(order, "decision_id", None) or getattr(order, "id", None) or "UNKNOWN"
-        fp = _fingerprint(order, hint)
+        fp = order_hint_fingerprint(order, hint)
 
         # 1️⃣ kill switch
         if getattr(context, "kill_switch", False):

@@ -1,4 +1,17 @@
-from ops.maintenance.retention.policy import RetentionPolicy
-from ops.maintenance.retention.scanner import scan_expired
+"""
+DEPRECATED: This module has been consolidated into src/retention/.
 
-__all__ = ["RetentionPolicy", "scan_expired"]
+Please update your imports:
+    from maintenance.retention import RetentionPolicy
+    -> from retention import RetentionPolicy
+"""
+import warnings
+from retention import RetentionPolicy, RetentionScanner
+
+warnings.warn(
+    "maintenance.retention is deprecated. Use 'from retention import ...' instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
+__all__ = ["RetentionPolicy", "RetentionScanner"]

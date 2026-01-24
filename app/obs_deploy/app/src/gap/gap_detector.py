@@ -18,10 +18,8 @@ from typing import Optional, Dict, Any, List
 from pathlib import Path
 from enum import Enum
 
-try:
-    from zoneinfo import ZoneInfo
-except Exception:  # pragma: no cover
-    ZoneInfo = None  # type: ignore
+from shared.timezone import ZoneInfo
+from shared.time_helpers import TimeAwareMixin
 
 try:
     from paths import system_log_dir
@@ -87,7 +85,7 @@ class GapDetectorConfig:
     gap_ledger_dir: str = ""  # Empty = use system_log_dir() from paths.py
 
 
-class GapDetector:
+class GapDetector(TimeAwareMixin):
     """
     Detects data gaps for Track A and Track B collectors.
     
@@ -100,8 +98,9 @@ class GapDetector:
     
     def __init__(self, config: Optional[GapDetectorConfig] = None) -> None:
         self.cfg = config or GapDetectorConfig()
-        self._tz = ZoneInfo(self.cfg.tz_name) if ZoneInfo else None
-        
+        self._tz_name = self.cfg.tz_name
+        self._init_timezone()
+
         # Track last update timestamps
         self._track_a_last_update: Optional[datetime] = None
         self._track_b_last_updates: Dict[str, datetime] = {}  # symbol -> timestamp
@@ -281,14 +280,10 @@ class GapDetector:
         
         except Exception as e:
             log.error(f"Failed to log gap event: {e}", exc_info=True)
-    
+
     # -----------------------------------------------------
     # Utilities
     # -----------------------------------------------------
-    def _now(self) -> datetime:
-        if self._tz:
-            return datetime.now(self._tz)
-        return datetime.now()
     
     def get_status(self) -> Dict[str, Any]:
         """Get detector status"""

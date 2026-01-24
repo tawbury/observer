@@ -6,18 +6,11 @@ from dataclasses import dataclass
 from datetime import datetime, date, time, timedelta
 from typing import List, Dict, Any, Optional, Callable
 
-# Ensure 'paths.py' (at app root) is importable alongside src modules
-import sys
 from pathlib import Path
-# Append app root AFTER src so 'observer' package resolves correctly
-APP_ROOT = str(Path(__file__).resolve().parents[2])
-if APP_ROOT not in sys.path:
-    sys.path.append(APP_ROOT)
 
-try:
-    from zoneinfo import ZoneInfo
-except Exception:  # pragma: no cover
-    ZoneInfo = None  # type: ignore
+from shared.timezone import ZoneInfo
+from shared.time_helpers import TimeAwareMixin
+from shared.trading_hours import in_trading_hours
 
 from provider import ProviderEngine, KISAuth
 from universe.universe_manager import UniverseManager
@@ -39,7 +32,7 @@ class TrackAConfig:
     trading_end: time = time(15, 30)
 
 
-class TrackACollector:
+class TrackACollector(TimeAwareMixin):
     def __init__(
         self,
         engine: ProviderEngine,
@@ -48,7 +41,8 @@ class TrackACollector:
     ) -> None:
         self.engine = engine
         self.cfg = config or TrackAConfig()
-        self._tz = ZoneInfo(self.cfg.tz_name) if ZoneInfo else None
+        self._tz_name = self.cfg.tz_name
+        self._init_timezone()
         self._manager = UniverseManager(
             provider_engine=self.engine,
             market=self.cfg.market,
@@ -60,22 +54,13 @@ class TrackACollector:
     # -----------------------------------------------------
     # Scheduling
     # -----------------------------------------------------
-    def _now(self) -> datetime:
-        if self._tz:
-            return datetime.now(self._tz)
-        return datetime.now()
-
-    def _in_trading_hours(self, dt: datetime) -> bool:
-        t = dt.time()
-        return self.cfg.trading_start <= t <= self.cfg.trading_end
-
     async def start(self) -> None:
         """Run every interval during trading hours."""
         log.info("TrackACollector started (interval=%dm)", self.cfg.interval_minutes)
         last_in_trading: Optional[bool] = None
         while True:
             now = self._now()
-            in_trading = self._in_trading_hours(now)
+            in_trading = in_trading_hours(now, self.cfg.trading_start, self.cfg.trading_end)
             if in_trading:
                 if last_in_trading is False:
                     log.info(

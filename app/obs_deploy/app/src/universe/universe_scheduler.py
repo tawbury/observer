@@ -7,10 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, date, time, timedelta, timezone
 from typing import Optional, Callable, List, Dict, Any
 
-try:
-    from zoneinfo import ZoneInfo  # Python 3.9+
-except Exception:  # pragma: no cover
-    ZoneInfo = None  # type: ignore
+from shared.timezone import ZoneInfo
 
 from provider import KISAuth, ProviderEngine
 from universe.universe_manager import UniverseManager

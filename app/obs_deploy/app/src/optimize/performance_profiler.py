@@ -27,10 +27,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List, Callable
 import json
 
-try:
-    from zoneinfo import ZoneInfo
-except Exception:
-    ZoneInfo = None
+from shared.timezone import ZoneInfo
 
 
 log = logging.getLogger("PerformanceProfiler")

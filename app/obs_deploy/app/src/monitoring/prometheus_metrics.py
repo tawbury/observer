@@ -26,10 +26,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    ZoneInfo = None
+from shared.timezone import ZoneInfo
 
 log = logging.getLogger("PrometheusMetrics")
 

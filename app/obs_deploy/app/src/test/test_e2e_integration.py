@@ -26,10 +26,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-try:
-    from zoneinfo import ZoneInfo
-except Exception:
-    ZoneInfo = None
+from shared.timezone import ZoneInfo
 
 
 log = logging.getLogger("E2E_Test")

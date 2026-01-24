@@ -17,16 +17,8 @@ from datetime import datetime, time, timedelta
 from typing import Optional, Callable, Dict, Any
 from pathlib import Path
 
-try:
-    from zoneinfo import ZoneInfo
-except Exception:  # pragma: no cover
-    ZoneInfo = None  # type: ignore
-
-# Ensure paths are importable
-import sys
-APP_ROOT = str(Path(__file__).resolve().parents[2])
-if APP_ROOT not in sys.path:
-    sys.path.append(APP_ROOT)
+from shared.timezone import ZoneInfo
+from shared.time_helpers import TimeAwareMixin
 
 try:
     from paths import env_file_path
@@ -48,7 +40,7 @@ class TokenLifecycleConfig:
     emergency_retry_delay_seconds: int = 30
 
 
-class TokenLifecycleManager:
+class TokenLifecycleManager(TimeAwareMixin):
     """
     Manages KIS API token lifecycle to prevent expiration.
     
@@ -70,19 +62,15 @@ class TokenLifecycleManager:
         self.auth = auth
         self.engine = engine
         self.cfg = config or TokenLifecycleConfig()
-        self._tz = ZoneInfo(self.cfg.tz_name) if ZoneInfo else None
+        self._tz_name = self.cfg.tz_name
+        self._init_timezone()
         self._on_error = on_error
         self._running = False
         self._last_refresh: Optional[datetime] = None
-        
+
     # -----------------------------------------------------
     # Lifecycle Management
     # -----------------------------------------------------
-    def _now(self) -> datetime:
-        if self._tz:
-            return datetime.now(self._tz)
-        return datetime.now()
-    
     async def start(self) -> None:
         """
         Start token lifecycle manager.

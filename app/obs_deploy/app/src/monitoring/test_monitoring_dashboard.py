@@ -24,10 +24,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    ZoneInfo = None
+from shared.timezone import ZoneInfo
 
 # Import monitoring modules
 import sys

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import json
-from dataclasses import asdict, is_dataclass
-from hashlib import sha256
 from typing import Any, Dict
+
+from shared.serialization import order_hint_fingerprint
 
 from decision_pipeline.contracts.order_decision import OrderDecision
 from decision_pipeline.contracts.execution_hint import ExecutionHint
@@ -13,44 +12,6 @@ from .execution_mode import ExecutionMode
 from .execution_result import ExecutionResult, ExecutionStatus
 from .execution_guards import apply_execution_guards
 from .iexecution import IExecution
-
-
-def _safe_to_dict(obj: Any) -> Dict[str, Any]:
-    """
-    Best-effort serialization for fingerprint/audit.
-    - dataclass: asdict
-    - has to_dict: use it
-    - fallback: shallow attr dict of common keys
-    """
-    if obj is None:
-        return {}
-
-    if is_dataclass(obj):
-        return asdict(obj)
-
-    to_dict = getattr(obj, "to_dict", None)
-    if callable(to_dict):
-        try:
-            return dict(to_dict())
-        except Exception:
-            pass
-
-    # conservative fallback
-    keys = ["action", "symbol", "qty", "order_type", "price", "reason", "meta", "metadata", "decision_id", "id"]
-    out: Dict[str, Any] = {}
-    for k in keys:
-        if hasattr(obj, k):
-            out[k] = getattr(obj, k)
-    return out
-
-
-def _fingerprint(order: Any, hint: Any) -> str:
-    payload = {
-        "order": _safe_to_dict(order),
-        "hint": _safe_to_dict(hint),
-    }
-    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
-    return sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
 class VirtualExecutor(IExecution):
@@ -75,7 +36,7 @@ class VirtualExecutor(IExecution):
         decision_id = getattr(order, "decision_id", None) or getattr(order, "id", None) or "UNKNOWN"
         action = getattr(order, "action", None)
 
-        fp = _fingerprint(order, hint)
+        fp = order_hint_fingerprint(order, hint)
 
         # 1) Skip
         if action in (None, "NONE"):

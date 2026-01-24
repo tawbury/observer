@@ -5,6 +5,12 @@ app/obs_deploy/start_observer.sh
 app/obs_deploy/app/data/
 app/obs_deploy/app/config/observer/
 app/obs_deploy/app/logs/
+app/obs_deploy/config/observer/
+ops/run_records/*.log
+
+# Python virtual environments
+.venv/
+venv/
 
 # Python
 __pycache__/
@@ -19,6 +25,7 @@ __pycache__/
 *.log
 *.sqlite3
 *.db
+
 # Security & Secrets
 *.env
 .env.*
@@ -35,10 +42,6 @@ app/obs_deploy/secrets/
 *.pfx
 api_keys.txt
 credentials.json
-
-# Python virtual environments
-.venv/
-venv/
 
 # Terraform
 *.tfstate
@@ -83,14 +86,16 @@ mcp-cli/node_modules/
 mcp-cli/dist/
 
 # .claude
- .claude/
+.claude/
 
 # backup files
 *.bak
+*.backup
 backup/
 backups/
 app/obs_deploy/app/config/backups/archives/
 app/obs_deploy/app/config/backups/manifests/
+.github/workflows/*.backup
 !app/obs_deploy/app/backup/backup_manager.py
 
 # Universe cache files (auto-generated from API)
@@ -104,6 +109,7 @@ app/obs_deploy/data/
 app/obs_deploy/logs/
 app/obs_deploy/config/universe/*.json
 app/obs_deploy/app/config/universe/*.json
+
 # Deployment artifacts (manage separately with Git LFS or direct SCP transfer)
 # Docker images and bundles
 app/obs_deploy/*.tar

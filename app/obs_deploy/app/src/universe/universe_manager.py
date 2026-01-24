@@ -186,7 +186,9 @@ class UniverseManager:
             return list(dict.fromkeys(self._candidate_symbols))
         
         # Priority 3: File-based candidates
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "config"))
+        # __file__ = app/obs_deploy/app/src/universe/universe_manager.py
+        # -> app/obs_deploy/app/src -> .. -> app/obs_deploy/app -> config
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "config"))
         symbols_dir = os.path.join(base_dir, "symbols")
         txt_path = os.path.join(symbols_dir, "kr_all_symbols.txt")
         csv_path = os.path.join(symbols_dir, "kr_all_symbols.csv")
@@ -235,7 +237,9 @@ class UniverseManager:
     async def _cache_symbols_to_file(self, symbols: List[str]) -> None:
         """Cache fetched symbols to file for future fallback use."""
         try:
-            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "config"))
+            # __file__ = app/obs_deploy/app/src/universe/universe_manager.py
+            # -> app/obs_deploy/app/src -> .. -> app/obs_deploy/app -> config
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "config"))
             symbols_dir = os.path.join(base_dir, "symbols")
             os.makedirs(symbols_dir, exist_ok=True)
             

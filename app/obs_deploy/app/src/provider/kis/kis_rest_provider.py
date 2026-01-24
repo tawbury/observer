@@ -442,6 +442,16 @@ class KISRestProvider:
                 async with session.get(url, headers=headers, params=params) as response:
                     data = await response.json()
                     
+                    # ✅ 강화된 로깅: KIS API 응답 상태 기록
+                    logger.info(
+                        f"KIS stock list API response | "
+                        f"market={market} | "
+                        f"http_status={response.status} | "
+                        f"rt_cd={data.get('rt_cd', 'N/A')} | "
+                        f"msg={data.get('msg1', data.get('msg', 'N/A'))} | "
+                        f"output_count={len(data.get('output', []))}"
+                    )
+                    
                     if data.get("rt_cd") == "0":
                         output = data.get("output", [])
                         for item in output:
@@ -449,16 +459,24 @@ class KISRestProvider:
                             if symbol:
                                 symbols.append(symbol.strip())
                         
-                        logger.info(f"Fetched {len(symbols)} symbols from KIS API (market={market})")
+                        # ✅ 성공: API로부터 종목 조회됨
+                        logger.info(f"✅ Successfully fetched {len(symbols)} symbols from KIS API (market={market})")
                         return symbols
                     else:
-                        logger.warning(f"KIS stock list API returned error: {data.get('msg1')}")
+                        # ❌ API 에러 코드: rt_cd != "0"
+                        logger.warning(
+                            f"❌ KIS stock list API returned error | "
+                            f"rt_cd={data.get('rt_cd')} | "
+                            f"msg={data.get('msg1', 'N/A')} | "
+                            f"market={market}"
+                        )
         
         except Exception as e:
-            logger.warning(f"Failed to fetch stock list from KIS API: {e}")
+            # ❌ 네트워크/파싱 에러
+            logger.warning(f"❌ Exception during stock list fetch: {type(e).__name__}: {e}")
         
-        # Fallback: Return empty list (let UniverseManager handle this)
-        logger.warning("Stock list fetch failed - fallback to file-based list")
+        # 🔄 폴백: 캐시 파일 또는 내장 폴백으로 처리하도록
+        logger.warning("Stock list fetch failed - fallback to file-based list or built-in symbols")
         return []
     
     # ============================================================

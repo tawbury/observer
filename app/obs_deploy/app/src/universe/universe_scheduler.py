@@ -21,8 +21,8 @@ log = logging.getLogger("UniverseScheduler")
 @dataclass
 class SchedulerConfig:
     tz_name: str = "Asia/Seoul"
-    hour: int = 5
-    minute: int = 0
+    hour: int = 16
+    minute: int = 5
     min_price: int = 4000
     min_count: int = 100
     market: str = "kr_stocks"
@@ -95,6 +95,14 @@ class UniverseScheduler:
                 "count": len(current_symbols),
                 "prev_count": len(prev_symbols) if prev_symbols else None,
             })
+            # Operational summary log for downstream consumers
+            log.info(
+                "Universe summary | date=%s | count=%d | snapshot=%s | prev_count=%s",
+                today.isoformat(),
+                len(current_symbols),
+                path,
+                str(len(prev_symbols)) if prev_symbols else "None",
+            )
             # Anomaly detection
             self._check_anomaly(len(current_symbols), len(prev_symbols) if prev_symbols else None)
             log.info("Universe snapshot created: %s (%d symbols)", path, len(current_symbols))
@@ -124,6 +132,14 @@ class UniverseScheduler:
                         "target_date": today.isoformat(),
                         "count": len(prev_symbols),
                     },
+                )
+                # Operational summary log (fallback case)
+                log.warning(
+                    "Universe summary (fallback) | date=%s | count=%d | snapshot=%s | from=%s",
+                    today.isoformat(),
+                    len(prev_symbols),
+                    path,
+                    prev_day.isoformat(),
                 )
                 log.warning("Fallback snapshot written: %s (from %s)", path, prev_day.isoformat())
                 return meta

@@ -90,8 +90,8 @@ def run_observer_with_api():
             provider_engine = ProviderEngine(kis_auth, is_virtual=kis_is_virtual)
             
             scheduler_config = SchedulerConfig(
-                hour=5,  # 05:00 AM KST
-                minute=0,
+                hour=16,  # 16:05 PM KST (after market close)
+                minute=5,
                 min_price=4000,
                 min_count=100,
                 market="kr_stocks",
@@ -105,7 +105,7 @@ def run_observer_with_api():
                     f"Universe Alert: {alert_type} | {data}"
                 )
             )
-            log.info("Universe Scheduler configured: daily run at 05:00 KST")
+            log.info("Universe Scheduler configured: daily run at 16:05 KST")
         except Exception as e:
             log.error(f"Failed to initialize Universe Scheduler: {e}")
     else:

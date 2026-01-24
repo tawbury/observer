@@ -6,9 +6,6 @@ on:
     workflows: ["Build & Push Observer Image (Tag)"]
     types:
       - completed
-    branches-ignore:
-      - '**'
-    # 태그 푸시 시에만 트리거
 
   # 수동 실행 옵션
   workflow_dispatch:

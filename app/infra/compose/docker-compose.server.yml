@@ -8,7 +8,7 @@ services:
       - POSTGRES_PASSWORD=observer_db_pwd
       - POSTGRES_DB=observer
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - ../../observer/data/postgres:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
@@ -47,10 +47,10 @@ services:
       - DB_NAME=observer
       - DB_PORT=5432
     volumes:
-      - ./data/observer:/app/data/observer
-      - ./logs:/app/logs
-      - ./config:/app/config
-      - ./secrets:/app/secrets
+      - ../../observer/data/observer:/app/data/observer
+      - ../../observer/logs:/app/logs
+      - ../../observer/config:/app/config
+      - ../../observer/secrets:/app/secrets
     ports:
       - "8000:8000"
     depends_on:

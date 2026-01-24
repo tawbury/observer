@@ -95,7 +95,7 @@ export OCI_REGION="ap-tokyo-1"
 ```bash
 # 1. 이미지 빌드
 cd app/observer
-docker build -t ${DOCKER_REGISTRY}:latest .
+docker build -f ../infra/docker/Dockerfile -t ${DOCKER_REGISTRY}:latest .
 
 # 2. OCI에 로그인
 docker login nrt.ocir.io  # 리전에 맞게 수정 (ap, eu, ca 등)

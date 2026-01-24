@@ -11,7 +11,7 @@ services:
       - POSTGRES_DB=observer
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d
+      - ../../oci_deploy/migrations:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
     networks:
@@ -29,8 +29,8 @@ services:
 
   observer:
     build:
-      context: ../..
-      dockerfile: app/obs_deploy/Dockerfile
+      context: ../observer
+      dockerfile: ../docker/Dockerfile
     container_name: observer
     restart: unless-stopped
     environment:
@@ -59,10 +59,10 @@ services:
       - DB_NAME=observer
       - DB_PORT=5432
     volumes:
-      - ./data:/app/data/observer
-      - ./logs:/app/logs
-      - ./config:/app/config
-      - ./secrets:/app/secrets
+      - ../../observer/data:/app/data/observer
+      - ../../observer/logs:/app/logs
+      - ../../observer/config:/app/config
+      - ../../observer/secrets:/app/secrets
     ports:
       - "8000:8000"
     networks:
@@ -94,8 +94,8 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./monitoring/prometheus_alerting_rules.yaml:/etc/prometheus/rules.yaml
+      - ../../oci_deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ../../oci_deploy/monitoring/prometheus_alerting_rules.yaml:/etc/prometheus/rules.yaml
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -122,8 +122,8 @@ services:
       GF_PATHS_DASHBOARDS: /etc/grafana/provisioning/dashboards
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
-      - ./monitoring/grafana_dashboard.json:/etc/grafana/provisioning/dashboards/observer.json
-      - ./monitoring/grafana_datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ../../oci_deploy/monitoring/grafana_dashboard.json:/etc/grafana/provisioning/dashboards/observer.json
+      - ../../oci_deploy/monitoring/grafana_datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
@@ -142,7 +142,7 @@ services:
     ports:
       - "9093:9093"
     volumes:
-      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - ../../oci_deploy/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
       - alertmanager_data:/alertmanager
     command:
       - "--config.file=/etc/alertmanager/alertmanager.yml"

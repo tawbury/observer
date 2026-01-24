@@ -4,12 +4,12 @@
 - Document ID: WF-DEPLOY-001
 - Status: Active
 - Created Date: 2026-01-22
-- Last Updated: 2026-01-22
+- Last Updated: 2026-01-24
 - Author: {{USER}}
 - Reviewer: {{REVIEWER}}
 - Parent Document: [[workflow_base.md]]
-- Related Reference: [[anchor_template.md]], [[roadmap_template.md]], [[task_template.md]], [[run_record_template.md]]
-- Version: 1.0.0
+- Related Reference: [[anchor_template.md]], [[roadmap_template.md]], [[task_template.md]], [[run_record_template.md]], [[E2E_Audit_Part2_E_Complete_Success.md]]
+- Version: 1.1.0
 
 ---
 
@@ -34,6 +34,14 @@
 ## Workflow Overview
 로컬 개발 환경에서 서버 배포까지의 전체 자동화 프로세스. 이 워크플로우는 배포 자동화에 특화되며, 코드 수정은 오직 로컬 환경에서만 수행됩니다. 서버는 검증된 패키지 교체만을 위한 실행 환경입니다.
 
+**배포 방식**:
+- **Primary (자동)**: GitHub Actions 워크플로우를 통한 완전 자동 배포
+  - 태그 푸시 → build-push-tag.yml → GHCR 푸시 → deploy-tag.yml (workflow_run) → 서버 배포 → Health Check
+  - Race condition 해결: workflow_run을 통한 순차 실행 보장
+  - 소요 시간: ~1분 30초
+- **Secondary (수동)**: 로컬 PowerShell 스크립트를 통한 수동 배포
+  - deploy.ps1 실행 → SSH 업로드 → server_deploy.sh 실행 → Health Check
+
 **운영 루프 통합**:
 - 이 워크플로우는 표준 루프 내에서 운영: Anchor → Decision → Roadmap → Session → Task → Run Record
 - Roadmap 항목은 3가지 상태로 단계/세션 구조 추적: Work Not Started, In Progress, Done
@@ -41,8 +49,18 @@
 - Run Records는 의미 있는 작업 후 루프 종료
 
 ### Deployment Scripts
-- [scripts/deploy/deploy.ps1](scripts/deploy/deploy.ps1): 기본 전체 배포 스크립트 (env 검증/업로드, 아티팩트 업로드, server_deploy.sh 실행, 헬스 체크 포함). `-EnvOnly` 스위치로 env 업데이트만 수행 가능 (아티팩트/배포 단계 스킵).
+
+#### GitHub Actions Workflows (Primary - Automated)
+- [.github/workflows/build-push-tag.yml](.github/workflows/build-push-tag.yml): 태그 푸시 시 자동 트리거. Docker 이미지 빌드 및 GHCR(GitHub Container Registry)에 푸시. 태그 형식: `20YYMMDD-HHMMSS` (예: 20260124-014658).
+- [.github/workflows/deploy-tag.yml](.github/workflows/deploy-tag.yml): build-push-tag 완료 후 `workflow_run`으로 자동 트리거. docker-compose.server.yml 업로드 → SSH로 서버 배포 → Health Check 자동 검증. Race condition 완전 해결.
+- **배포 채널**: GHCR (ghcr.io/tawbury/observer)
+- **자동화 수준**: 완전 자동 (태그 푸시 → 빌드 → 배포 → 검증)
+- **트리거 방법**: `git tag 20YYMMDD-HHMMSS && git push origin 20YYMMDD-HHMMSS`
+
+#### Local Scripts (Secondary - Manual)
+- [scripts/deploy/deploy.ps1](scripts/deploy/deploy.ps1): 로컬에서 수동 배포 스크립트 (env 검증/업로드, 아티팩트 업로드, server_deploy.sh 실행, 헬스 체크 포함). `-EnvOnly` 스위치로 env 업데이트만 수행 가능 (아티팩트/배포 단계 스킵).
 - [scripts/deploy/deploy_simple.ps1](scripts/deploy/deploy_simple.ps1): 호환성 래퍼. 내부적으로 deploy.ps1 `-EnvOnly`를 호출하여 빠른 환경 변수 업데이트만 실행.
+- [scripts/deploy/server_deploy.sh](scripts/deploy/server_deploy.sh): 서버에서 실행되는 배포 스크립트. Docker 이미지 pull, Compose 스택 시작, Health Check, 백업 관리 수행.
 - EnvOnly 예시:
 ```
 powershell -File scripts\deploy\deploy.ps1 -ServerHost "<host>" -SshUser "<user>" -SshKeyPath "<path_to_key>" -DeployDir "/home/azureuser/observer-deploy" -LocalEnvFile "app\obs_deploy\.env.server" -EnvOnly
@@ -109,23 +127,34 @@ powershell -File scripts\deploy\deploy.ps1 -ServerHost "<host>" -SshUser "<user>
 - **Deliverable**: ops/run_records/container_test_<date>_<session>.md
 - **Metadata Links**: Parent Document must reference Roadmap or prior stage output
 - **Domain-Specific Activities**:
-  - Docker 이미지 빌드 (타임스탬프 태그 포함)
+  - Docker 이미지 빌드 (타임스탬프 태그 포함: 20YYMMDD-HHMMSS)
   - 컨테이너 기반 리허설 테스트 환경 구성
   - 배포 전 최종 검증 수행
-  - 검증된 이미지를 서버에서 사용 가능 상태로 준비한다. (배포 채널: 레지스트리 pull / 이미지 tar 전달 등은 환경에 따라 선택; 본 문서는 방법을 고정하지 않는다.)
-  - Exit Criteria: 선택된 이미지/버전 식별자(tag) 기록, 해당 식별자에 맞춰 전달 채널 준비 완료, 서버가 동일 이미지를 확보하거나 즉시 로드 가능함을 최소 확인
+  - **GitHub Actions**: 태그 푸시 시 build-push-tag.yml이 자동으로 이미지 빌드 및 GHCR 푸시
+  - **로컬**: `docker build` 후 GHCR 수동 푸시 또는 tar 파일 생성
+  - Exit Criteria:
+    - 이미지 태그 기록 (예: 20260124-014658)
+    - GHCR에 이미지 푸시 완료 (ghcr.io/tawbury/observer:태그)
+    - 서버가 GHCR에서 이미지 pull 가능함 확인
+    - 로컬 빌드 성공 및 Health Check 통과
 
-※ Image Availability Contract: 서버가 선택된 전달 채널을 통해 동일 이미지에 접근 가능함이 확인되어야 Stage 7로 진행 가능.
+※ Image Availability Contract: 서버가 GHCR을 통해 지정된 태그의 이미지에 접근 가능함이 확인되어야 Stage 7로 진행 가능. GitHub Actions 사용 시 build-push-tag.yml 완료가 이 조건을 충족.
 
 ### 7. Server Deployment & Runtime Validation
 - **Responsible**: Developer Agent + Ops Agent
-- **Input**: 검증된 컨테이너 이미지
+- **Input**: 검증된 컨테이너 이미지 (GHCR에 푸시된 이미지)
 - **Output**: 배포 완료 보고서, 운영 상태 검증
 - **Template**: [[run_record_template.md]]
 - **Deliverable**: ops/run_records/deploy_<date>_<session>.md
 - **Metadata Links**: Parent Document must reference Roadmap or prior stage output
 - **Domain-Specific Activities**:
-  - 서버 배포 실행 (compose/run 정의 사용)
+  - **GitHub Actions (자동)**: deploy-tag.yml이 workflow_run으로 자동 트리거
+    - docker-compose.server.yml을 서버에 업로드
+    - SSH로 server_deploy.sh 실행
+    - GHCR에서 이미지 pull
+    - Docker Compose 스택 시작
+    - Health Check 자동 검증 (최대 60초, 5초 간격 재시도)
+  - **로컬 스크립트 (수동)**: deploy.ps1을 사용한 수동 배포
   - 런타임 상태 검증 (컨테이너 상태, 헬스 체크)
   - 운영 메트릭 자동 확인 (Stage 1)
   - 문제 발생 시 로컬 수정 루프로 복귀
@@ -213,11 +242,15 @@ powershell -File scripts\deploy\deploy.ps1 -ServerHost "<host>" -SshUser "<user>
 ## Rollback Strategy
 
 ### 롤백 전략
-- **이미지 태깅**: YYYYMMDD_HHMMSS 형식
-- **롤백 명령**: 이전 안정 태그로 되돌리기 (수동)
+- **이미지 태깅**: `20YYMMDD-HHMMSS` 형식 (예: 20260124-014658)
+- **롤백 명령**:
+  - **GitHub Actions**: `gh workflow run deploy-tag.yml -f image_tag=<이전_태그>`
+  - **로컬 스크립트**: `./server_deploy.sh <deploy_dir> <compose_file> <이전_태그> deploy`
+  - **서버 직접**: `./server_deploy.sh . docker-compose.server.yml "" rollback` (last_good_tag 사용)
 - **향후 자동 롤백**: 메트릭 임계치 초과 시 자동 복귀 (향후 업그레이드 경로)
 - **롤백 기록**: 모든 롤백 작업 Run Record에 기록
 - **Tag SSoT**: 롤백 대상은 태그(또는 동등 버전 식별자)를 단일 SSoT로 삼아 선택하며, 해당 식별자로 이미지/패키지를 지정
+- **last_good_tag**: 서버의 runtime/state/last_good_tag 파일에 마지막 성공 배포 태그 자동 저장
 
 ### 데이터/스키마 변경 가정
 - **가정**: 데이터/스키마 변경은 거의 없음
@@ -293,6 +326,12 @@ powershell -File scripts\deploy\deploy.ps1 -ServerHost "<host>" -SshUser "<user>
 - [[structure_validator.md]] - Document structure validation
 - [[deployment_validator.md]] - Deployment process validation (if exists)
 
+### E2E Audit Reports
+- [E2E Audit Part 2-E: Complete Success](../docs/reports/E2E_Audit_Part2_E_Complete_Success.md) - 완전한 E2E 파이프라인 성공 (2026-01-24)
+- [E2E Audit Part 2-D: Workflow Run Limitation](../docs/reports/E2E_Audit_Part2_D_Workflow_Run_Limitation.md) - workflow_run 제한사항 및 해결
+- [E2E Audit Part 2-C: Workflow Permission Fix](../docs/reports/E2E_Audit_Part2_C_Workflow_Permission_Fix.md) - GHCR 권한 문제 해결
+- [Workflow Tag Management Analysis](../docs/reports/Workflow_Tag_Management_Analysis.md) - 태그 관리 방식 분석
+
 ---
 
 ## Constraint Conditions
@@ -348,8 +387,16 @@ powershell -File scripts\deploy\deploy.ps1 -ServerHost "<host>" -SshUser "<user>
 
 ### 4. Efficiency Metrics
 - 배포 주기 준수: 목표 준수
-- 자동화율: 90%+ 목표
+- 자동화율: 100% (GitHub Actions 완전 자동화 달성)
+- 배포 소요 시간: 2분 이내 목표 (현재: ~1분 30초)
 - 롤백 시간: 10분 내 목표
+- workflow_run 트리거 성공률: 100% 목표
+
+### 5. GitHub Actions Metrics
+- build-push-tag.yml 성공률: 95%+ 목표
+- deploy-tag.yml 자동 트리거율: 100% 목표
+- Health Check 1차 통과율: 80%+ 목표
+- GHCR 푸시 성공률: 99%+ 목표
 
 ---
 
@@ -357,4 +404,5 @@ powershell -File scripts\deploy\deploy.ps1 -ServerHost "<host>" -SshUser "<user>
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1.0 | 2026-01-24 | GitHub Actions 워크플로우 추가 (build-push-tag.yml, deploy-tag.yml), GHCR 배포 채널 명시, workflow_run 의존성 반영, 완전 자동화 달성 |
 | 1.0.0 | 2026-01-22 | 초기 배포 자동화 워크플로우 생성 |

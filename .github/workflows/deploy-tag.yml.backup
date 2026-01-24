@@ -1,16 +1,13 @@
-name: Deploy to Azure VM (After Build)
+name: Deploy to Azure VM (Tag-based)
 
-# 트리거: build-push-tag 워크플로우 완료 후 자동 실행
+# 트리거: 타임스탬프 태그 푸시 (20YYMMDD-HHMMSS 패턴)
+# 예: 20260123-173045
 on:
-  workflow_run:
-    workflows: ["Build & Push Observer Image (Tag)"]
-    types:
-      - completed
-    branches-ignore:
-      - '**'
-    # 태그 푸시 시에만 트리거
+  push:
+    tags:
+      - '20*'
 
-  # 수동 실행 옵션
+  # 선택적: 수동 실행 (특정 이미지 태그 지정 가능)
   workflow_dispatch:
     inputs:
       image_tag:
@@ -22,8 +19,6 @@ jobs:
   deploy:
     name: Deploy to Observer VM
     runs-on: ubuntu-latest
-    # build-push-tag이 성공했을 때만 실행
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
     steps:
       - name: Determine IMAGE_TAG
@@ -32,15 +27,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             IMAGE_TAG="${{ inputs.image_tag }}"
           else
-            # workflow_run에서 트리거된 경우: ref에서 태그 추출
-            # refs/tags/20260123-170510 → 20260123-170510
-            IMAGE_TAG="${{ github.event.workflow_run.head_branch }}"
-            # 태그 형식이 아닌 경우 실패
-            if [[ ! "$IMAGE_TAG" =~ ^20[0-9]{6}-[0-9]{6}$ ]]; then
-              echo "❌ Invalid tag format: $IMAGE_TAG"
-              echo "Expected format: 20YYMMDD-HHMMSS"
-              exit 1
-            fi
+            IMAGE_TAG="${{ github.ref_name }}"
           fi
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "✅ Deploying image tag: $IMAGE_TAG"

@@ -115,17 +115,17 @@ docs/
 
 ## Phase 4: 폴더 구조 재정립 (Priority: Medium)
 
-### Task 4.1: 폴더 구조 재정립 (Option B 선택됨)
+### Task 4.1: 폴더 구조 재정립 (Option A 선택됨 - 단일 git mv) ✅ 완료
 **현재**: `app/obs_deploy/app/src/...`
 **목표**: `app/observer/src/...` (이름 명확화)
 
-**마이그레이션 단계**:
-1. `app/observer/` 디렉토리 생성
-2. `app/obs_deploy/app/` 내용물 이동
-3. 모든 import 경로 업데이트
-4. Docker 설정 업데이트
-5. 배포 스크립트 업데이트
-6. 기존 구조 제거
+**실제 수행 방법**:
+- 단일 `git mv app/obs_deploy/app app/observer` 명령으로 전체 디렉토리 이동
+- Git 히스토리 100% 보존 (160+ 파일)
+- Dockerfile COPY 경로 업데이트
+- Docker 빌드 및 컨테이너 구동 검증 완료
+
+**Commit**: f396dff
 
 ### Task 4.2: 테스트 파일 재구성
 **현재**: 소스 코드와 혼재

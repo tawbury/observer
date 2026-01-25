@@ -14,13 +14,26 @@ on:
         description: 'Image tag to deploy (timestamp format: 20YYMMDD-HHMMSS)'
         required: true
         type: string
+      target_env:
+        description: 'Deployment target environment (azure, oci, or all)'
+        required: false
+        type: choice
+        options:
+          - azure
+          - oci
+          - all
+        default: azure
 
 jobs:
   deploy:
     name: Deploy to Observer VM
     runs-on: ubuntu-latest
-    # build-push-tag이 성공했을 때만 실행
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    # build-push-tag이 성공했을 때만 실행 + 선택된 환경에만 실행
+    if: ${{ (github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch') && (github.event_name != 'workflow_dispatch' || inputs.target_env == 'all' || inputs.target_env == matrix.environment) }}
+    strategy:
+      matrix:
+        environment: [azure, oci]
+    environment: ${{ matrix.environment }}
 
     steps:
       - name: Checkout repository
@@ -51,6 +64,7 @@ jobs:
           echo "🚀 Observer Deployment Context"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Image Tag:      ${{ steps.tag.outputs.IMAGE_TAG }}"
+          echo "Environment:    ${{ matrix.environment }}"
           echo "Target Host:    ${{ secrets.SSH_HOST }}"
           echo "SSH User:       ${{ secrets.SSH_USER }}"
           echo "Deploy Dir:     ${{ secrets.SERVER_DEPLOY_DIR || '/home/azureuser/observer-deploy' }}"
@@ -87,7 +101,7 @@ jobs:
 
           # Upload file
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            app/obs_deploy/docker-compose.server.yml \
+            infra/docker/compose/docker-compose.server.yml \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.SERVER_DEPLOY_DIR || '/home/azureuser/observer-deploy' }}/
 
           # Cleanup

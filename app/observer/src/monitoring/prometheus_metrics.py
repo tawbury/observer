@@ -25,8 +25,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-
-from shared.timezone import ZoneInfo
+from zoneinfo import ZoneInfo
 
 log = logging.getLogger("PrometheusMetrics")
 

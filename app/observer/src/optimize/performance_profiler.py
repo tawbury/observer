@@ -26,8 +26,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Callable
 import json
-
-from shared.timezone import ZoneInfo
+from zoneinfo import ZoneInfo
 
 
 log = logging.getLogger("PerformanceProfiler")

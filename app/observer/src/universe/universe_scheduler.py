@@ -6,8 +6,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, date, time, timedelta, timezone
 from typing import Optional, Callable, List, Dict, Any
-
-from shared.timezone import ZoneInfo
+from zoneinfo import ZoneInfo
 
 from provider import KISAuth, ProviderEngine
 from universe.universe_manager import UniverseManager

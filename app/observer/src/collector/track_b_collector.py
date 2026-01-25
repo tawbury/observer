@@ -17,8 +17,8 @@ from dataclasses import dataclass
 from datetime import datetime, date, time, timedelta
 from typing import List, Dict, Any, Optional, Callable
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
-from shared.timezone import ZoneInfo
 from shared.time_helpers import TimeAwareMixin
 from shared.trading_hours import in_trading_hours
 

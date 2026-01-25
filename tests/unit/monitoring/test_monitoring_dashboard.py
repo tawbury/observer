@@ -23,8 +23,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-
-from shared.timezone import ZoneInfo
+from zoneinfo import ZoneInfo
 
 # Import monitoring modules
 import sys

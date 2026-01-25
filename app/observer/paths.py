@@ -114,13 +114,23 @@ def config_dir() -> Path:
 
     Policy:
     - Long-lived operational assets live here.
-    - Located under app/obs_deploy/app/config/ for Docker compatibility
+    - Supports both local and Docker deployment modes
+
+    Resolution order:
+    1. OBSERVER_CONFIG_DIR environment variable (explicit override)
+    2. Docker standalone mode (/app/config)
+    3. Local development mode (infra/oci_deploy/config)
     """
-    # Check for Docker standalone mode environment variable first
+    # 1. Explicit environment variable override
     if os.environ.get("OBSERVER_CONFIG_DIR"):
         path = Path(os.environ["OBSERVER_CONFIG_DIR"])
+    # 2. Docker standalone mode
+    elif os.environ.get("OBSERVER_STANDALONE") == "1":
+        path = Path("/app") / "config"
+    # 3. Local development mode
     else:
-        path = project_root() / "app" / "obs_deploy" / "app" / "config"
+        path = project_root() / "infra" / "oci_deploy" / "config"
+    
     path.mkdir(parents=True, exist_ok=True)
     return path
 

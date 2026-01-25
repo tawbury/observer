@@ -17,8 +17,8 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 from enum import Enum
+from zoneinfo import ZoneInfo
 
-from shared.timezone import ZoneInfo
 from shared.time_helpers import TimeAwareMixin
 
 try:

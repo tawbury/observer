@@ -13,8 +13,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
-from shared.timezone import ZoneInfo
 from shared.time_helpers import TimeAwareMixin
 
 log = logging.getLogger("LogRotationManager")

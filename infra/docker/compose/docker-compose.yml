@@ -29,8 +29,10 @@ services:
 
   observer:
     build:
-      context: ../observer
+      context: .
       dockerfile: ../docker/Dockerfile
+      args:
+        - OBSERVER_SRC_PATH=/app/observer
     container_name: observer
     restart: unless-stopped
     environment:

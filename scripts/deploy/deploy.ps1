@@ -163,8 +163,9 @@ function Execute-ServerDeploy {
     $serverScriptLocal = "scripts\deploy\server_deploy.sh"
     if (-not (Test-Path $serverScriptLocal)) { Log-Message "server_deploy.sh 없음" "WARN"; return $true }
     scp -i $SshKeyPath -o StrictHostKeyChecking=accept-new $serverScriptLocal "${SshUser}@${ServerHost}:${DeployDir}/"
-    $mode = $Rollback ? "rollback" : "deploy"
-    $tagArg = $Rollback ? "" : $ImageTag
+    $mode = "deploy"
+    $tagArg = $ImageTag
+    if ($Rollback) { $mode = "rollback"; $tagArg = "" }
     $null = ssh -i $SshKeyPath -o StrictHostKeyChecking=accept-new "${SshUser}@${ServerHost}" "cd $DeployDir; chmod +x server_deploy.sh; bash ./server_deploy.sh $DeployDir $ComposeFile $tagArg $mode"
     if ($LASTEXITCODE -ne 0) { Log-Message "서버 배포 스크립트 종료 코드: $LASTEXITCODE" "WARN" }
     Log-Message "서버 배포 스크립트 완료" "SUCCESS"; return $true

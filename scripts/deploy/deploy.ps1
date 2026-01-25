@@ -12,7 +12,7 @@ param(
     [string]$ComposeFile = "docker-compose.server.yml",
     [string]$LocalEnvFile = "app\obs_deploy\.env",
     [string]$EnvTemplate = "app\obs_deploy\env.template",
-    [string]$ArtifactDir = "app\obs_deploy",
+    [string]$ArtifactDir = "infra\docker\compose",
     [string]$ImageTag,
     [switch]$EnvOnly,
     [switch]$Rollback

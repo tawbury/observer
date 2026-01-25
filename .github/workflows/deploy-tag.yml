@@ -1,4 +1,4 @@
-name: Deploy to Extebsive VM (After Build)
+name: Deploy to Azure VM (After Build)
 
 # 트리거: build-push-tag 워크플로우 완료 후 자동 실행
 on:
@@ -14,49 +14,55 @@ on:
         description: 'Image tag to deploy (timestamp format: 20YYMMDD-HHMMSS)'
         required: true
         type: string
-      target_env:
-        description: 'Deployment target environment (azure, oci, or all)'
-        required: false
-        type: choice
-        options:
-          - azure
-          - oci
-          - all
-        default: azure
 
 jobs:
   deploy:
     name: Deploy to Observer VM
     runs-on: ubuntu-latest
-    # build-push-tag이 성공했을 때만 실행 + 선택된 환경에만 실행
-    if: ${{ (github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch') && (github.event_name != 'workflow_dispatch' || inputs.target_env == 'all' || inputs.target_env == matrix.environment) }}
-    strategy:
-      matrix:
-        environment: [azure, oci]
-    environment: ${{ matrix.environment }}
+    # build-push-tag이 성공했을 때만 실행
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Download IMAGE_TAG from build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: image-tag
+          path: ./
+        continue-on-error: true
 
       - name: Determine IMAGE_TAG
         id: tag
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             IMAGE_TAG="${{ inputs.image_tag }}"
+            echo "📝 Using image tag from manual input: $IMAGE_TAG"
           else
-            # workflow_run에서 트리거된 경우: ref에서 태그 추출
-            # refs/tags/20260123-170510 → 20260123-170510
-            IMAGE_TAG="${{ github.event.workflow_run.head_branch }}"
-            # 태그 형식이 아닌 경우 실패
-            if [[ ! "$IMAGE_TAG" =~ ^20[0-9]{6}-[0-9]{6}$ ]]; then
-              echo "❌ Invalid tag format: $IMAGE_TAG"
-              echo "Expected format: 20YYMMDD-HHMMSS"
-              exit 1
+            # artifact에서 IMAGE_TAG 읽기
+            if [ -f image_tag.txt ]; then
+              IMAGE_TAG=$(cat image_tag.txt | xargs)  # trim whitespace
+              echo "📦 IMAGE_TAG from build artifact: $IMAGE_TAG"
+            else
+              echo "⚠️  image_tag.txt not found, using fallback..."
+              # fallback: tag ref 사용 (빌드 워크플로우가 tag로 트리거된 경우)
+              IMAGE_TAG="${{ github.ref_name }}"
+              echo "🏷️  IMAGE_TAG from git ref: $IMAGE_TAG"
             fi
           fi
+
+          # 태그 형식 검증: 20YYMMDD-HHMMSS (예: 20250125-112345)
+          if [[ ! "$IMAGE_TAG" =~ ^20[0-9]{6}-[0-9]{6}$ ]]; then
+            echo "❌ FATAL: Invalid tag format!"
+            echo "   Got: $IMAGE_TAG"
+            echo "   Expected: 20YYMMDD-HHMMSS (e.g., 20250125-112345)"
+            echo "   Pattern: 20 + 6 digits (YYMMDD) + hyphen + 6 digits (HHMMSS)"
+            exit 1
+          fi
+
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
-          echo "✅ Deploying image tag: $IMAGE_TAG"
+          echo "✅ Deploying image tag: $IMAGE_TAG (format validated)"
 
       - name: Print Deploy Context
         run: |
@@ -64,7 +70,6 @@ jobs:
           echo "🚀 Observer Deployment Context"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Image Tag:      ${{ steps.tag.outputs.IMAGE_TAG }}"
-          echo "Environment:    ${{ matrix.environment }}"
           echo "Target Host:    ${{ secrets.SSH_HOST }}"
           echo "SSH User:       ${{ secrets.SSH_USER }}"
           echo "Deploy Dir:     ${{ secrets.SERVER_DEPLOY_DIR || '/home/azureuser/observer-deploy' }}"

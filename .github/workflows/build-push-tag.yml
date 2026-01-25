@@ -3,11 +3,11 @@ name: Build & Push Observer Image (Tag)
 on:
   push:
     tags:
-      - '20*'
+      - '20[0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]'
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Override image tag (default: ref_name)'
+        description: 'Override image tag (format: 20YYMMDD-HHMMSS, e.g., 20250125-112345)'
         required: false
         type: string
 
@@ -30,8 +30,27 @@ jobs:
           else
             IMAGE_TAG="${{ github.ref_name }}"
           fi
+
+          # 태그 형식 검증: 20YYMMDD-HHMMSS
+          if [[ ! "$IMAGE_TAG" =~ ^20[0-9]{6}-[0-9]{6}$ ]]; then
+            echo "❌ Invalid tag format: $IMAGE_TAG"
+            echo "Expected format: 20YYMMDD-HHMMSS (e.g., 20250125-112345)"
+            exit 1
+          fi
+
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
-          echo "✅ Using image tag: $IMAGE_TAG"
+          echo "✅ Using image tag: $IMAGE_TAG (format validated)"
+
+      - name: Save IMAGE_TAG for deployment
+        run: |
+          echo "${{ steps.tag.outputs.IMAGE_TAG }}" > image_tag.txt
+
+      - name: Upload IMAGE_TAG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-tag
+          path: image_tag.txt
+          retention-days: 1
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -44,7 +63,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: app/obs_deploy/Dockerfile
+          file: infra/docker/docker/Dockerfile
           push: true
           tags: |
             ghcr.io/tawbury/observer:${{ steps.tag.outputs.IMAGE_TAG }}

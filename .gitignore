@@ -35,6 +35,11 @@ app/obs_deploy/secrets/
 **/.env
 **/.env.*
 **/secrets/
+
+# Exception: env.template should be committed (contains template structure only)
+!**/env.template
+!**/.env.template
+
 *.pem
 *.key
 *.crt

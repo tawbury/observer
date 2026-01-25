@@ -8,14 +8,20 @@ KIS REST API Provider for Market Data
 Responsibilities:
 - Fetch current price data (FHKST01010100)
 - Fetch daily historical prices (FHKST01010400)
-- Rate limiting (20 req/sec, 1000 req/min)
-- Error handling and retry logic
+- Rate limiting with conservative settings (15 req/sec, 900 req/min)
+- Error handling and retry logic with exponential backoff
 - Data normalization to MarketDataContract
 
-API Rate Limits:
-- 20 requests per second
-- 1,000 requests per minute
-- 500,000 requests per day
+Official KIS API Rate Limits (2023.01.11):
+- REST API: 20 requests/sec, 1,000 requests/min, 500,000 requests/day
+- Reference: https://apiportal.koreainvestment.com/community-notice
+- GitHub samples: https://github.com/koreainvestment/open-trading-api
+
+Implementation Notes:
+- Using conservative limits (15/sec, 900/min) to prevent burst traffic errors
+- Token bucket algorithm with asyncio locks for concurrency
+- Exponential backoff on rate limit errors (429)
+- Automatic token refresh on 401 errors
 
 Reference:
 - backup/c0a7118/test_kis_api.py - API call patterns
@@ -37,12 +43,23 @@ class RateLimiter:
     """
     Token bucket rate limiter for KIS API.
     
-    Limits:
-    - 20 requests per second
-    - 1,000 requests per minute
+    Official KIS API Rate Limits (as of 2023.01.11):
+    - REST API: 20 requests/sec, 1,000 requests/min, 500,000 requests/day
+    - Reference: https://apiportal.koreainvestment.com/community-notice
+    
+    Conservative Settings (to prevent rate limit errors):
+    - Using 15 req/sec (75% of limit) to account for burst traffic
+    - Using 900 req/min (90% of limit) for safety margin
     """
     
-    def __init__(self, requests_per_second: int = 20, requests_per_minute: int = 1000):
+    def __init__(self, requests_per_second: int = 15, requests_per_minute: int = 900):
+        """
+        Initialize rate limiter with conservative defaults.
+        
+        Args:
+            requests_per_second: Max requests per second (default: 15, official limit: 20)
+            requests_per_minute: Max requests per minute (default: 900, official limit: 1000)
+        """
         self.rps_limit = requests_per_second
         self.rpm_limit = requests_per_minute
         
@@ -56,6 +73,8 @@ class RateLimiter:
         
         # Lock for thread safety
         self._lock = asyncio.Lock()
+        
+        logger.info(f"RateLimiter initialized: {requests_per_second} req/sec, {requests_per_minute} req/min")
     
     async def acquire(self) -> None:
         """Wait until a request can be made within rate limits."""
@@ -179,6 +198,7 @@ class KISRestProvider:
                         # Check for API errors
                         if data.get("rt_cd") != "0":
                             error_msg = data.get("msg1", "Unknown error")
+                            rt_cd = data.get("rt_cd")
                             
                             # Handle 401 Unauthorized
                             if response.status == 401:
@@ -186,14 +206,17 @@ class KISRestProvider:
                                 await self.auth._refresh_token()
                                 continue  # Retry with new token
                             
-                            # Handle 429 Rate Limit
-                            if response.status == 429:
-                                wait_time = 2 ** attempt  # Exponential backoff
-                                logger.warning(f"Rate limit exceeded, waiting {wait_time}s...")
+                            # Handle rate limit errors (rt_cd: 1 and "초당 거래건수" message)
+                            if rt_cd == "1" or response.status == 429 or "초당" in error_msg or "초과" in error_msg:
+                                wait_time = min(2 ** (attempt + 1), 16)  # Exponential backoff, max 16s
+                                logger.warning(
+                                    f"Rate limit exceeded (rt_cd: {rt_cd}, msg: {error_msg}), "
+                                    f"waiting {wait_time}s... (attempt {attempt + 1}/{self.max_retries})"
+                                )
                                 await asyncio.sleep(wait_time)
                                 continue
                             
-                            raise RuntimeError(f"API error: {error_msg} (rt_cd: {data.get('rt_cd')})")
+                            raise RuntimeError(f"API error: {error_msg} (rt_cd: {rt_cd})")
                         
                         # Normalize data
                         return self._normalize_current_price(data, symbol)
@@ -317,19 +340,24 @@ class KISRestProvider:
                         
                         if data.get("rt_cd") != "0":
                             error_msg = data.get("msg1", "Unknown error")
+                            rt_cd = data.get("rt_cd")
                             
                             if response.status == 401:
                                 logger.warning("Token expired, refreshing...")
                                 await self.auth._refresh_token()
                                 continue
                             
-                            if response.status == 429:
-                                wait_time = 2 ** attempt
-                                logger.warning(f"Rate limit exceeded, waiting {wait_time}s...")
+                            # Handle rate limit errors (rt_cd: 1 and "초당 거래건수" message)
+                            if rt_cd == "1" or response.status == 429 or "초당" in error_msg or "초과" in error_msg:
+                                wait_time = min(2 ** (attempt + 1), 16)  # Exponential backoff, max 16s
+                                logger.warning(
+                                    f"Rate limit exceeded (rt_cd: {rt_cd}, msg: {error_msg}), "
+                                    f"waiting {wait_time}s... (attempt {attempt + 1}/{self.max_retries})"
+                                )
                                 await asyncio.sleep(wait_time)
                                 continue
                             
-                            raise RuntimeError(f"API error: {error_msg}")
+                            raise RuntimeError(f"API error: {error_msg} (rt_cd: {rt_cd})")
                         
                         # Normalize daily data
                         return self._normalize_daily_prices(data, symbol)

@@ -1503,3 +1503,8 @@ echo "Note: Review and merge with existing implementations if needed"
 - `docs/dev/archi/` - 아키텍처 문서
 - `docs/dev/spec/` - 기술 명세
 - `docs/dev/PRD/` - 제품 요구사항
+
+## 참고 웹페이지
+**kis 공식 api 홈페이지** : https://apiportal.koreainvestment.com/intro
+**kis 공식 api 깃페이지** : https://github.com/koreainvestment/open-trading-api
+**kis 공식 api 위키독스** : https://wikidocs.net/book/7847

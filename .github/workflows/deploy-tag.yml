@@ -1,4 +1,4 @@
-name: Deploy to Azure VM (After Build)
+name: Deploy to Extebsive VM (After Build)
 
 # 트리거: build-push-tag 워크플로우 완료 후 자동 실행
 on:

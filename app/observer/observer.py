@@ -41,7 +41,7 @@ def configure_environment():
     os.environ.setdefault("OBSERVER_DEPLOYMENT_MODE", "docker")
     # Track A/B control
     os.environ.setdefault("TRACK_A_ENABLED", "true")
-    os.environ.setdefault("TRACK_B_ENABLED", "false")  # false by default until validated
+    os.environ.setdefault("TRACK_B_ENABLED", "true")
 
 
 def run_observer_with_api():
@@ -181,7 +181,7 @@ def run_observer_with_api():
     # Start Track B Collector in background if enabled
     track_b_collector = None
     track_b_enabled = os.environ.get("TRACK_B_ENABLED", "false").lower() in ("true", "1", "yes")
-    if track_b_enabled and kis_app_key and kis_app_secret and track_a_collector:
+    if track_b_enabled and kis_app_key and kis_app_secret:
         log.info("Track B Collector will be enabled")
         try:
             kis_auth_b = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
@@ -214,8 +214,8 @@ def run_observer_with_api():
     else:
         if not track_b_enabled:
             log.info("Track B Collector disabled (TRACK_B_ENABLED=false)")
-        elif not track_a_collector:
-            log.info("Track B Collector disabled (Track A not available)")
+        else:
+            log.info("Track B Collector disabled (KIS credentials missing)")
 
     try:
         # Start observer

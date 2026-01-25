@@ -378,6 +378,6 @@ services:
 **SSoT 선언:** 이 문서는 Observer 시스템 v2.0의 단일 진실 소스입니다. 모든 아키텍처, 필터링 규칙, 운영 절차는 이 문서를 기준으로 합니다.
 
 ## 참고 웹페이지
-**공식 api 홈페이지** : https://apiportal.koreainvestment.com/intro
-**공식 api 깃페이지** : https://github.com/koreainvestment/open-trading-api
-**공식 api 위키독스** : https://wikidocs.net/book/7847
+**kis 공식 api 홈페이지** : https://apiportal.koreainvestment.com/intro
+**kis 공식 api 깃페이지** : https://github.com/koreainvestment/open-trading-api
+**kis 공식 api 위키독스** : https://wikidocs.net/book/7847

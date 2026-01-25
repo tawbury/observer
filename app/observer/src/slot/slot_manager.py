@@ -99,7 +99,9 @@ class SlotManager:
             self.overflow_ledger_dir = system_log_dir()
         else:
             # Fallback: relative to current file
-            self.overflow_ledger_dir = Path(__file__).resolve().parents[4] / "logs" / "system"
+            # Current: app/observer/src/slot/slot_manager.py
+            # Target: app/observer/logs/system
+            self.overflow_ledger_dir = Path(__file__).resolve().parents[2] / "logs" / "system"
         self.overflow_ledger_dir.mkdir(parents=True, exist_ok=True)
         
         # Statistics

@@ -23,7 +23,7 @@ from shared.time_helpers import TimeAwareMixin
 from shared.trading_hours import in_trading_hours
 
 from provider import ProviderEngine
-from trigger.trigger_engine import TriggerEngine, PriceSnapshot
+from trigger.trigger_engine import TriggerEngine, PriceSnapshot, parse_track_a_jsonl
 from slot.slot_manager import SlotManager, SlotCandidate
 from paths import observer_asset_dir
 
@@ -91,20 +91,21 @@ class TrackBCollector(TimeAwareMixin):
         Start Track B collector.
         
         Main loop:
-        1. Check trading hours
-        2. Monitor Track A data for triggers
-        3. Update slots based on trigger candidates
-        4. Subscribe/unsubscribe WebSocket symbols
-        5. Collect and log real-time data
+        1. Start WebSocket provider (connect to KIS)
+        2. Register price update callback
+        3. Monitor Track A data for triggers
+        4. Update slots based on trigger candidates
+        5. Subscribe/unsubscribe WebSocket symbols
+        6. Collect and log real-time data
         """
         log.info("TrackBCollector started (max_slots=%d)", self.cfg.max_slots)
         self._running = True
         
-        # Register WebSocket price update callback
-        self._register_websocket_callback()
-        
-        # Start WebSocket provider
+        # Start WebSocket provider FIRST (before registering callbacks)
         await self._start_websocket()
+        
+        # Register WebSocket price update callback AFTER connection
+        self._register_websocket_callback()
         
         try:
             while self._running:
@@ -202,43 +203,45 @@ class TrackBCollector(TimeAwareMixin):
         Returns latest 10 minutes of data for trigger detection.
         """
         try:
-            now = self._now()
+            from datetime import timezone
+
+            now = self._now().astimezone(timezone.utc)
             date_str = now.strftime("%Y%m%d")
-            
+
             # Track A log path: config/observer/swing/YYYYMMDD.jsonl
             base_dir = observer_asset_dir()
             log_file = base_dir / self.cfg.daily_log_subdir.replace("scalp", "swing") / f"{date_str}.jsonl"
-            
+
             if not log_file.exists():
                 return []
-            
-            # Read last 10 minutes of snapshots
+
+            # Parse Track A JSONL using shared helper and keep last 10 minutes
             cutoff_time = now - timedelta(minutes=10)
-            snapshots = []
-            
-            with open(log_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    try:
-                        record = json.loads(line.strip())
-                        timestamp = datetime.fromisoformat(record["timestamp"])
-                        
-                        if timestamp < cutoff_time:
-                            continue
-                        
-                        snapshot = PriceSnapshot(
-                            symbol=record["symbol"],
-                            timestamp=timestamp,
-                            close=float(record["price"]["close"]),
-                            volume=int(record["volume"]["current"]),
-                            price_change_pct=float(record.get("price_change_pct", 0.0))
-                        )
-                        snapshots.append(snapshot)
-                    except (KeyError, ValueError, TypeError) as e:
-                        log.warning(f"Failed to parse Track A record: {e}")
-                        continue
-            
+            parsed = parse_track_a_jsonl(log_file)
+            snapshots: List[PriceSnapshot] = []
+
+            for snap in parsed:
+                ts = snap.timestamp
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+                ts_utc = ts.astimezone(timezone.utc)
+                if ts_utc < cutoff_time:
+                    continue
+
+                snapshots.append(
+                    PriceSnapshot(
+                        symbol=snap.symbol,
+                        timestamp=ts_utc,
+                        price=float(snap.price or 0.0),
+                        volume=int(snap.volume or 0),
+                        open=snap.open,
+                        high=snap.high,
+                        low=snap.low,
+                    )
+                )
+
             return snapshots
-        
+
         except Exception as e:
             log.error(f"Error reading Track A snapshots: {e}", exc_info=True)
             return []
@@ -273,12 +276,14 @@ class TrackBCollector(TimeAwareMixin):
         def on_price_update(data: Dict[str, Any]) -> None:
             """Handle real-time price updates from WebSocket"""
             try:
+                log.debug(f"📊 Price update callback fired: {data.get('symbol')}")
                 self._log_scalp_data(data)
             except Exception as e:
                 log.error(f"Error handling price update: {e}", exc_info=True)
         
         # Set callback on provider engine
         self.engine.on_price_update = on_price_update
+        log.info("✅ Price update callback registered")
     
     async def _subscribe_symbol(self, symbol: str, slot_id: int) -> None:
         """Subscribe to a symbol via WebSocket"""
@@ -322,6 +327,9 @@ class TrackBCollector(TimeAwareMixin):
         Log real-time scalp data to JSONL file.
         
         File: config/observer/scalp/YYYYMMDD.jsonl
+        
+        Enhanced record format includes execution time, bid/ask, and volume details
+        for scalp strategy analysis.
         """
         try:
             now = self._now()
@@ -334,12 +342,23 @@ class TrackBCollector(TimeAwareMixin):
             
             log_file = log_dir / f"{date_str}.jsonl"
             
-            # Prepare record
+            # Prepare enhanced record
             record = {
                 "timestamp": now.isoformat(),
                 "symbol": data.get("symbol", ""),
-                "price": data.get("price", {}),
-                "volume": data.get("volume", {}),
+                "execution_time": data.get("execution_time"),  # HHMMSS from WebSocket
+                "price": {
+                    "current": data.get("price", {}).get("close", 0),
+                    "open": data.get("price", {}).get("open"),
+                    "high": data.get("price", {}).get("high"),
+                    "low": data.get("price", {}).get("low"),
+                    "change_rate": data.get("price", {}).get("change_rate"),
+                },
+                "volume": {
+                    "accumulated": data.get("volume", {}).get("accumulated", 0),
+                    "trade_value": data.get("volume", {}).get("trade_value"),
+                },
+                "bid_ask": data.get("bid_ask", {}),  # {bid_price, ask_price}
                 "source": "websocket",
                 "session_id": self.cfg.session_id
             }
@@ -383,8 +402,9 @@ async def main():
         load_dotenv(env_file)
     
     # Setup
-    auth = KISAuth(mode=args.mode)
-    engine = ProviderEngine(auth=auth, mode=args.mode)
+    is_virtual = args.mode.upper() == "VIRTUAL"
+    auth = KISAuth(is_virtual=is_virtual)
+    engine = ProviderEngine(auth=auth, is_virtual=is_virtual)
     trigger_engine = TriggerEngine()
     
     collector = TrackBCollector(
@@ -414,6 +434,7 @@ async def main():
         stats = collector.get_stats()
         print()
         print(f"📊 Final Stats: {stats}")
+        await engine.close()
 
 
 if __name__ == "__main__":

@@ -29,8 +29,8 @@ services:
 
   observer:
     build:
-      context: ../../../app/observer
-      dockerfile: ../../../infra/docker/docker/Dockerfile
+      context: ${PWD}/app/observer
+      dockerfile: ${PWD}/infra/docker/docker/Dockerfile
     container_name: observer
     restart: unless-stopped
     environment:

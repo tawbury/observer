@@ -29,10 +29,8 @@ services:
 
   observer:
     build:
-      context: .
-      dockerfile: ../docker/Dockerfile
-      args:
-        - OBSERVER_SRC_PATH=/app/observer
+      context: ../../../app/observer
+      dockerfile: ../../../infra/docker/docker/Dockerfile
     container_name: observer
     restart: unless-stopped
     environment:
@@ -88,7 +86,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Monitoring Stack
   prometheus:
     image: prom/prometheus:latest
     container_name: observer-prometheus
@@ -104,6 +101,11 @@ services:
       - "--storage.tsdb.path=/prometheus"
       - "--web.console.libraries=/usr/share/prometheus/console_libraries"
       - "--web.console.templates=/usr/share/prometheus/consoles"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - observer-network
     logging:
@@ -127,6 +129,11 @@ services:
       - ../../oci_deploy/monitoring/grafana_dashboard.json:/etc/grafana/provisioning/dashboards/observer.json
       - ../../oci_deploy/monitoring/grafana_datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
       - grafana_data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     depends_on:
       - prometheus
     networks:
@@ -149,6 +156,11 @@ services:
     command:
       - "--config.file=/etc/alertmanager/alertmanager.yml"
       - "--storage.path=/alertmanager"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9093"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - observer-network
     logging:
@@ -160,6 +172,7 @@ services:
 networks:
   observer-network:
     driver: bridge
+    name: observer-network
 
 volumes:
   postgres_data:

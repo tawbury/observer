@@ -55,6 +55,27 @@ cp app\obs_deploy\env.template app\obs_deploy\.env.server
 
 ## 사용 방법
 
+### 빌드 태그 생성
+
+Docker 이미지 빌드 전에 타임스탬프 기반 태그를 생성합니다:
+
+```powershell
+# 기본 사용 (태그를 stdout으로 출력)
+.\scripts\deploy\generate_build_tag.ps1
+
+# 파일로 저장
+.\scripts\deploy\generate_build_tag.ps1 -OutputFile "BUILD_TAG.txt"
+
+# 변수로 캡처
+$BUILD_TAG = .\scripts\deploy\generate_build_tag.ps1 | Select-Object -Last 1
+
+# Linux/Bash 환경
+./scripts/deploy/generate_build_tag.sh
+./scripts/deploy/generate_build_tag.sh -o BUILD_TAG.txt
+```
+
+**태그 형식**: `20YYMMDD-HHMMSS` (예: 20260126-155945)
+
 ### 기본 실행
 
 ```powershell
@@ -237,9 +258,20 @@ docker compose up -d observer
 ```
 scripts/
 └── deploy/
-    ├── deploy.ps1              # Windows PowerShell 오케스트레이터
-    ├── server_deploy.sh        # Linux Bash 러너
-    └── README.md               # 이 파일
+    ├── deploy.ps1                    # Windows PowerShell 배포 오케스트레이터
+    ├── server_deploy.sh              # Linux Bash 서버 배포 러너
+    ├── generate_build_tag.ps1        # PowerShell 빌드 태그 생성기
+    ├── generate_build_tag.sh         # Bash 빌드 태그 생성기
+    ├── sync_to_oracle.ps1            # Oracle Cloud 동기화 스크립트
+    ├── oci_helpers.ps1               # OCI 헬퍼 함수
+    ├── oci_launch_instance.ps1       # OCI 인스턴스 시작
+    ├── setup_env_secure.sh           # 보안 환경 설정
+    ├── migrate.sh                    # 마이그레이션 스크립트
+    ├── oracle_bootstrap.sh           # Oracle 부트스트랩
+    ├── cloud-init-docker.yaml        # Cloud-init 설정
+    ├── QUICKSTART.md                 # 빠른 시작 가이드
+    ├── IMPLEMENTATION_REPORT.md      # 구현 보고서
+    └── README.md                     # 이 파일
 ```
 
 ## 확장 계획 (v2 이상)
@@ -297,16 +329,20 @@ scripts/
 cd d:\development\prj_obs
 cp app\obs_deploy\env.template app\obs_deploy\.env.server
 
-# 2. 실제 KIS 자격증명 입력 (텍스트 에디터로)
+# 2. 빌드 태그 생성
+$BUILD_TAG = .\scripts\deploy\generate_build_tag.ps1 -OutputFile "BUILD_TAG.txt" | Select-Object -Last 1
+Write-Host "Build Tag: $BUILD_TAG"
+
+# 3. 실제 KIS 자격증명 입력 (텍스트 에디터로)
 # notepad app\obs_deploy\.env.server
 
-# 3. 배포 실행
-.\scripts\deploy\deploy.ps1 -ServerHost "your.server.ip"
+# 4. 배포 실행
+.\scripts\deploy\deploy.ps1 -ServerHost "your.server.ip" -ImageTag $BUILD_TAG
 
-# 4. 로그 확인
+# 5. 로그 확인
 cat ops\run_records\deploy_*.log
 
-# 5. 서버 로그 확인
+# 6. 서버 로그 확인
 # ssh azureuser@your.server.ip
 # docker logs observer --tail 100
 ```
@@ -320,6 +356,11 @@ cat ops\run_records\deploy_*.log
 
 ---
 
-**마지막 업데이트**: 2026-01-23  
-**버전**: v1.0.0  
+**마지막 업데이트**: 2026-01-26  
+**버전**: v1.1.0  
+**최근 변경사항**: 
+- 중복 스크립트 정리 (generate_build_tag_simple.ps1, deploy_simple.ps1 제거)
+- generate_build_tag.ps1 인코딩 문제 해결 및 안정화
+- 배포 스크립트 구조 최적화
+
 **관련 문서**: `.ai/workflows/deploy_automation.workflow.md`

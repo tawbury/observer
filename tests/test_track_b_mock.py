@@ -65,7 +65,7 @@ def generate_mock_track_a_log(
         symbols = ["005930", "000660", "051910", "012330", "028260"]
     
     if trigger_indices is None:
-        trigger_indices = [5, 15, 25]  # Trigger at these snapshot indices
+        trigger_indices = [4, 10, 14, 20, 24]  # Mix of even/odd for both trigger types
     
     if output_file is None:
         output_file = Path(__file__).parent / "test_data" / "mock_swing.jsonl"
@@ -107,8 +107,8 @@ def generate_mock_track_a_log(
                     trigger_type = "volume_surge" if i % 2 == 0 else "volatility_spike"
                     
                     if trigger_type == "volume_surge":
-                        # 5x volume surge
-                        volume = base_volume * 5
+                        # 50x volume surge to overcome averaging effect
+                        volume = base_volume * 50
                         price = base_price + (base_price * 0.02)  # 2% up
                         log.info(f"🎯 TRIGGER at snapshot {i}: {symbol} VOLUME_SURGE")
                     else:
@@ -181,7 +181,7 @@ def test_trigger_engine():
     # Generate mock data with triggers
     log_file = generate_mock_track_a_log(
         num_snapshots=30,
-        trigger_indices=[5, 15, 25],
+        trigger_indices=[4, 10, 14, 20, 24],  # Mix of even/odd for both trigger types
     )
     
     # Load snapshots
@@ -193,6 +193,7 @@ def test_trigger_engine():
         volume_surge_ratio=5.0,
         volatility_spike_threshold=0.05,
         min_priority_score=0.5,
+        dedup_window_seconds=0,  # Disable dedup for testing
     )
     engine = TriggerEngine(config=config)
     
@@ -213,7 +214,18 @@ def test_trigger_engine():
                 )
                 total_candidates.append(c)
         else:
-            log.info(f"📊 Batch {batch_idx//batch_size}: No triggers")
+            # Debug: Check if any high volume snapshots in this batch
+            high_vol_snaps = [s for s in batch if s.volume > 500000]
+            if high_vol_snaps:
+                log.info(f"📊 Batch {batch_idx//batch_size}: No triggers, but {len(high_vol_snaps)} high volume snapshots found")
+                for snap in high_vol_snaps:
+                    history = engine.get_history(snap.symbol, minutes=10)
+                    if history:
+                        avg_vol = sum(h.volume for h in history) / len(history)
+                        ratio = snap.volume / avg_vol
+                        log.info(f"   🔍 {snap.symbol}: vol={snap.volume}, avg={avg_vol:.0f}, ratio={ratio:.2f}")
+            else:
+                log.info(f"📊 Batch {batch_idx//batch_size}: No triggers")
     
     log.info(f"\n✅ Total candidates detected: {len(total_candidates)}")
     return len(total_candidates) > 0

@@ -164,7 +164,15 @@ class TriggerEngine:
         
         # Check if current volume is surge
         surge_ratio = snap.volume / avg_volume
+        
+        # Debug logging
+        log.debug(f"Volume surge check for {snap.symbol}: "
+                 f"current={snap.volume}, avg={avg_volume:.0f}, "
+                 f"ratio={surge_ratio:.2f}, threshold={self.cfg.volume_surge_ratio}")
+        
         if surge_ratio >= self.cfg.volume_surge_ratio:
+            log.info(f"🎯 VOLUME SURGE DETECTED: {snap.symbol} "
+                    f"ratio={surge_ratio:.2f} >= {self.cfg.volume_surge_ratio}")
             return TriggerCandidate(
                 symbol=snap.symbol,
                 trigger_type="volume_surge",

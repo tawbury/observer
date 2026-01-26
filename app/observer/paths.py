@@ -40,17 +40,17 @@ def _resolve_project_root(start: Optional[Path] = None) -> Path:
     Resolve Observer project root directory.
 
     Resolution rules (first match wins):
-    1. Observer standalone mode (forced)
-    2. Directory containing '.git'
-    3. Directory containing 'pyproject.toml'
-    4. Directory containing both 'src' and 'tests'
+    1. Observer standalone mode (Docker container) - return /app
+    2. Directory containing '.git' (local development)
+    3. Directory containing 'pyproject.toml' (local development)
+    4. Directory containing both 'src' and 'tests' (local development)
     """
 
-    # 1️⃣ Observer standalone mode (explicit opt-in)
+    # 1️⃣ Observer standalone mode (Docker container) - 명확한 /app 반환
     if os.environ.get("OBSERVER_STANDALONE") == "1":
-        return Path(__file__).resolve().parent
+        return Path("/app")
 
-    # 2️⃣ Normal Observer project resolution
+    # 2️⃣ Normal Observer project resolution (local development)
     current = start.resolve() if start else Path(__file__).resolve()
 
     for parent in [current] + list(current.parents):
@@ -119,17 +119,17 @@ def config_dir() -> Path:
     Resolution order:
     1. OBSERVER_CONFIG_DIR environment variable (explicit override)
     2. Docker standalone mode (/app/config)
-    3. Local development mode (infra/oci_deploy/config)
+    3. Local development mode (project_root/app/observer/config)
     """
     # 1. Explicit environment variable override
     if os.environ.get("OBSERVER_CONFIG_DIR"):
         path = Path(os.environ["OBSERVER_CONFIG_DIR"])
-    # 2. Docker standalone mode
+    # 2. Docker standalone mode - 이미 project_root()가 /app을 반환
     elif os.environ.get("OBSERVER_STANDALONE") == "1":
-        path = Path("/app") / "config"
-    # 3. Local development mode
+        path = project_root() / "config"
+    # 3. Local development mode - project_root 기준으로 상대 경로
     else:
-        path = project_root() / "infra" / "oci_deploy" / "config"
+        path = project_root() / "app" / "observer" / "config"
     
     path.mkdir(parents=True, exist_ok=True)
     return path

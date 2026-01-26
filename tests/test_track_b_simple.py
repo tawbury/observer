@@ -13,7 +13,7 @@ The simplest way to test Track B components:
 
 import sys
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List
 
@@ -50,17 +50,35 @@ def test_trigger_engine_direct():
     
     # Test Case 1: Volume Surge (5x increase)
     log.info("\n📝 Test 1A: Volume Surge (5x volume increase)")
-    snapshots = [
-        # Baseline: 100K volume
-        PriceSnapshot(
-            symbol="005930",
-            timestamp=now,
-            price=70000,
-            open=70000,
-            high=70100,
-            low=69900,
-            volume=100000
-        ),
+    
+    # First, build history with baseline volume
+    engine = TriggerEngine(config=config)
+    baseline_snapshots = []
+    for i in range(10):  # 10 snapshots for history
+        baseline_snapshots.append(
+            PriceSnapshot(
+                symbol="005930",
+                timestamp=now - timedelta(minutes=i),
+                price=70000,
+                open=70000,
+                high=70100,
+                low=69900,
+                volume=100000  # Consistent baseline
+            )
+        )
+    
+    # Add baseline history first
+    engine.update(baseline_snapshots)
+    
+    # Check history was added
+    history = engine.get_history("005930", minutes=10)
+    log.info(f"📊 History length after baseline: {len(history)}")
+    if history:
+        avg_volume = sum(h.volume for h in history) / len(history)
+        log.info(f"📊 Average volume in history: {avg_volume}")
+    
+    # Now add trigger snapshot
+    trigger_snapshots = [
         # TRIGGER: 5x volume surge
         PriceSnapshot(
             symbol="005930",
@@ -69,11 +87,35 @@ def test_trigger_engine_direct():
             open=70000,
             high=70500,
             low=69900,
-            volume=500000  # 5x
+            volume=1000000  # 10x to ensure trigger
         ),
     ]
     
-    candidates = engine.update(snapshots)
+    candidates = engine.update(trigger_snapshots)
+    
+    # Debug: Check final history and calculation
+    final_history = engine.get_history("005930", minutes=10)
+    log.info(f"📊 Final history length: {len(final_history)}")
+    if final_history:
+        # Find the trigger snapshot (last one with high volume)
+        trigger_snap = None
+        for snap in final_history:
+            if snap.volume == 1000000:
+                trigger_snap = snap
+                break
+        
+        if trigger_snap:
+            # Manually calculate volume surge
+            total_volume = sum(h.volume for h in final_history)
+            avg_volume = total_volume / len(final_history)
+            surge_ratio = trigger_snap.volume / avg_volume
+            log.info(f"📊 Manual calculation:")
+            log.info(f"   - Trigger volume: {trigger_snap.volume}")
+            log.info(f"   - Average volume: {avg_volume}")
+            log.info(f"   - Surge ratio: {surge_ratio}")
+            log.info(f"   - Threshold: {engine.cfg.volume_surge_ratio}")
+            log.info(f"   - Should trigger: {surge_ratio >= engine.cfg.volume_surge_ratio}")
+    
     log.info(f"📊 Candidates detected: {len(candidates)}")
     for c in candidates:
         log.info(f"   - {c.symbol}: {c.trigger_type} (priority={c.priority_score:.3f})")

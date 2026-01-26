@@ -31,11 +31,20 @@ def observer_asset_dir() -> Path:
     In deployment structure:
     - Observer data is stored in /app/data/observer
     - This is mounted as volume in Docker
+    
+    In local development:
+    - Observer data is stored in app/observer/config/observer
     """
     if os.environ.get("OBSERVER_DATA_DIR"):
         return Path(os.environ["OBSERVER_DATA_DIR"])
     
-    return DATA_ROOT / "observer"
+    # Check if running in deployment environment
+    if os.environ.get("OBSERVER_STANDALONE") == "1" or Path("/app").exists():
+        return DATA_ROOT / "observer"
+    
+    # Local development - use relative path to config/observer
+    # This path is relative to the project root
+    return Path("app/observer/config/observer")
 
 def observer_asset_file(filename: str) -> Path:
     """Get full path to Observer asset file."""

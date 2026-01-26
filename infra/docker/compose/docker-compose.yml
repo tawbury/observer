@@ -29,8 +29,8 @@ services:
 
   observer:
     build:
-      context: ${PWD}/app/observer
-      dockerfile: ${PWD}/infra/docker/docker/Dockerfile
+      context: ../../../  # 프로젝트 루트(prj_obs) 기준
+      dockerfile: infra/docker/docker/Dockerfile
     container_name: observer
     restart: unless-stopped
     env_file:
@@ -38,9 +38,9 @@ services:
     environment:
       # Core settings
       - OBSERVER_STANDALONE=1
-      - PYTHONPATH=/app/src:/app
-      # Path settings (paths.py에서 사용)
-      - OBSERVER_DATA_DIR=/app/data/observer
+      - PYTHONPATH=/app/src
+      # Path settings (paths.py에서 사용) - 단순화된 경로
+      - OBSERVER_DATA_DIR=/app/data
       - OBSERVER_LOG_DIR=/app/logs
       - OBSERVER_SYSTEM_LOG_DIR=/app/logs/system
       - OBSERVER_MAINTENANCE_LOG_DIR=/app/logs/maintenance
@@ -54,10 +54,10 @@ services:
       - DB_NAME=observer
       - DB_PORT=5432
     volumes:
-      - ../../observer/data:/app/data/observer
-      - ../../observer/logs:/app/logs
-      - ../../observer/config:/app/config
-      - ../../observer/secrets:/app/secrets
+      - ../../../app/observer/data:/app/data
+      - ../../../app/observer/logs:/app/logs
+      - ../../../app/observer/config:/app/config
+      - ../../../app/observer/secrets:/app/secrets
     ports:
       - "8000:8000"
     networks:

@@ -45,7 +45,7 @@ class TrackBConfig:
     min_dwell_seconds: int = 120  # 2 minutes minimum slot occupancy
     daily_log_subdir: str = "scalp"  # under config/observer/{subdir}
     trading_start: time = time(9, 30)  # Track B starts 30min after market open
-    trading_end: time = time(15, 0)   # Track B ends before close
+    trading_end: time = time(15, 30)   # Track B ends 30min after market close (장마감 변동성 감지)
     track_a_check_interval_seconds: int = 60  # Check Track A for triggers every 60s
 
 
@@ -111,11 +111,16 @@ class TrackBCollector(TimeAwareMixin):
             while self._running:
                 now = self._now()
                 
+                # 디버깅 로그 추가
+                log.info(f"Track B current time: {now} (timezone: {now.tzinfo})")
+                log.info(f"Trading hours: {self.cfg.trading_start} - {self.cfg.trading_end}")
+                
                 if not in_trading_hours(now, self.cfg.trading_start, self.cfg.trading_end):
                     log.info("Outside trading hours, waiting...")
                     await asyncio.sleep(60)
                     continue
                 
+                log.info("Inside trading hours, checking triggers...")
                 # Check Track A for triggers
                 await self._check_triggers()
                 
@@ -154,6 +159,8 @@ class TrackBCollector(TimeAwareMixin):
             if not snapshots:
                 log.debug("No Track A snapshots available")
                 return
+            
+            log.info(f"📊 Processing {len(snapshots)} Track A snapshots")
             
             # Detect triggers
             candidates = self.trigger_engine.update(snapshots)

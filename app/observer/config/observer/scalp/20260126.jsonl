@@ -1,0 +1,2 @@
+{"timestamp": "2026-01-26T15:00:38.053915+09:00", "symbol": "005930", "slot_id": 1, "trigger_type": "volume_surge", "priority_score": 0.9, "detected_at": "2026-01-26T15:00:38.053915+09:00", "details": {"current_volume": 10000000, "avg_volume_10m": 1000, "surge_ratio": 10.0}}
+{"timestamp": "2026-01-26T15:00:38.053915+09:00", "symbol": "000660", "slot_id": 2, "trigger_type": "volatility_spike", "priority_score": 0.95, "detected_at": "2026-01-26T15:00:38.053915+09:00", "details": {"price_change": 0.06, "current_price": 53000}}

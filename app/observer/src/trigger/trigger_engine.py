@@ -15,11 +15,11 @@ log = logging.getLogger("TriggerEngine")
 class TriggerConfig:
     """Trigger detection configuration."""
     # Volume Surge Trigger
-    volume_surge_ratio: float = 5.0  # 1min volume > 10min avg * ratio
+    volume_surge_ratio: float = 1.5  # 1min volume > 10min avg * ratio (장마감 시간대용: 2.0 → 1.5)
     volume_surge_priority: float = 0.9
     
     # Volatility Spike Trigger
-    volatility_spike_threshold: float = 0.05  # 5% price change in 1min
+    volatility_spike_threshold: float = 0.015  # 1.5% price change in 1min (장마감 시간대용: 2% → 1.5%)
     volatility_spike_priority: float = 0.95
     
     # Trade Velocity Trigger (not implemented yet - requires tick data)
@@ -28,8 +28,8 @@ class TriggerConfig:
     
     # Candidate management
     max_candidates: int = 100
-    min_priority_score: float = 0.5
-    dedup_window_seconds: int = 300  # 5 minutes
+    min_priority_score: float = 0.2  # 더 낮은 우선순 기준 (0.3 → 0.2)
+    dedup_window_seconds: int = 120  # 더 짧은 중복 방지 (180초 → 120초)
 
 
 @dataclass
@@ -101,8 +101,8 @@ class TriggerEngine:
             List of triggered candidates sorted by priority (highest first)
         """
         # Use aware datetime consistently
-        from datetime import timezone
-        now = datetime.now(timezone.utc)
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Asia/Seoul"))
         candidates: List[TriggerCandidate] = []
         
         # Update history
@@ -138,8 +138,8 @@ class TriggerEngine:
         if symbol not in self._history:
             return []
         
-        from datetime import timezone
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+        from zoneinfo import ZoneInfo
+        cutoff = datetime.now(ZoneInfo("Asia/Seoul")) - timedelta(minutes=minutes)
         return [s for s in self._history[symbol] if s.timestamp >= cutoff]
     
     # ---------------------------------------------------------
@@ -164,7 +164,20 @@ class TriggerEngine:
         
         # Check if current volume is surge
         surge_ratio = snap.volume / avg_volume
+        
+        # Debug logging
+        log.debug(f"Volume surge check for {snap.symbol}: "
+                 f"current={snap.volume}, avg={avg_volume:.0f}, "
+                 f"ratio={surge_ratio:.2f}, threshold={self.cfg.volume_surge_ratio}")
+        
+        # Add info logging for better debugging
+        log.info(f"Volume surge check for {snap.symbol}: "
+                f"current={snap.volume:,}, avg={avg_volume:.0f}, "
+                f"ratio={surge_ratio:.2f}, threshold={self.cfg.volume_surge_ratio}")
+        
         if surge_ratio >= self.cfg.volume_surge_ratio:
+            log.info(f"🎯 VOLUME SURGE DETECTED: {snap.symbol} "
+                    f"ratio={surge_ratio:.2f} >= {self.cfg.volume_surge_ratio}")
             return TriggerCandidate(
                 symbol=snap.symbol,
                 trigger_type="volume_surge",
@@ -183,15 +196,19 @@ class TriggerEngine:
         self, snap: PriceSnapshot, now: datetime
     ) -> Optional[TriggerCandidate]:
         """
-        Detect volatility spike: 1min price change > threshold.
+        Detect volatility spike: price change > threshold in 1min.
         """
         history = self.get_history(snap.symbol, minutes=1)
         if len(history) < 2:
-            return None
+            return None  # insufficient data
         
         # Get earliest price in 1min window
         earliest = history[0]
         price_change = abs(snap.price - earliest.price) / earliest.price
+        
+        # Add info logging for better debugging
+        log.info(f"Volatility spike check for {snap.symbol}: "
+                f"price_change={price_change:.3f}, threshold={self.cfg.volatility_spike_threshold}")
         
         if price_change >= self.cfg.volatility_spike_threshold:
             return TriggerCandidate(
@@ -219,8 +236,8 @@ class TriggerEngine:
         self._history[snap.symbol].append(snap)
         
         # Clean old history
-        from datetime import timezone
-        cutoff = datetime.now(timezone.utc) - self._history_window
+        from zoneinfo import ZoneInfo
+        cutoff = datetime.now(ZoneInfo("Asia/Seoul")) - self._history_window
         while (
             self._history[snap.symbol]
             and self._history[snap.symbol][0].timestamp < cutoff

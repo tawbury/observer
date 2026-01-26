@@ -6,22 +6,26 @@
 
 ---
 
-## 1. 배포 구조 (Design A)
+## 1. 배포 아키텍처
 
-### 1.1 배포 흐름
+### 1.1 전체 배포 흐름
 ```
-로컬 개발 환경
-    ↓ (docker build → docker push GHCR)
-    ↓ (git tag v1.2.3)
-GitHub Repository
-    ↓ (Tag push trigger)
-GitHub Actions (Deploy-only)
-    ├── 이미지 태그 추출
-    ├── 서버 SSH 접근
-    └── server_deploy.sh 실행
+Git Tag Push (20YYMMDD-HHMMSS)
+    ↓ (GitHub Actions trigger)
+Build & Push Workflow (build-push-tag.yml)
+    ├── 이미지 빌드 (Dockerfile)
+    ├── 태그 검증 (20YYMMDD-HHMMSS)
+    ├── GHCR 푸시 (ghcr.io/tawbury/observer)
+    └── IMAGE_TAG 아티팩트 저장
+    ↓ (workflow_run trigger)
+Deploy Workflow (deploy-tag.yml)
+    ├── IMAGE_TAG 다운로드
+    ├── SSH 접속 (Azure VM/OCI)
+    ├── docker-compose.server.yml 업로드
+    ├── server_deploy.sh 실행
+    └── Health Check (60초)
     ↓
-Azure VM (Production)
-    ↓ (server_deploy.sh)
+Production Server (Azure VM/OCI)
     ├── GHCR 이미지 pull
     ├── docker-compose.server.yml 실행
     ├── last_good_tag 저장
@@ -29,10 +33,12 @@ Azure VM (Production)
 ```
 
 ### 1.2 주요 변경사항
+- ✅ 추가: `build-push-tag.yml` (빌드 & 푸시)
+- ✅ 추가: `deploy-tag.yml` (배포 전용)
+- ✅ 유지: `scripts/deploy/` (로컬 배포 스크립트)
+- ✅ 유지: `server_deploy.sh` (서버 실행기)
 - ❌ 삭제: `deploy.yml` (ACR), `terraform.yml`, `scheduled-ops.yml`
 - ❌ 삭제: `infra/` Terraform 디렉토리
-- ✅ 유지: `scripts/deploy/` (로컬 배포 스크립트)
-- ✅ 준비: GitHub Actions deploy-only 워크플로우 (추후 작성)
 
 ---
 
@@ -44,15 +50,49 @@ Azure VM (Production)
 
 ### 2.2 GHCR 이미지 레퍼런스
 - 레지스트리: `ghcr.io/tawbury/observer`
-- 태그 패턴: git tag (예: v1.2.3)
-- compose 파일: `app/obs_deploy/docker-compose.server.yml`
+- 태그 패턴: 20YYMMDD-HHMMSS (예: 20250125-112345)
+- compose 파일: `infra/docker/compose/docker-compose.server.yml`
 - 이미지 필수 옵션: `${IMAGE_TAG:?IMAGE_TAG required}`
 
-### 2.2 컨테이너 배포 구성
+### 2.3 GitHub Actions 워크플로우
+
+#### 2.3.1 Build & Push (build-push-tag.yml)
+```yaml
+# 트리거: Git tag push (20YYMMDD-HHMMSS 형식)
+on:
+  push:
+    tags:
+      - '20[0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]'
+
+# 주요 기능:
+- 태그 형식 검증 (20YYMMDD-HHMMSS)
+- Docker 이미지 빌드 (context: .)
+- GHCR 푸시 (ghcr.io/tawbury/observer)
+- IMAGE_TAG 아티팩트 저장
+```
+
+#### 2.3.2 Deploy (deploy-tag.yml)
+```yaml
+# 트리거: build-push-tag 완료 후 자동 실행
+on:
+  workflow_run:
+    workflows: ["Build & Push Observer Image (Tag)"]
+    types: [completed]
+
+# 주요 기능:
+- IMAGE_TAG 아티팩트 다운로드
+- SSH 접속 (Azure VM/OCI)
+- docker-compose.server.yml 업로드
+- server_deploy.sh 실행
+- Health Check (60초, 5초 간격)
+- 자동 롤백 안내
+```
+
+### 2.4 컨테이너 배포 구성
 ```yaml
 # docker-compose.yml 요약
 services:
-  qts-observer:
+  observer:
     image: observer:latest
     restart: unless-stopped
     ports:
@@ -62,11 +102,29 @@ services:
       - ./logs:/app/logs
       - ./config:/app/config
     environment:
-      - QTS_OBSERVER_STANDALONE=1
+      - OBSERVER_STANDALONE=1
       - PYTHONPATH=/app/src:/app
 ```
 
-### 2.3 리소스 제한
+### 2.5 Server Deploy Script (server_deploy.sh)
+```bash
+# 용도: 서버에서 GHCR 이미지 배포/롤백, Compose 실행, 운영 체크
+# 버전: v1.1.0
+# 위치: scripts/deploy/server_deploy.sh
+
+# 주요 기능:
+- GHCR 이미지 pull 및 실행
+- docker-compose.server.yml 관리
+- last_good_tag 저장/복원
+- tar 백업 생성
+- Health Check (localhost:8000/health)
+- 자동 롤백 지원
+
+# 사용법:
+./server_deploy.sh <DEPLOY_DIR> <COMPOSE_FILE> <IMAGE_TAG> <MODE>
+```
+
+### 2.6 리소스 제한
 | 항목 | 제한 | 예약 |
 |------|------|------|
 | CPU | 1.0 | 0.5 |
@@ -80,12 +138,12 @@ services:
 
 | 표준 이름 | 비표준 이름 | 용도 | 우선순위 |
 |-----------|------------|------|----------|
-| `QTS_OBSERVER_STANDALONE` | `OBSERVER_STANDALONE` | Standalone 모드 | **1** |
+| `OBSERVER_STANDALONE` | `OBSERVER_STANDALONE` | Standalone 모드 | **1** |
 | `PYTHONPATH` | - | 모듈 경로 | **2** |
 | `OBSERVER_DATA_DIR` | - | 데이터 디렉터리 | 3 |
 | `OBSERVER_LOG_DIR` | - | 로그 디렉터리 | 4 |
 
-**계약:** `QTS_OBSERVER_STANDALONE`을 표준으로 고정, 다른 이름 사용 금지
+**계약:** `OBSERVER_STANDALONE`을 표준으로 고정, 다른 이름 사용 금지
 
 ### 3.2 설정 우선순위
 1. **환경 변수** (최우선)
@@ -97,18 +155,24 @@ services:
    - 하위 호환성용
 
 ### 3.3 GitHub Secrets 저장 위치
-| Secret 이름 | 용도 | 런타임 주입 위치 |
-|-------------|------|------------------|
-| `QTS_OBSERVER_STANDALONE` | Standalone 모드 | 컨테이너 환경변수 |
-| `PYTHONPATH` | 모듈 경로 | 컨테이너 환경변수 |
-| `KIS_API_KEY` | KIS API 인증 | 컨테이너 환경변수 |
-| `KIS_API_SECRET` | KIS API 시크릿 | 컨테이너 환경변수 |
+| Secret 이름 | 용도 | 런타임 주입 위치 | 워크플로우 |
+|-------------|------|------------------|-----------|
+| `OBSERVER_STANDALONE` | Standalone 모드 | 컨테이너 환경변수 | build-push, deploy |
+| `PYTHONPATH` | 모듈 경로 | 컨테이너 환경변수 | build-push, deploy |
+| `KIS_API_KEY` | KIS API 인증 | 컨테이너 환경변수 | deploy |
+| `KIS_API_SECRET` | KIS API 시크릿 | 컨테이너 환경변수 | deploy |
+| `SSH_HOST` | 배포 서버 주소 | SSH 접속 | deploy |
+| `SSH_USER` | SSH 사용자명 | SSH 접속 | deploy |
+| `SSH_PRIVATE_KEY` | SSH 개인키 | SSH 인증 | deploy |
+| `SSH_KNOWN_HOSTS` | SSH 호스트 키 | 보안 검증 | deploy |
+| `SERVER_DEPLOY_DIR` | 배포 디렉토리 | 서버 경로 | deploy |
+| `SSH_PORT` | SSH 포트 | 연결 설정 | deploy |
 
 ### 3.4 런타임 주입 방식
 ```yaml
 # GitHub Actions 예시
 env:
-  QTS_OBSERVER_STANDALONE: ${{ secrets.QTS_OBSERVER_STANDALONE }}
+  OBSERVER_STANDALONE: ${{ secrets.OBSERVER_STANDALONE }}
   PYTHONPATH: ${{ secrets.PYTHONPATH }}
 ```
 
@@ -135,7 +199,7 @@ env:
 ### 4.3 경로 정합성 검증
 ```bash
 # 컨테이너 내부 확인
-docker exec qts-observer ls -la /app/config/
+docker exec observer ls -la /app/config/
 
 # 호스트 확인
 ls -la ./config/observer/
@@ -163,7 +227,7 @@ ls -la ./config/observer/
         "config_dir": "/app/config"
     },
     "environment": {
-        "QTS_OBSERVER_STANDALONE": "1",
+        "OBSERVER_STANDALONE": "1",
         "PYTHONPATH": "/app/src:/app",
         "OBSERVER_DATA_DIR": "/app/data/observer",
         "OBSERVER_LOG_DIR": "/app/logs"
@@ -173,7 +237,7 @@ ls -la ./config/observer/
 
 ### 5.2 Dockerfile 환경변수
 ```dockerfile
-ENV QTS_OBSERVER_STANDALONE=1
+ENV OBSERVER_STANDALONE=1
 ENV PYTHONPATH=/app/src:/app
 ENV OBSERVER_DATA_DIR=/app/data/observer
 ENV OBSERVER_LOG_DIR=/app/logs
@@ -228,14 +292,56 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 ### 8.2 이미지 보안
 - **베이스:** `python:3.11-slim` (공식)
-- **사용자:** `qts` (non-root)
+- **사용자:** `observer` (non-root)
 - **권한:** 최소 권한 원칙
 
 ---
 
-## 9. 운영 가이드
+## 10. GitHub Actions 워크플로우 상세
 
-### 9.1 수동 배포
+### 10.1 Build & Push (build-push-tag.yml)
+- **트리거**: Git tag (20YYMMDD-HHMMSS)
+- **기능**: 태그 검증, 이미지 빌드, GHCR 푸시, 아티팩트 저장
+- **Dockerfile**: infra/docker/docker/Dockerfile
+- **Registry**: ghcr.io/tawbury/observer
+
+### 10.2 Deploy (deploy-tag.yml)
+- **트리거**: build-push-tag 완료 후 자동
+- **기능**: IMAGE_TAG 수신, SSH 배포, Health Check
+- **Health Check**: 60초, 5초 간격
+- **롤백**: 실패 시 자동 안내
+
+### 10.3 필수 Secrets
+- `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`
+- `SERVER_DEPLOY_DIR`, `SSH_PORT`
+- `SSH_KNOWN_HOSTS` (보안)
+
+---
+
+## 11. 배포 테스트
+
+### 11.1 로컬 테스트
+```bash
+# 이미지 빌드 테스트
+docker build -f infra/docker/docker/Dockerfile -t test:latest .
+
+# Compose 테스트
+docker-compose -f infra/docker/compose/docker-compose.server.yml config
+```
+
+### 11.2 배포 검증 체크리스트
+- [ ] 태그 형식: 20YYMMDD-HHMMSS
+- [ ] 이미지 빌드 성공
+- [ ] GHCR 푸시 성공
+- [ ] SSH 접속 가능
+- [ ] Health Check 통과
+- [ ] 로그 정상 생성
+
+---
+
+## 12. 운영 가이드
+
+### 12.1 수동 배포
 ```bash
 # 1. 이미지 빌드
 docker build -t observer:latest .
@@ -245,28 +351,28 @@ docker-compose up -d
 
 # 3. 상태 확인
 docker ps
-docker logs qts-observer
+docker logs observer
 ```
 
-### 9.2 환경변수 점검
+### 12.2 환경변수 점검
 ```bash
 # 컨테이너 내부 환경변수 확인
-docker exec qts-observer env | grep OBSERVER
+docker exec observer env | grep OBSERVER
 
 # paths.py 경로 확인
-docker exec qts-observer python -c "from paths import observer_asset_dir; print(observer_asset_dir())"
+docker exec observer python -c "from paths import observer_asset_dir; print(observer_asset_dir())"
 ```
 
-### 9.3 디버깅 명령어
+### 12.3 디버깅 명령어
 ```bash
 # 실시간 로그
-docker logs -f qts-observer
+docker logs -f observer
 
 # 컨테이너 접속
-docker exec -it qts-observer /bin/bash
+docker exec -it observer /bin/bash
 
 # 파일 시스템 확인
-docker exec qts-observer find /app -name "*.jsonl"
+docker exec observer find /app -name "*.jsonl"
 ```
 
 ---

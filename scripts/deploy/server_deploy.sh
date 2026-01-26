@@ -108,6 +108,48 @@ resolve_image_tag() {
     else
         IMAGE_TAG="$IMAGE_TAG_INPUT"
         log_info "배포 태그 사용: $IMAGE_TAG"
+
+    # ============================================================================
+    # 함수: GHCR 인증 확인 및 자동 로그인
+    # ============================================================================
+    ensure_ghcr_auth() {
+        log_info "=== GHCR 인증 확인 중 ==="
+    
+        # Docker config 확인
+        if docker pull ghcr.io/tawbury/observer:latest --quiet >/dev/null 2>&1; then
+            log_info "✅ GHCR 인증 이미 완료됨"
+            return 0
+        fi
+    
+        log_warn "⚠️  GHCR 인증 필요"
+    
+        # GHCR_TOKEN 환경변수 확인
+        if [ -n "${GHCR_TOKEN:-}" ]; then
+            log_info "🔐 GHCR_TOKEN 환경변수로 인증 시도..."
+            if echo "$GHCR_TOKEN" | docker login ghcr.io -u tawbury --password-stdin >/dev/null 2>&1; then
+                log_info "✅ GHCR 인증 성공"
+                return 0
+            else
+                log_error "GHCR 인증 실패 (GHCR_TOKEN)"
+                return 1
+            fi
+        fi
+    
+        # gh CLI 사용 가능 여부 확인
+        if command -v gh >/dev/null 2>&1; then
+            log_info "🔐 gh CLI로 인증 시도..."
+            if gh auth token 2>/dev/null | docker login ghcr.io -u tawbury --password-stdin >/dev/null 2>&1; then
+                log_info "✅ GHCR 인증 성공"
+                return 0
+            fi
+        fi
+    
+        log_error "❌ GHCR 인증 실패"
+        log_error "다음 중 하나를 수행하세요:"
+        log_error "  1. GHCR_TOKEN 환경변수 설정: export GHCR_TOKEN=<your_token>"
+        log_error "  2. 수동 로그인: echo <token> | docker login ghcr.io -u tawbury --password-stdin"
+        return 1
+    }
     fi
     return 0
 }
@@ -355,6 +397,13 @@ main() {
     # 2단계: 태그 확정 및 이미지 Pull
     if ! resolve_image_tag; then
         log_error "이미지 태그 확인 실패"
+    
+            # GHCR 인증 확인
+            if ! ensure_ghcr_auth; then
+                log_error "GHCR 인증 실패"
+                return 1
+            fi
+    
         return 1
     fi
     if ! pull_docker_image; then

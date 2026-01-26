@@ -39,6 +39,8 @@ services:
       # Core settings
       - OBSERVER_STANDALONE=1
       - PYTHONPATH=/app/src
+      # 시간대 설정 (KST)
+      - TZ=Asia/Seoul
       # Path settings (paths.py에서 사용) - 단순화된 경로
       - OBSERVER_DATA_DIR=/app/data
       - OBSERVER_LOG_DIR=/app/logs

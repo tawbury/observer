@@ -460,9 +460,10 @@ class KISWebSocketProvider:
                 return None
             
             # Real-time execution data fields
+            from zoneinfo import ZoneInfo
             price_data = {
                 "symbol": symbol,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(ZoneInfo("Asia/Seoul")).isoformat(),
                 "price": {
                     "close": int(body.get("stck_prpr", 0)),  # Current price
                     "open": int(body.get("stck_oprc", 0)),   # Open price
@@ -575,7 +576,7 @@ class KISWebSocketProvider:
             return {
                 "symbol": symbol,
                 "execution_time": fields[2],  # HHMMSS
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(ZoneInfo("Asia/Seoul")).isoformat(),
                 "price": {
                     "close": int(fields[3] or 0),    # Current price
                     "change_amount": int(fields[5] or 0),

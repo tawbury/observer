@@ -68,8 +68,9 @@ class RateLimiter:
         self.minute_tokens = requests_per_minute
         
         # Last refill times
-        self.last_second_refill = datetime.now(timezone.utc)
-        self.last_minute_refill = datetime.now(timezone.utc)
+        from zoneinfo import ZoneInfo
+        self.last_second_refill = datetime.now(ZoneInfo("Asia/Seoul"))
+        self.last_minute_refill = datetime.now(ZoneInfo("Asia/Seoul"))
         
         # Lock for thread safety
         self._lock = asyncio.Lock()
@@ -80,7 +81,8 @@ class RateLimiter:
         """Wait until a request can be made within rate limits."""
         async with self._lock:
             while True:
-                now = datetime.now(timezone.utc)
+                from zoneinfo import ZoneInfo
+                now = datetime.now(ZoneInfo("Asia/Seoul"))
                 
                 # Refill second bucket
                 if (now - self.last_second_refill).total_seconds() >= 1.0:
@@ -259,7 +261,8 @@ class KISRestProvider:
         ask_price = int(output.get("askp1", 0))              # 매도호가1
         
         # Timestamp
-        now = datetime.now(timezone.utc)
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Asia/Seoul"))
         
         return {
             "meta": {
@@ -315,10 +318,11 @@ class KISRestProvider:
         await self.auth.ensure_token()
         
         # Calculate date range if not provided
+        from zoneinfo import ZoneInfo
         if not end_date:
-            end_date = datetime.now(timezone.utc).strftime("%Y%m%d")
+            end_date = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y%m%d")
         if not start_date:
-            start_dt = datetime.now(timezone.utc) - timedelta(days=days)
+            start_dt = datetime.now(ZoneInfo("Asia/Seoul")) - timedelta(days=days)
             start_date = start_dt.strftime("%Y%m%d")
         
         url = f"{self.auth.base_url}/uapi/domestic-stock/v1/quotations/inquire-daily-price"
@@ -394,17 +398,18 @@ class KISRestProvider:
             volume = int(item.get("acml_vol", 0))
             
             # Convert date to ISO format
+            from zoneinfo import ZoneInfo
             if len(date_str) == 8:
                 date_obj = datetime.strptime(date_str, "%Y%m%d")
-                timestamp = date_obj.replace(tzinfo=timezone.utc).isoformat()
+                timestamp = date_obj.replace(tzinfo=ZoneInfo("Asia/Seoul")).isoformat()
             else:
-                timestamp = datetime.now(timezone.utc).isoformat()
+                timestamp = datetime.now(ZoneInfo("Asia/Seoul")).isoformat()
             
             results.append({
                 "meta": {
                     "source": "kis",
                     "market": "kr_stocks",
-                    "captured_at": datetime.now(timezone.utc).isoformat(),
+                    "captured_at": datetime.now(ZoneInfo("Asia/Seoul")).isoformat(),
                     "schema_version": "1.0",
                 },
                 "instruments": [

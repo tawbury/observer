@@ -32,6 +32,10 @@ RUN mkdir -p /app/data \
 ENV OBSERVER_STANDALONE=1
 ENV PYTHONPATH=/app/src:/app
 
+# 시간대 설정 (KST)
+ENV TZ=Asia/Seoul
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # 경로 환경변수 (paths.py에서 사용) - 단순화된 경로
 ENV OBSERVER_DATA_DIR=/app/data
 ENV OBSERVER_LOG_DIR=/app/logs

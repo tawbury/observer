@@ -78,6 +78,19 @@ class UniverseManager:
         async def fetch_and_filter(sym: str) -> None:
             async with sem:
                 try:
+                    # Check current price to filter suspended/delisted stocks
+                    current_data = await self.engine.fetch_current_price(sym)
+                    current_price = 0
+                    if current_data and current_data.get("instruments"):
+                        instrument = current_data["instruments"][0]
+                        price_info = instrument.get("price", {})
+                        current_price = price_info.get("close", 0)
+                    
+                    # Skip if current price is 0 (suspended/delisted)
+                    if current_price == 0:
+                        return
+                    
+                    # Then check historical data for price filter
                     data = await self.engine.fetch_daily_prices(sym, days=2)
                     # Expect most recent entries first; pick first item's close
                     close = self._extract_prev_close(data)

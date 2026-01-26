@@ -129,7 +129,7 @@ class TrackACollector(TimeAwareMixin):
                 inst = (payload.get("instruments") or [{}])[0]
                 price = inst.get("price") or {}
                 record = {
-                    "ts": datetime.utcnow().isoformat() + "Z",
+                    "ts": self._now().isoformat(),
                     "session": self.cfg.session_id,
                     "dataset": "track_a_swing",
                     "market": self.cfg.market,

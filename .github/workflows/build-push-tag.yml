@@ -2,8 +2,9 @@ name: Build & Push Observer Image (Tag)
 
 on:
   push:
-    tags:
-      - '20[0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]'
+    branches:
+      - main
+      - develop
   workflow_dispatch:
     inputs:
       image_tag:
@@ -22,24 +23,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set IMAGE_TAG
+      - name: Generate Build Tag
         id: tag
+        shell: bash
         run: |
+          # 수동 입력 태그 확인
           if [ -n "${{ inputs.image_tag }}" ]; then
             IMAGE_TAG="${{ inputs.image_tag }}"
+            echo "📝 Using manual input tag: $IMAGE_TAG"
           else
-            IMAGE_TAG="${{ github.ref_name }}"
+            # 타임스탬프 기반 자동 태그 생성
+            timestamp=$(date '+%Y%m%d-%H%M%S')
+            IMAGE_TAG="20${timestamp:2:6}-${timestamp:9:6}"
+            echo "🕐 Generated auto tag: $IMAGE_TAG"
           fi
-
+          
           # 태그 형식 검증: 20YYMMDD-HHMMSS
           if [[ ! "$IMAGE_TAG" =~ ^20[0-9]{6}-[0-9]{6}$ ]]; then
             echo "❌ Invalid tag format: $IMAGE_TAG"
             echo "Expected format: 20YYMMDD-HHMMSS (e.g., 20250125-112345)"
             exit 1
           fi
-
+          
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
-          echo "✅ Using image tag: $IMAGE_TAG (format validated)"
+          echo "✅ Image tag validated: $IMAGE_TAG"
 
       - name: Save IMAGE_TAG for deployment
         run: |

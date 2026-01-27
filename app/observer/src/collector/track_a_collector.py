@@ -37,6 +37,7 @@ class TrackACollector(TimeAwareMixin):
         self,
         engine: ProviderEngine,
         config: Optional[TrackAConfig] = None,
+        universe_dir: Optional[str] = None,
         on_error: Optional[Callable[[str], None]] = None,
     ) -> None:
         self.engine = engine
@@ -45,6 +46,7 @@ class TrackACollector(TimeAwareMixin):
         self._init_timezone()
         self._manager = UniverseManager(
             provider_engine=self.engine,
+            universe_dir=universe_dir,
             market=self.cfg.market,
             min_price=4000,  # aligned with Task 6.1
             min_count=100,

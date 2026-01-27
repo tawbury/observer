@@ -13,6 +13,7 @@ import sys
 import os
 import signal
 import threading
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -174,6 +175,10 @@ def run_observer_with_api():
             kis_auth_a = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
             provider_engine_a = ProviderEngine(kis_auth_a, is_virtual=kis_is_virtual)
             
+            # Explicitly set universe_dir to ensure correct path
+            universe_dir = Path("/app/config/universe")
+            universe_dir.mkdir(parents=True, exist_ok=True)
+            
             track_a_config = TrackAConfig(
                 interval_minutes=10,
                 market="kr_stocks",
@@ -184,9 +189,10 @@ def run_observer_with_api():
             track_a_collector = TrackACollector(
                 provider_engine_a,
                 config=track_a_config,
+                universe_dir=str(universe_dir),
                 on_error=lambda msg: log.warning(f"Track A Error: {msg}")
             )
-            log.info("Track A Collector configured: 10-minute interval")
+            log.info("Track A Collector configured: 10-minute interval (universe_dir=%s)", universe_dir)
         except Exception as e:
             log.error(f"Failed to initialize Track A Collector: {e}")
     else:
@@ -308,8 +314,13 @@ def run_observer_with_api():
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
-        # Keep main thread alive - wait for API thread
-        api_thread.join()
+        # Keep main thread alive - infinite wait
+        # API server runs in daemon thread, so we need to keep main thread alive
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            signal_handler(signal.SIGINT, None)
 
     except KeyboardInterrupt:
         log.info("Shutting down Observer system...")

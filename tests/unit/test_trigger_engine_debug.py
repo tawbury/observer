@@ -9,8 +9,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-# 경로 설정
-sys.path.insert(0, 'src')
+_project_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_project_root / "app" / "observer" / "src"))
 
 print('=== 트리거 엔진 디버깅 테스트 ===')
 

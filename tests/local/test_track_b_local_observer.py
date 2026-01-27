@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Track B 로컬 테스트 스크립트
+Track B 로컬 테스트 스크립트 (observer 쪽)
 
 트리거 감지 및 스켈프 데이터 생성 기능 테스트
 """
@@ -12,8 +12,8 @@ from pathlib import Path
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
-# 경로 설정
-sys.path.insert(0, 'src')
+_project_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_project_root / "app" / "observer" / "src"))
 
 print('=== Track B 트리거 감지 및 스켈프 데이터 생성 테스트 ===')
 
@@ -120,7 +120,7 @@ try:
     print('\n=== 스켈프 데이터 생성 테스트 ===')
     
     # 스켈프 데이터 디렉토리 생성
-    scalp_dir = Path('config/observer/scalp')
+    scalp_dir = _project_root / "app" / "observer" / "config" / "observer" / "scalp"
     scalp_dir.mkdir(parents=True, exist_ok=True)
     
     # 스켈프 데이터 생성

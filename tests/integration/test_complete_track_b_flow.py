@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Track B 전체 흐름 테스트 (수정)
+Track B 전체 흐름 테스트
 
-올바른 SlotManager 메서드 사용
+트리거 감지부터 스켈프 데이터 생성까지 전체 과정 테스트
 """
 import sys
 import os
@@ -11,18 +11,19 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-# 경로 설정
-sys.path.insert(0, 'src')
+_project_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_project_root / "app" / "observer" / "src"))
 
-print('=== Track B 전체 흐름 테스트 (수정) ===')
+print('=== Track B 전체 흐름 테스트 ===')
 
 try:
     from trigger.trigger_engine import TriggerEngine, PriceSnapshot, TriggerCandidate
-    from slot.slot_manager import SlotManager, SlotCandidate
+    from slot.slot_manager import SlotManager
+    from collector.track_b_collector import TrackBCollector, TrackBConfig
     
     print('✅ 모듈 임포트 성공')
     
-    # 1. 트리거 엔진 설정
+    # 1. 트리거 엔진 테스트 (낮은 기준)
     from trigger.trigger_engine import TriggerConfig
     config = TriggerConfig(volume_surge_ratio=2.0)
     trigger_engine = TriggerEngine(config)
@@ -103,28 +104,18 @@ try:
     
     allocated_slots = []
     for candidate in candidates:
-        # SlotCandidate 생성
-        slot_candidate = SlotCandidate(
-            symbol=candidate.symbol,
-            priority_score=candidate.priority_score,
-            trigger_type=candidate.trigger_type,
-            detected_at=candidate.detected_at,
-            details=candidate.details
-        )
+        slot_id = len(allocated_slots) + 1
+        success = slot_manager.allocate_slot(candidate.symbol, slot_id, candidate.priority_score)
         
-        # 슬롯 할당
-        result = slot_manager.assign_slot(slot_candidate)
-        
-        if result.success:
+        if success:
             allocated_slots.append({
-                'slot_id': result.slot_id,
+                'slot_id': slot_id,
                 'symbol': candidate.symbol,
                 'trigger_type': candidate.trigger_type,
                 'priority_score': candidate.priority_score,
-                'detected_at': candidate.detected_at.isoformat(),
-                'reason': result.reason
+                'detected_at': candidate.detected_at.isoformat()
             })
-            print(f'  ✅ Slot {result.slot_id}: {candidate.symbol} ({result.reason})')
+            print(f'  ✅ Slot {slot_id}: {candidate.symbol} ({candidate.trigger_type})')
         else:
             print(f'  ❌ 슬롯 할당 실패: {candidate.symbol}')
     
@@ -154,7 +145,7 @@ try:
     # 6. 파일 저장
     print('\n=== 스켈프 데이터 저장 ===')
     
-    scalp_dir = Path('config/observer/scalp')
+    scalp_dir = _project_root / "app" / "observer" / "config" / "observer" / "scalp"
     scalp_dir.mkdir(parents=True, exist_ok=True)
     
     scalp_file = scalp_dir / '20260126.jsonl'
@@ -192,7 +183,7 @@ try:
     class MockTrackB:
         def __init__(self):
             self.market = 'kr_stocks'
-            self.base_dir = Path('config/observer')
+            self.base_dir = _project_root / "app" / "observer" / "config" / "observer"
             self.daily_log_subdir = 'scalp'
         
         def _log_scalp_data(self, symbol, slot_id, event, price_data):

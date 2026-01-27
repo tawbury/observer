@@ -10,8 +10,8 @@ from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-# 경로 설정
-sys.path.insert(0, 'src')
+_project_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_project_root / "app" / "observer" / "src"))
 
 print('=== 간단 스켈프 데이터 생성 테스트 ===')
 
@@ -48,7 +48,7 @@ try:
     print(f'생성된 스켈프 데이터: {len(scalp_data)} 개')
     
     # 파일 저장
-    scalp_dir = Path('config/observer/scalp')
+    scalp_dir = _project_root / "app" / "observer" / "config" / "observer" / "scalp"
     scalp_dir.mkdir(parents=True, exist_ok=True)
     
     scalp_file = scalp_dir / '20260126.jsonl'

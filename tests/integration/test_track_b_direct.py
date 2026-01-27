@@ -12,25 +12,25 @@ from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-# Setup paths
-project_root = Path(__file__).parent
+# Setup paths (run from tests/integration/)
+project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root / "app" / "observer"))
 sys.path.insert(0, str(project_root / "app" / "observer" / "src"))
 
 # Load .env
 try:
     from dotenv import load_dotenv
-    env_file = Path(__file__).parent / "app" / "observer" / ".env"
+    env_file = project_root / "app" / "observer" / ".env"
     if env_file.exists():
         load_dotenv(env_file)
         print(f"[INFO] Loaded .env from {env_file}")
-except:
+except Exception:
     pass
 
 # Set environment for local testing
 import os
 os.environ["OBSERVER_STANDALONE"] = "0"
-os.environ["OBSERVER_CONFIG_DIR"] = str(Path(__file__).parent / "app" / "observer" / "config")
+os.environ["OBSERVER_CONFIG_DIR"] = str(project_root / "app" / "observer" / "config")
 
 # Configure logging
 logging.basicConfig(

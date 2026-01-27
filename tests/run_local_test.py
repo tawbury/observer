@@ -17,8 +17,9 @@ from pathlib import Path
 from typing import List, Dict, Any
 import json
 
-# Add src to path
-src_path = Path(__file__).parent / "app" / "observer" / "src"
+# Add src to path (run from project root or tests/)
+_project_root = Path(__file__).resolve().parents[1]
+src_path = _project_root / "app" / "observer" / "src"
 sys.path.insert(0, str(src_path))
 
 from trigger.trigger_engine import TriggerEngine, TriggerConfig, PriceSnapshot
@@ -52,7 +53,7 @@ def generate_track_a_data(symbols: List[str], duration_minutes: int = 10) -> Lis
     }
     
     # Create swing directory
-    swing_dir = Path("app/observer/config/observer/swing")
+    swing_dir = _project_root / "app" / "observer" / "config" / "observer" / "swing"
     swing_dir.mkdir(parents=True, exist_ok=True)
     
     # Use today's date for filename
@@ -181,7 +182,7 @@ def run_track_b_test(snapshots: List[PriceSnapshot]) -> Dict[str, Any]:
                     log.warning(f"   ⚠️ Overflow: {candidate.symbol}")
     
     # Generate scalp log in correct path
-    scalp_dir = Path("app/observer/config/observer/scalp")
+    scalp_dir = _project_root / "app" / "observer" / "config" / "observer" / "scalp"
     scalp_dir.mkdir(parents=True, exist_ok=True)
     
     # Use today's date for filename

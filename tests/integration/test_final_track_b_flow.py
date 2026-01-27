@@ -11,8 +11,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-# 경로 설정
-sys.path.insert(0, 'src')
+_project_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_project_root / "app" / "observer" / "src"))
 
 print('=== Track B 전체 흐름 최종 테스트 ===')
 
@@ -105,7 +105,7 @@ try:
     # 4. 파일 저장
     print('\n=== 스켈프 데이터 저장 ===')
     
-    scalp_dir = Path('config/observer/scalp')
+    scalp_dir = _project_root / "app" / "observer" / "config" / "observer" / "scalp"
     scalp_dir.mkdir(parents=True, exist_ok=True)
     
     scalp_file = scalp_dir / '20260126.jsonl'
@@ -143,7 +143,7 @@ try:
     class MockTrackB:
         def __init__(self):
             self.market = 'kr_stocks'
-            self.base_dir = Path('config/observer')
+            self.base_dir = _project_root / "app" / "observer" / "config" / "observer"
             self.daily_log_subdir = 'scalp'
         
         def _log_scalp_data(self, symbol, slot_id, event, price_data):

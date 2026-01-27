@@ -1,6 +1,12 @@
 # Project-specific
 infra/output/
+app/*.tar.gz
 app/obs_deploy/MANIFEST.txt
+app/observer/config/observer/**/*.jsonl
+app/observer/config/system/**/*.jsonl
+app/observer/logs/
+app/observer/config/universe/*.json
+app/observer/config/symbols/kr_all_symbols.*
 app/obs_deploy/start_observer.sh
 app/obs_deploy/app/data/
 app/obs_deploy/app/config/observer/

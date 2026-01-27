@@ -52,10 +52,11 @@ ssh oracle-obs-vm-01
 ## 현재 배포 상태
 
 ### 마지막 배포 정보
-- **배포 일시**: 2026-01-27 00:13:27 KST
+- **배포 일시**: 2026-01-28 00:38:27 KST
 - **이미지 태그**: 20260127-000738
 - **이미지**: ghcr.io/tawbury/observer:20260127-000738
 - **플랫폼**: linux/arm64
+- **상태**: ✅ Running (Health: Starting)
 
 ### 실행 중인 컨테이너
 
@@ -63,9 +64,9 @@ ssh oracle-obs-vm-01
 # 컨테이너 확인
 docker ps
 
-# 컨테이너 목록:
-# - observer (ghcr.io/tawbury/observer:20260127-000738)
-# - observer-postgres (postgres:15-alpine)
+# 컨테이너 목록 (2026-01-28 확인):
+# - observer (ghcr.io/tawbury/observer:20260127-000738) - Up 5 seconds (health: starting)
+# - observer-postgres (postgres:15-alpine) - Up 2 days (healthy)
 ```
 
 ### Health Check
@@ -102,7 +103,26 @@ export GHCR_TOKEN=<YOUR_GITHUB_TOKEN>
 
 ## 배포 명령어
 
-### 새 이미지 배포
+### 로컬에서 OCI 배포 (PowerShell, 프로젝트 루트 기준)
+
+1. **이미지 태그 생성** (현재 시각 기준, 재사용하지 않음)
+   ```powershell
+   $tag = .\infra\_shared\scripts\build\generate_build_tag.ps1 | Select-Object -Last 1
+   ```
+2. **배포 실행** (deploy.ps1 기본값이 OCI·app/observer 경로로 설정됨)
+   ```powershell
+   .\infra\_shared\scripts\deploy\deploy.ps1 -ImageTag $tag
+   ```
+   - 필요 시: `-LocalEnvFile "app\observer\.env"`, `-ArtifactDir "app\observer\docker\compose"` 등은 이미 기본값으로 지정됨.
+3. **배포 성공 시 이 문서 갱신**  
+   "현재 배포 상태" 아래 **마지막 배포 정보**를 다음처럼 수정:
+   - **배포 일시**: 실제 배포 완료 시각 (예: 2026-01-27 22:51:30 KST)
+   - **이미지 태그**: 위에서 사용한 `$tag` 값 (예: 20260127-225130)
+   - **이미지**: `ghcr.io/tawbury/observer:<위_태그>`
+   - **실행 중인 컨테이너** 예시의 이미지 태그를 동일하게 변경
+   - **최종 업데이트**: 문서 수정한 날짜
+
+### 서버에서 새 이미지 배포
 
 ```bash
 # GHCR_TOKEN 환경변수가 설정되어 있으면 자동 인증

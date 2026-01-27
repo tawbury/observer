@@ -52,11 +52,13 @@ ssh oracle-obs-vm-01
 ## 현재 배포 상태
 
 ### 마지막 배포 정보
-- **배포 일시**: 2026-01-28 00:38:27 KST
-- **이미지 태그**: 20260127-000738
-- **이미지**: ghcr.io/tawbury/observer:20260127-000738
-- **플랫폼**: linux/arm64
-- **상태**: ✅ Running (Health: Starting)
+- **배포 일시**: 2026-01-28 00:49:21 KST
+- **이미지 태그**: 20260127-154214 (최신 빌드)
+- **이미지**: ghcr.io/tawbury/observer:20260127-154214
+- **플랫폼**: linux/arm64 (멀티플랫폼 빌드)
+- **상태**: ✅ Running (Health: Healthy)
+- **GitHub Actions 워크플로우**: build-push-tag.yml (run 21403674206)
+- **배포 스크립트**: deploy.ps1 (로그: ops/run_records/deploy_20260128-004921.log)
 
 ### 실행 중인 컨테이너
 
@@ -64,10 +66,15 @@ ssh oracle-obs-vm-01
 # 컨테이너 확인
 docker ps
 
-# 컨테이너 목록 (2026-01-28 확인):
-# - observer (ghcr.io/tawbury/observer:20260127-000738) - Up 5 seconds (health: starting)
+# 컨테이너 목록 (2026-01-28 00:49:23 기준):
+# - observer (ghcr.io/tawbury/observer:20260127-154214) - Up 40 seconds (healthy)
 # - observer-postgres (postgres:15-alpine) - Up 2 days (healthy)
 ```
+
+### 주요 변경사항
+- 거래시간 이후 scalp logging 중단 기능 추가 (TrackBCollector trading_end guard)
+- 컨테이너 시간 동기화 검증 로직 추가 (server_deploy.sh check_time_drift)
+- PowerShell 시간 편차 확인 스크립트 추가 (sync_container_time.ps1)
 
 ### Health Check
 

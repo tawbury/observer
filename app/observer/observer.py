@@ -33,6 +33,20 @@ import asyncio
 
 def configure_environment():
     """Configure environment variables for Docker deployment"""
+    # Load .env file first (for local testing)
+    try:
+        from dotenv import load_dotenv
+        env_file = Path(__file__).parent / ".env"
+        if env_file.exists():
+            load_dotenv(env_file)
+            import sys
+            sys.stdout.reconfigure(encoding='utf-8')
+            print(f"[INFO] Loaded .env file from {env_file}")
+    except ImportError:
+        pass  # dotenv not installed, skip
+    except Exception:
+        pass  # Ignore encoding errors
+    
     os.environ.setdefault("OBSERVER_STANDALONE", "1")
     os.environ.setdefault("PYTHONPATH", "/app/src:/app")
     os.environ.setdefault("OBSERVER_DATA_DIR", "/app/data/observer")
@@ -199,7 +213,7 @@ def run_observer_with_api():
                 session_id=session_id,
                 mode="DOCKER",
                 max_slots=41,
-                track_a_check_interval_seconds=60
+                trigger_check_interval_seconds=30
             )
             
             track_b_collector = TrackBCollector(

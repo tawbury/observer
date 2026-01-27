@@ -2,53 +2,26 @@
 
 실시간 시장 데이터 수집을 담당하는 모듈입니다.
 
-## 아키텍처
+## 현재 구성
 
 ```
 BaseCollector (추상 클래스)
-    ├── TrackACollector (분봉 데이터)
-    └── TrackBCollector (체결 데이터)
+├── track_a_collector.py   # 분봉 수집
+└── track_b_collector.py   # 체결 수집 (Track A 의존성 제거, 부트스트랩형)
 ```
+
+보조 스크립트
+- collect_live_scalp.py: WebSocket 실시간 체결 로그를 바로 파일로 적재하는 경량 CLI
 
 ## BaseCollector
 
 모든 Collector의 공통 기능을 제공하는 추상 베이스 클래스입니다.
 
 ### 주요 기능
-
-1. **타임존 관리**: TimeAwareMixin 상속으로 타임존 인식 시간 처리
-2. **장중 판별**: `is_in_trading_hours()` 메서드로 장중/장외 판단
-3. **에러 핸들링**: `on_error` 콜백으로 에러 전파
-4. **비동기 수집**: `collect_once()` 추상 메서드 구현 필요
-
-### 사용 예시
-
-```python
-from collector.base import BaseCollector, CollectorConfig
-from datetime import time
-
-class MyCollector(BaseCollector):
-    async def collect_once(self) -> Dict[str, Any]:
-        """실제 데이터 수집 로직 구현"""
-        if not self.is_in_trading_hours():
-            return {"status": "outside_trading_hours"}
-        
-        # 데이터 수집 로직
-        data = await fetch_market_data()
-        return {"status": "success", "data": data}
-
-# Collector 초기화
-config = CollectorConfig(
-    tz_name="Asia/Seoul",
-    trading_start=time(9, 0),
-    trading_end=time(15, 30)
-)
-
-collector = MyCollector(config, on_error=lambda msg: print(f"Error: {msg}"))
-
-# 수집 실행
-result = await collector.collect_once()
-```
+1. 타임존 관리: TimeAwareMixin 상속으로 타임존 인식 시간 처리
+2. 장중 판별: `is_in_trading_hours()` 메서드로 장중/장외 판단
+3. 에러 핸들링: `on_error` 콜백으로 에러 전파
+4. 비동기 수집: `collect_once()` 추상 메서드 구현 필요
 
 ## TrackACollector
 
@@ -60,28 +33,21 @@ result = await collector.collect_once()
 - PostgreSQL에 저장
 - Prometheus 메트릭 노출
 
-## TrackBCollector
+## TrackBCollector (현행)
 
-실시간 체결 데이터를 수집합니다.
+Track A 없이 독립적으로 41개 WebSocket 슬롯을 관리하는 체결 데이터 수집기입니다.
 
 ### 특징
-- WebSocket 기반 실시간 수집
-- 고빈도 데이터 처리
-- 버퍼링 및 배치 저장
-- 체결 시간 타임스탬프 정확도 중요
+- 부트스트랩 심볼 기반 즉시 구독 (Track A 로그 의존성 제거)
+- SlotManager로 41개 슬롯 동적 관리 및 오버플로우 기록
+- 실시간 2Hz 체결 데이터 수집 및 config/observer/scalp/YYYYMMDD.jsonl 로깅
 
-## 설정
+## 중복 정리
 
-환경변수로 Collector 활성화/비활성화:
-```bash
-TRACK_A_ENABLED=true
-TRACK_B_ENABLED=false
-```
+다음 프로토타입/중복 파일을 제거했습니다. Track B는 `track_b_collector.py` 하나로 운용합니다.
+- independent_track_b_collector.py
+- independent_track_b_scanner.py
+- track_b_independent.py
+- live_scalp_collector.py
 
-## 디버깅
-
-로그 레벨 설정:
-```python
-import logging
-logging.getLogger("collector").setLevel(logging.DEBUG)
-```
+관련 실험용 테스트(`tests/test_independent_track_b.py`, `app/observer/test_independent_track_b.py`)도 제거되었습니다. 독립 실행 검증은 `tests/test_track_b_standalone.py`를 사용하세요.

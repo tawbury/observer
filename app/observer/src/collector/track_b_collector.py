@@ -1,19 +1,19 @@
 """
 Track B Collector - Real-time WebSocket data collection for 41 slots
 
-Key Responsibilities:
-- Monitor Track A data for trigger events (via TriggerEngine)
-- Manage 41 WebSocket subscription slots (via SlotManager)
-- Subscribe/unsubscribe symbols dynamically based on triggers
-- Collect real-time 2Hz data from WebSocket
-- Log scalp data to config/observer/scalp/YYYYMMDD.jsonl
+Key Responsibilities (Track A 독립형):
+- Track A 데이터 없이도 자체 부트스트랩 심볼로 즉시 구독
+- 41개 슬롯(WebSocket) 동적 관리 (SlotManager)
+- 실시간 2Hz 체결 데이터 수집 및 스캘프 로그 저장
+- config/observer/scalp/YYYYMMDD.jsonl 로깅
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 from datetime import datetime, date, time, timedelta
 from typing import List, Dict, Any, Optional, Callable
 from pathlib import Path
@@ -23,7 +23,7 @@ from shared.time_helpers import TimeAwareMixin
 from shared.trading_hours import in_trading_hours
 
 from provider import ProviderEngine
-from trigger.trigger_engine import TriggerEngine, PriceSnapshot, parse_track_a_jsonl
+from trigger.trigger_engine import TriggerEngine
 from slot.slot_manager import SlotManager, SlotCandidate
 from paths import observer_asset_dir
 
@@ -46,7 +46,11 @@ class TrackBConfig:
     daily_log_subdir: str = "scalp"  # under config/observer/{subdir}
     trading_start: time = time(9, 30)  # Track B starts 30min after market open
     trading_end: time = time(15, 30)   # Track B ends 30min after market close (장마감 변동성 감지)
-    track_a_check_interval_seconds: int = 60  # Check Track A for triggers every 60s
+    trigger_check_interval_seconds: int = 30  # Trigger processing interval
+    bootstrap_symbols: List[str] = field(
+        default_factory=lambda: ["005930", "000660", "373220", "051910", "068270", "035720"]
+    )
+    bootstrap_priority: float = 0.95
 
 
 class TrackBCollector(TimeAwareMixin):
@@ -54,7 +58,7 @@ class TrackBCollector(TimeAwareMixin):
     Track B Collector - WebSocket-based real-time data collector.
     
     Features:
-    - Trigger-based symbol selection from Track A data
+    - Track A 독립: 부트스트랩 심볼 기반 즉시 구독
     - Dynamic 41-slot WebSocket subscription management
     - 2Hz real-time price data collection
     - Scalp log partitioning by date
@@ -63,12 +67,12 @@ class TrackBCollector(TimeAwareMixin):
     def __init__(
         self,
         engine: ProviderEngine,
-        trigger_engine: TriggerEngine,
+        trigger_engine: Optional[TriggerEngine] = None,
         config: Optional[TrackBConfig] = None,
         on_error: Optional[Callable[[str], None]] = None,
     ) -> None:
         self.engine = engine
-        self.trigger_engine = trigger_engine
+        self.trigger_engine = trigger_engine or TriggerEngine()
         self.cfg = config or TrackBConfig()
         self._tz_name = self.cfg.tz_name
         self._init_timezone()
@@ -93,39 +97,47 @@ class TrackBCollector(TimeAwareMixin):
         Main loop:
         1. Start WebSocket provider (connect to KIS)
         2. Register price update callback
-        3. Monitor Track A data for triggers
+        3. 부트스트랩 심볼 기반 트리거 생성 (Track A 의존성 제거)
         4. Update slots based on trigger candidates
         5. Subscribe/unsubscribe WebSocket symbols
         6. Collect and log real-time data
         """
         log.info("TrackBCollector started (max_slots=%d)", self.cfg.max_slots)
         self._running = True
-        
-        # Start WebSocket provider FIRST (before registering callbacks)
-        await self._start_websocket()
-        
-        # Register WebSocket price update callback AFTER connection
+
+        # Debug mode: bypass trading hours check for testing
+        debug_mode = os.environ.get("TRACK_B_DEBUG", "").lower() in ("1", "true", "yes")
+        if debug_mode:
+            log.info("⚠️ 디버그 모드 활성화 - 장중 체크 우회")
+
+        # CRITICAL: Register callback BEFORE starting WebSocket to avoid message loss
+        log.info("콜백 등록 중...")
         self._register_websocket_callback()
-        
+        log.info(f"✅ 콜백 등록 완료. on_price_update: {self.engine.on_price_update}")
+
+        # Now start WebSocket provider (callback is already registered)
+        log.info("WebSocket 연결 시작...")
+        await self._start_websocket()
+        log.info("✅ WebSocket 연결 완료")
+
         try:
             while self._running:
                 now = self._now()
-                
+
                 # 디버깅 로그 추가
-                log.info(f"Track B current time: {now} (timezone: {now.tzinfo})")
-                log.info(f"Trading hours: {self.cfg.trading_start} - {self.cfg.trading_end}")
-                
-                if not in_trading_hours(now, self.cfg.trading_start, self.cfg.trading_end):
-                    log.info("Outside trading hours, waiting...")
+                log.info(f"Track B 현재 시간: {now} (timezone: {now.tzinfo})")
+                log.info(f"장중 시간: {self.cfg.trading_start} - {self.cfg.trading_end}")
+
+                if not debug_mode and not in_trading_hours(now, self.cfg.trading_start, self.cfg.trading_end):
+                    log.info("장중 시간 외 - 대기 중...")
                     await asyncio.sleep(60)
                     continue
                 
-                log.info("Inside trading hours, checking triggers...")
-                # Check Track A for triggers
+                log.info("Inside trading hours, generating standalone triggers...")
                 await self._check_triggers()
                 
                 # Wait before next check
-                await asyncio.sleep(self.cfg.track_a_check_interval_seconds)
+                await asyncio.sleep(self.cfg.trigger_check_interval_seconds)
                 
         except Exception as e:
             log.error(f"TrackBCollector error: {e}", exc_info=True)
@@ -144,114 +156,62 @@ class TrackBCollector(TimeAwareMixin):
     # -----------------------------------------------------
     async def _check_triggers(self) -> None:
         """
-        Check Track A data for triggers and update slots.
-        
+        Track A 독립형 트리거 생성 및 슬롯 반영.
+
         Process:
-        1. Read latest Track A snapshots
-        2. Feed to TriggerEngine
-        3. Get trigger candidates
-        4. Allocate/replace slots via SlotManager
-        5. Update WebSocket subscriptions
+        1. 부트스트랩 심볼 리스트로 SlotCandidate 생성
+        2. SlotManager에 할당/교체/오버플로우 기록
+        3. WebSocket 구독/해지 관리
         """
         try:
-            # Read Track A snapshots from latest log file
-            snapshots = await self._read_track_a_snapshots()
-            if not snapshots:
-                log.debug("No Track A snapshots available")
-                return
-            
-            log.info(f"📊 Processing {len(snapshots)} Track A snapshots")
-            
-            # Detect triggers
-            candidates = self.trigger_engine.update(snapshots)
-            
+            candidates = self._generate_bootstrap_candidates()
+
             if not candidates:
-                log.debug("No trigger candidates detected")
+                log.debug("No bootstrap candidates available")
                 return
-            
-            log.info(f"🎯 Detected {len(candidates)} trigger candidates")
-            
-            # Process each candidate
+
+            log.info(f"🎯 Generated {len(candidates)} bootstrap candidates (Track A independent mode)")
+
             for candidate in candidates:
-                slot_candidate = SlotCandidate(
-                    symbol=candidate.symbol,
-                    trigger_type=candidate.trigger_type,
-                    priority_score=candidate.priority_score,
-                    detected_at=candidate.detected_at
-                )
-                
-                result = self.slot_manager.assign_slot(slot_candidate)
-                
+                result = self.slot_manager.assign_slot(candidate)
+
                 if result.success:
                     log.info(
                         f"✅ Slot {result.slot_id}: {candidate.symbol} "
                         f"(priority={candidate.priority_score:.2f}, "
                         f"trigger={candidate.trigger_type})"
                     )
-                    
-                    # Subscribe to WebSocket if not already subscribed
+
                     await self._subscribe_symbol(candidate.symbol, result.slot_id)
-                    
-                    # Unsubscribe replaced symbol if any
+
                     if result.replaced_symbol:
                         await self._unsubscribe_symbol(result.replaced_symbol)
                         log.info(f"🔄 Replaced {result.replaced_symbol} with {candidate.symbol}")
-                
+
                 elif result.overflow:
                     log.warning(f"⚠️ Overflow: {candidate.symbol} (priority={candidate.priority_score:.2f})")
-        
+
         except Exception as e:
-            log.error(f"Error checking triggers: {e}", exc_info=True)
-    
-    async def _read_track_a_snapshots(self) -> List[PriceSnapshot]:
-        """
-        Read latest Track A snapshots from swing log file.
-        
-        Returns latest 10 minutes of data for trigger detection.
-        """
-        try:
-            from datetime import timezone
+            log.error(f"Error checking triggers: {e}")
 
-            now = self._now().astimezone(timezone.utc)
-            date_str = now.strftime("%Y%m%d")
+    def _generate_bootstrap_candidates(self) -> List[SlotCandidate]:
+        """부트스트랩 심볼 기반 SlotCandidate 생성 (Track A 의존성 제거)."""
+        now = self._now()
+        candidates: List[SlotCandidate] = []
 
-            # Track A log path: config/observer/swing/YYYYMMDD.jsonl
-            base_dir = observer_asset_dir()
-            log_file = base_dir / self.cfg.daily_log_subdir.replace("scalp", "swing") / f"{date_str}.jsonl"
-
-            if not log_file.exists():
-                return []
-
-            # Parse Track A JSONL using shared helper and keep last 10 minutes
-            cutoff_time = now - timedelta(minutes=10)
-            parsed = parse_track_a_jsonl(log_file)
-            snapshots: List[PriceSnapshot] = []
-
-            for snap in parsed:
-                ts = snap.timestamp
-                if ts.tzinfo is None:
-                    ts = ts.replace(tzinfo=timezone.utc)
-                ts_utc = ts.astimezone(timezone.utc)
-                if ts_utc < cutoff_time:
-                    continue
-
-                snapshots.append(
-                    PriceSnapshot(
-                        symbol=snap.symbol,
-                        timestamp=ts_utc,
-                        price=float(snap.price or 0.0),
-                        volume=int(snap.volume or 0),
-                        open=snap.open,
-                        high=snap.high,
-                        low=snap.low,
-                    )
+        base_priority = self.cfg.bootstrap_priority
+        for idx, symbol in enumerate(self.cfg.bootstrap_symbols):
+            priority = max(base_priority - (0.01 * idx), 0.0)
+            candidates.append(
+                SlotCandidate(
+                    symbol=symbol,
+                    trigger_type="bootstrap",
+                    priority_score=priority,
+                    detected_at=now
                 )
+            )
 
-            return snapshots
-
-        except Exception as e:
-            log.error(f"Error reading Track A snapshots: {e}", exc_info=True)
-            return []
+        return candidates
     
     # -----------------------------------------------------
     # WebSocket Management
@@ -280,17 +240,25 @@ class TrackBCollector(TimeAwareMixin):
     
     def _register_websocket_callback(self) -> None:
         """Register callback for WebSocket price updates"""
+        callback_count = [0]  # Mutable counter to track callback invocations
+        
         def on_price_update(data: Dict[str, Any]) -> None:
             """Handle real-time price updates from WebSocket"""
             try:
-                log.debug(f"📊 Price update callback fired: {data.get('symbol')}")
+                callback_count[0] += 1
+                symbol = data.get('symbol', 'UNKNOWN')
+                
+                # Log every 50th callback to avoid spam
+                if callback_count[0] % 50 == 1:
+                    log.info(f"📊 Price update callback #{callback_count[0]}: {symbol}")
+                
                 self._log_scalp_data(data)
             except Exception as e:
                 log.error(f"Error handling price update: {e}", exc_info=True)
         
         # Set callback on provider engine
         self.engine.on_price_update = on_price_update
-        log.info("✅ Price update callback registered")
+        log.info("✅ Price update callback registered - ready to receive WebSocket data")
     
     async def _subscribe_symbol(self, symbol: str, slot_id: int) -> None:
         """Subscribe to a symbol via WebSocket"""
@@ -373,6 +341,12 @@ class TrackBCollector(TimeAwareMixin):
             # Write to file
             with open(log_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                f.flush()  # Force flush to disk
+
+            # Log every save for visibility (Korean output)
+            symbol = data.get("symbol", "UNKNOWN")
+            price = record["price"].get("current", 0)
+            log.info(f"[저장] {symbol} @ {price:,}원 → {log_file}")
         
         except Exception as e:
             log.error(f"Error logging scalp data: {e}", exc_info=True)
@@ -397,6 +371,7 @@ async def main():
     parser = argparse.ArgumentParser(description="Track B Collector Test CLI")
     parser.add_argument("--mode", choices=["PROD", "VIRTUAL"], default="VIRTUAL", help="KIS mode")
     parser.add_argument("--run-for", type=int, default=300, help="Run for N seconds (default: 300)")
+    parser.add_argument("--bootstrap", default="005930,000660,373220", help="Comma-separated symbols for bootstrap")
     args = parser.parse_args()
     
     # Load .env if exists (Docker-compatible)
@@ -414,9 +389,14 @@ async def main():
     engine = ProviderEngine(auth=auth, is_virtual=is_virtual)
     trigger_engine = TriggerEngine()
     
+    bootstrap_symbols = [s.strip().zfill(6) for s in args.bootstrap.split(',') if s.strip()]
+
+    cfg = TrackBConfig(bootstrap_symbols=bootstrap_symbols)
+
     collector = TrackBCollector(
         engine=engine,
-        trigger_engine=trigger_engine
+        trigger_engine=trigger_engine,
+        config=cfg
     )
     
     print(f"🚀 Starting TrackBCollector (mode={args.mode}, duration={args.run_for}s)")

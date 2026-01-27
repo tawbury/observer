@@ -72,6 +72,10 @@ class KISAuth:
         self.app_secret = app_secret or os.getenv("KIS_APP_SECRET" if not is_virtual else "KIS_PAPER_APP_SECRET")
         self.is_virtual = is_virtual
         
+        # HTS ID (Customer ID) - for execution notification, condition list verification, etc.
+        # Reference: https://github.com/koreainvestment/open-trading-api/blob/main/kis_devlp.yaml
+        self.hts_id = os.getenv("KIS_HTS_ID")
+        
         # Base URLs
         default_real_url = "https://openapi.koreainvestment.com:9443"
         default_virtual_url = "https://openapivts.koreainvestment.com:29443"

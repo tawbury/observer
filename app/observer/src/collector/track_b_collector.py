@@ -45,7 +45,7 @@ class TrackBConfig:
     min_dwell_seconds: int = 120  # 2 minutes minimum slot occupancy
     daily_log_subdir: str = "scalp"  # under config/observer/{subdir}
     trading_start: time = time(9, 30)  # Track B starts 30min after market open
-    trading_end: time = time(15, 30)   # Track B ends 30min after market close (장마감 변동성 감지)
+    trading_end: time = time(15, 00)   # Track B ends 30min before market close (장마감 변동성 감지)
     trigger_check_interval_seconds: int = 30  # Trigger processing interval
     bootstrap_symbols: List[str] = field(
         default_factory=lambda: ["005930", "000660", "373220", "051910", "068270", "035720"]
@@ -127,6 +127,12 @@ class TrackBCollector(TimeAwareMixin):
                 # 디버깅 로그 추가
                 log.info(f"Track B 현재 시간: {now} (timezone: {now.tzinfo})")
                 log.info(f"장중 시간: {self.cfg.trading_start} - {self.cfg.trading_end}")
+
+                # 장 마감 시점이 지나면 즉시 수집을 종료하여 불필요한 로그 생성을 막는다
+                if not debug_mode and now.time() > self.cfg.trading_end:
+                    log.info("장 마감 시간을 초과했습니다. TrackBCollector를 종료합니다.")
+                    self._running = False
+                    break
 
                 if not debug_mode and not in_trading_hours(now, self.cfg.trading_start, self.cfg.trading_end):
                     log.info("장중 시간 외 - 대기 중...")

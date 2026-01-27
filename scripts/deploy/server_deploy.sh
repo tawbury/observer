@@ -224,6 +224,47 @@ start_compose_stack() {
 }
 
 # ============================================================================
+# 함수: 컨테이너/호스트 시간 드리프트 확인
+# ============================================================================
+check_time_drift() {
+    local service="observer"
+    local max_drift=5
+
+    log_info "=== 컨테이너-호스트 시간 드리프트 확인 ==="
+
+    cd "$DEPLOY_DIR"
+
+    if ! docker compose ps "$service" >/dev/null 2>&1; then
+        log_warn "서비스($service)가 실행 중이 아니어서 시간 확인을 건너뜁니다."
+        return 0
+    fi
+
+    local host_epoch
+    host_epoch=$(date +%s)
+
+    local container_epoch
+    container_epoch=$(docker compose exec -T "$service" date +%s 2>/dev/null || true)
+
+    if [[ -z "$container_epoch" ]]; then
+        log_warn "컨테이너 시간 조회 실패 (서비스: $service)"
+        return 0
+    fi
+
+    local drift
+    drift=$(( host_epoch > container_epoch ? host_epoch - container_epoch : container_epoch - host_epoch ))
+
+    log_info "  · Host epoch: $host_epoch"
+    log_info "  · Container epoch: $container_epoch"
+    log_info "  · Drift: ${drift}s"
+
+    if [[ "$drift" -gt "$max_drift" ]]; then
+        log_warn "⚠️  시간 드리프트가 ${max_drift}s 초과 (재시작/호스트 시계 확인 필요)"
+    else
+        log_info "✅ 시간 동기화 양호 (<= ${max_drift}s)"
+    fi
+}
+
+# ============================================================================
 # 함수: Docker Compose 상태 확인
 # ============================================================================
 check_compose_status() {
@@ -422,6 +463,9 @@ main() {
         log_error "Docker Compose 스택 시작 실패"
         return 1
     fi
+
+    # 4-1단계: 시간 드리프트 확인 (컨테이너 vs 호스트)
+    check_time_drift || true
     
     # 5단계: 상태 확인
     check_compose_status || true

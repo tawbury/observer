@@ -5,7 +5,7 @@ on:
   # - feature branch: observer
   # - main branch:    master
   push:
-    branches: [ observer ]
+    branches: [ master, observer ]
     # Adjust paths in your app repo (example assumes app code lives under app/)
     paths:
       - "app/**"
@@ -88,4 +88,3 @@ jobs:
 
           docker push "${IMAGE}:${TAG}"
           docker push "${IMAGE}:latest"
-

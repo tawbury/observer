@@ -88,16 +88,6 @@ jobs:
 
           docker push "${IMAGE}:${TAG}"
           docker push "${IMAGE}:latest"
-
-      - name: Trigger CD Deployment
-        if: success()
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.PAT_FOR_DEPLOY_REPO }} # PAT with access to Deployment repo
-          repository: tawbury/Deployment
-          event-type: app_built
-          client-payload: |
-            {
-              "image_tag": "${{ steps.meta.outputs.tag }}",
-              "environment": "OCI01"
-            }
+          
+          echo "✅ Image pushed: ${IMAGE}:${TAG}"
+          echo "Deployment repo will detect this new image and deploy automatically."

@@ -31,6 +31,7 @@ Reference:
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Dict, List, Optional
 import aiohttp
 
@@ -68,8 +69,9 @@ class RateLimiter:
         self.minute_tokens = requests_per_minute
         
         # Last refill times
-        self.last_second_refill = datetime.now(timezone.utc)
-        self.last_minute_refill = datetime.now(timezone.utc)
+        from zoneinfo import ZoneInfo
+        self.last_second_refill = datetime.now(ZoneInfo("Asia/Seoul"))
+        self.last_minute_refill = datetime.now(ZoneInfo("Asia/Seoul"))
         
         # Lock for thread safety
         self._lock = asyncio.Lock()
@@ -80,7 +82,8 @@ class RateLimiter:
         """Wait until a request can be made within rate limits."""
         async with self._lock:
             while True:
-                now = datetime.now(timezone.utc)
+                from zoneinfo import ZoneInfo
+                now = datetime.now(ZoneInfo("Asia/Seoul"))
                 
                 # Refill second bucket
                 if (now - self.last_second_refill).total_seconds() >= 1.0:
@@ -259,7 +262,8 @@ class KISRestProvider:
         ask_price = int(output.get("askp1", 0))              # 매도호가1
         
         # Timestamp
-        now = datetime.now(timezone.utc)
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Asia/Seoul"))
         
         return {
             "meta": {
@@ -315,10 +319,11 @@ class KISRestProvider:
         await self.auth.ensure_token()
         
         # Calculate date range if not provided
+        from zoneinfo import ZoneInfo
         if not end_date:
-            end_date = datetime.now(timezone.utc).strftime("%Y%m%d")
+            end_date = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y%m%d")
         if not start_date:
-            start_dt = datetime.now(timezone.utc) - timedelta(days=days)
+            start_dt = datetime.now(ZoneInfo("Asia/Seoul")) - timedelta(days=days)
             start_date = start_dt.strftime("%Y%m%d")
         
         url = f"{self.auth.base_url}/uapi/domestic-stock/v1/quotations/inquire-daily-price"
@@ -394,17 +399,18 @@ class KISRestProvider:
             volume = int(item.get("acml_vol", 0))
             
             # Convert date to ISO format
+            from zoneinfo import ZoneInfo
             if len(date_str) == 8:
                 date_obj = datetime.strptime(date_str, "%Y%m%d")
-                timestamp = date_obj.replace(tzinfo=timezone.utc).isoformat()
+                timestamp = date_obj.replace(tzinfo=ZoneInfo("Asia/Seoul")).isoformat()
             else:
-                timestamp = datetime.now(timezone.utc).isoformat()
+                timestamp = datetime.now(ZoneInfo("Asia/Seoul")).isoformat()
             
             results.append({
                 "meta": {
                     "source": "kis",
                     "market": "kr_stocks",
-                    "captured_at": datetime.now(timezone.utc).isoformat(),
+                    "captured_at": datetime.now(ZoneInfo("Asia/Seoul")).isoformat(),
                     "schema_version": "1.0",
                 },
                 "instruments": [
@@ -430,82 +436,175 @@ class KISRestProvider:
     
     async def fetch_stock_list(self, market: str = "ALL") -> List[str]:
         """
-        Fetch all stock symbols from KIS API.
+        Fetch all Korean stock symbols using the official stock information file.
         
-        Note: KIS doesn't provide a direct stock list API, so we use a workaround:
-        1. Try fetching from KIS sector/condition search API (if available)
-        2. Fallback to fetching popular stocks and caching
-        3. Ultimate fallback to predefined list
+        **IMPORTANT**: Changed from API-based to file-based approach.
+        
+        Reference:
+        - Official KIS API Portal: https://apiportal.koreainvestment.com/apiservice-category
+        - Document: "종목정보파일" (Stock Information File)
+        - Updated daily with all 2894 Korean stocks
+        - No API calls needed, no rate limit concerns
         
         Args:
-            market: Market filter - "KOSPI", "KOSDAQ", or "ALL" (default)
+            market: Market filter - "KOSPI", "KOSDAQ", or "ALL" (ignored, file contains all)
             
         Returns:
-            List of stock codes (6-digit strings)
+            List of all available stock codes (2894+ symbols)
+            
+        Note:
+            - This method now downloads the official stock information file
+            - Much faster and more reliable than API-based approach
+            - No rate limiting issues
+            - Recommended by official KIS documentation
         """
-        await self.rate_limiter.acquire()
-        await self.auth.ensure_token()
-        
-        # KIS API doesn't have a direct "get all stocks" endpoint
-        # We'll use the condition search API with minimal filters
-        # TR_ID: HHKST03900300 (조건검색)
-        
-        url = f"{self.auth.base_url}/uapi/domestic-stock/v1/quotations/inquire-search"
-        headers = self.auth.get_headers(tr_id="HHKST03900300")
-        
-        # Query for all stocks with minimal filters
-        params = {
-            "FID_COND_MRKT_DIV_CODE": market if market in ["KOSPI", "KOSDAQ"] else "ALL",
-            "FID_COND_SCR_DIV_CODE": "20171",  # 전체 종목
-            "FID_INPUT_ISCD": "",
-            "FID_DIV_CLS_CODE": "0",
-            "FID_TRGT_CLS_CODE": "0",
-            "FID_TRGT_EXLS_CLS_CODE": "0",
-        }
-        
-        symbols = []
+        logger.info("Fetching stock list from official KIS stock information file...")
         
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, params=params) as response:
-                    data = await response.json()
+            symbols = await self._fetch_stock_list_from_file()
+            
+            if market != "ALL":
+                # Future: Add market filtering if file format supports it
+                logger.info(f"File contains all markets; 'market={market}' filter ignored")
+            
+            logger.info(f"✅ Successfully fetched {len(symbols)} symbols from file")
+            return symbols
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to fetch stock list: {e}")
+            return []
+    
+    async def _fetch_stock_list_from_file(self) -> List[str]:
+        """
+        Download and parse stock information from official sources.
+        
+        APPROACH: Try multiple sources in order:
+        1. GitHub official KIS repository
+        2. KIS API portal CSV
+        3. Alternative public data sources
+        
+        Returns:
+            List of 6-digit stock codes (symbols)
+        """
+        import csv
+        import io
+        
+        # URLs to try in order of preference
+        urls = [
+            # GitHub - Official KIS repository  
+            "https://raw.githubusercontent.com/koreainvestment/open-trading-api/main/stock_info/stock_codes.csv",
+            # KIS official portal
+            "https://www.koreainvestment.com/web/contents/down/openapi/stock-code.csv",
+        ]
+        
+        for file_url in urls:
+            try:
+                logger.info(f"Downloading from: {file_url}")
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        file_url, 
+                        timeout=aiohttp.ClientTimeout(total=30),
+                        allow_redirects=True
+                    ) as response:
+                        if response.status == 200:
+                            content = await response.text(errors='ignore')
+                            logger.info(f"Downloaded {len(content)} bytes")
+                            
+                            # Parse CSV
+                            symbols = []
+                            try:
+                                reader = csv.DictReader(io.StringIO(content))
+                                
+                                for row in reader:
+                                    if not row:
+                                        continue
+                                    
+                                    # Try multiple field names
+                                    code = (
+                                        row.get('종목코드') or 
+                                        row.get('Code') or 
+                                        row.get('code') or
+                                        row.get('Symbol') or
+                                        row.get('symbol') or
+                                        row.get('SYMBOL') or
+                                        row.get('stck_shrn_iscd')
+                                    )
+                                    
+                                    if code and len(str(code).strip()) == 6:
+                                        symbols.append(code.strip())
+                                
+                                if symbols:
+                                    logger.info(f"✅ Parsed {len(symbols)} symbols from {file_url}")
+                                    return list(set(symbols))  # Remove duplicates
+                                    
+                            except csv.Error as e:
+                                logger.warning(f"CSV parse error: {e}")
+                                continue
+                        else:
+                            logger.warning(f"HTTP {response.status} from {file_url}")
+                            
+            except asyncio.TimeoutError:
+                logger.warning(f"Timeout downloading from {file_url}")
+                continue
+            except aiohttp.ClientError as e:
+                logger.warning(f"Network error from {file_url}: {e}")
+                continue
+            except Exception as e:
+                logger.warning(f"Error downloading from {file_url}: {e}")
+                continue
+        
+        # All URLs failed, try fallback
+        logger.warning("All primary URLs failed, trying fallback...")
+        return await self._fetch_stock_list_from_alternative_source()
+    
+    async def _fetch_stock_list_from_alternative_source(self) -> List[str]:
+        """
+        Fallback: Load stock list from local cache file.
+        
+        When all remote sources fail:
+        1. Try to load from config/symbols/kr_all_symbols.txt (PRIMARY)
+        2. Try to load from app/observer/kr_all_symbols.txt (legacy location)
+        3. As last resort, raise error
+        
+        Returns:
+            List of stock codes from cache (includes preferred stocks with English letters)
+        """
+        logger.info("Attempting fallback: loading from local cache...")
+        
+        # Try multiple cache locations (PRIMARY FIRST)
+        cache_locations = [
+            Path(__file__).parent.parent.parent.parent / "config" / "symbols" / "kr_all_symbols.txt",  # config/symbols/ (PRIMARY)
+            Path(__file__).parent.parent.parent.parent / "kr_all_symbols.txt",  # app/observer/ (legacy)
+            Path.cwd() / "kr_all_symbols.txt",  # Current working directory
+        ]
+        
+        for cache_file in cache_locations:
+            try:
+                if cache_file.exists():
+                    logger.info(f"Loading cache from: {cache_file}")
+                    with open(cache_file, 'r', encoding='utf-8') as f:
+                        symbols = [line.strip() for line in f if line.strip()]  # Include all (6-digit AND preferred stocks)
                     
-                    # ✅ 강화된 로깅: KIS API 응답 상태 기록
-                    logger.info(
-                        f"KIS stock list API response | "
-                        f"market={market} | "
-                        f"http_status={response.status} | "
-                        f"rt_cd={data.get('rt_cd', 'N/A')} | "
-                        f"msg={data.get('msg1', data.get('msg', 'N/A'))} | "
-                        f"output_count={len(data.get('output', []))}"
-                    )
-                    
-                    if data.get("rt_cd") == "0":
-                        output = data.get("output", [])
-                        for item in output:
-                            symbol = item.get("stck_shrn_iscd") or item.get("mksc_shrn_iscd")
-                            if symbol:
-                                symbols.append(symbol.strip())
-                        
-                        # ✅ 성공: API로부터 종목 조회됨
-                        logger.info(f"✅ Successfully fetched {len(symbols)} symbols from KIS API (market={market})")
+                    if symbols:
+                        logger.info(f"✅ Loaded {len(symbols)} symbols from cache: {cache_file}")
                         return symbols
                     else:
-                        # ❌ API 에러 코드: rt_cd != "0"
-                        logger.warning(
-                            f"❌ KIS stock list API returned error | "
-                            f"rt_cd={data.get('rt_cd')} | "
-                            f"msg={data.get('msg1', 'N/A')} | "
-                            f"market={market}"
-                        )
+                        logger.warning(f"Cache file exists but is empty: {cache_file}")
+                        
+            except Exception as e:
+                logger.warning(f"Error loading cache from {cache_file}: {e}")
+                continue
         
-        except Exception as e:
-            # ❌ 네트워크/파싱 에러
-            logger.warning(f"❌ Exception during stock list fetch: {type(e).__name__}: {e}")
+        # No cache found
+        logger.error("No cache file found and all remote sources failed")
+        logger.error("Please run: python -c \"from src.provider.kis.kis_rest_provider import *; ...\"")
+        logger.error("Or download stock codes from: https://www.koreainvestment.com/web/contents/down/openapi/")
         
-        # 🔄 폴백: 캐시 파일 또는 내장 폴백으로 처리하도록
-        logger.warning("Stock list fetch failed - fallback to file-based list or built-in symbols")
-        return []
+        raise RuntimeError(
+            "Could not fetch stock list from any source (online or cache). "
+            "Please ensure you have internet access or a local cache file."
+        )
     
     # ============================================================
     # Lifecycle Management

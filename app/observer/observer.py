@@ -13,6 +13,7 @@ import sys
 import os
 import signal
 import threading
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -33,6 +34,20 @@ import asyncio
 
 def configure_environment():
     """Configure environment variables for Docker deployment"""
+    # Load .env file first (for local testing)
+    try:
+        from dotenv import load_dotenv
+        env_file = Path(__file__).parent / ".env"
+        if env_file.exists():
+            load_dotenv(env_file)
+            import sys
+            sys.stdout.reconfigure(encoding='utf-8')
+            print(f"[INFO] Loaded .env file from {env_file}")
+    except ImportError:
+        pass  # dotenv not installed, skip
+    except Exception:
+        pass  # Ignore encoding errors
+    
     os.environ.setdefault("OBSERVER_STANDALONE", "1")
     os.environ.setdefault("PYTHONPATH", "/app/src:/app")
     os.environ.setdefault("OBSERVER_DATA_DIR", "/app/data/observer")
@@ -160,6 +175,10 @@ def run_observer_with_api():
             kis_auth_a = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
             provider_engine_a = ProviderEngine(kis_auth_a, is_virtual=kis_is_virtual)
             
+            # Explicitly set universe_dir to ensure correct path
+            universe_dir = Path("/app/config/universe")
+            universe_dir.mkdir(parents=True, exist_ok=True)
+            
             track_a_config = TrackAConfig(
                 interval_minutes=10,
                 market="kr_stocks",
@@ -170,9 +189,10 @@ def run_observer_with_api():
             track_a_collector = TrackACollector(
                 provider_engine_a,
                 config=track_a_config,
+                universe_dir=str(universe_dir),
                 on_error=lambda msg: log.warning(f"Track A Error: {msg}")
             )
-            log.info("Track A Collector configured: 10-minute interval")
+            log.info("Track A Collector configured: 10-minute interval (universe_dir=%s)", universe_dir)
         except Exception as e:
             log.error(f"Failed to initialize Track A Collector: {e}")
     else:
@@ -199,7 +219,7 @@ def run_observer_with_api():
                 session_id=session_id,
                 mode="DOCKER",
                 max_slots=41,
-                track_a_check_interval_seconds=60
+                trigger_check_interval_seconds=30
             )
             
             track_b_collector = TrackBCollector(
@@ -294,8 +314,13 @@ def run_observer_with_api():
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
-        # Keep main thread alive - wait for API thread
-        api_thread.join()
+        # Keep main thread alive - infinite wait
+        # API server runs in daemon thread, so we need to keep main thread alive
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            signal_handler(signal.SIGINT, None)
 
     except KeyboardInterrupt:
         log.info("Shutting down Observer system...")

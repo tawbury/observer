@@ -124,7 +124,8 @@ class SlotManager:
         Returns:
             AllocationResult with success status and slot_id
         """
-        now = datetime.now(timezone.utc)
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Asia/Seoul"))
         
         # Step 1: Check if symbol already has a slot
         existing_slot = self._find_slot_by_symbol(candidate.symbol)
@@ -352,7 +353,7 @@ def main():
                 symbol=f"SYM{i:03d}",
                 trigger_type="volume_surge",
                 priority_score=0.5 + (i % 10) * 0.05,  # 0.5 ~ 0.95
-                detected_at=datetime.now(timezone.utc)
+                detected_at=datetime.now(ZoneInfo("Asia/Seoul"))
             )
             candidates.append(candidate)
             result = manager.assign_slot(candidate)
@@ -373,7 +374,7 @@ def main():
             symbol="HIGH_PRIORITY",
             trigger_type="volatility_spike",
             priority_score=0.98,
-            detected_at=datetime.now(timezone.utc)
+            detected_at=datetime.now(ZoneInfo("Asia/Seoul"))
         )
         
         # Fast-forward time by setting min_dwell to 0 for this test

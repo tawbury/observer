@@ -14,7 +14,8 @@ from shared.trading_hours import in_trading_hours
 
 from provider import ProviderEngine, KISAuth
 from universe.universe_manager import UniverseManager
-from paths import observer_asset_dir
+from universe.universe_manager import UniverseManager
+from paths import observer_asset_dir, observer_log_dir
 
 log = logging.getLogger("TrackACollector")
 
@@ -37,6 +38,7 @@ class TrackACollector(TimeAwareMixin):
         self,
         engine: ProviderEngine,
         config: Optional[TrackAConfig] = None,
+        universe_dir: Optional[str] = None,
         on_error: Optional[Callable[[str], None]] = None,
     ) -> None:
         self.engine = engine
@@ -45,11 +47,36 @@ class TrackACollector(TimeAwareMixin):
         self._init_timezone()
         self._manager = UniverseManager(
             provider_engine=self.engine,
+            universe_dir=universe_dir,
             market=self.cfg.market,
             min_price=4000,  # aligned with Task 6.1
             min_count=100,
         )
         self._on_error = on_error
+        self._setup_logger()
+
+    def _setup_logger(self) -> None:
+        """Setup specialized file logger for swing strategy"""
+        try:
+            # logs/swing/YYYYMMDD.log
+            today_str = datetime.now().strftime("%Y%m%d")
+            log_dir = observer_log_dir() / self.cfg.daily_log_subdir
+            log_dir.mkdir(parents=True, exist_ok=True)
+            
+            log_file = log_dir / f"{today_str}.log"
+            
+            handler = logging.FileHandler(log_file, encoding='utf-8')
+            handler.setFormatter(logging.Formatter(
+                "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+            ))
+            
+            # Add handler to the module-level logger
+            log.addHandler(handler)
+            log.info(f"Swing file logger initialized: {log_file}")
+            
+        except Exception as e:
+            # Fallback to console/default logger if file setup fails
+            log.error(f"Failed to setup swing file logger: {e}")
 
     # -----------------------------------------------------
     # Scheduling
@@ -129,7 +156,7 @@ class TrackACollector(TimeAwareMixin):
                 inst = (payload.get("instruments") or [{}])[0]
                 price = inst.get("price") or {}
                 record = {
-                    "ts": datetime.utcnow().isoformat() + "Z",
+                    "ts": self._now().isoformat(),
                     "session": self.cfg.session_id,
                     "dataset": "track_a_swing",
                     "market": self.cfg.market,
@@ -148,6 +175,10 @@ class TrackACollector(TimeAwareMixin):
                 import json
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
                 published += 1
+
+        if published > 0:
+            log.info(f"[저장] Swing list updated: {published} items → {log_path}")
+
 
         return {
             "ok": True,

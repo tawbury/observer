@@ -124,8 +124,12 @@ class ProviderEngine:
     # Events
     # ---------------------------------------------------------------------
     def _handle_ws_update(self, data: Dict[str, Any]) -> None:
+        symbol = data.get("symbol", "UNKNOWN")
+        logger.info(f"[엔진] 가격 업데이트 수신: {symbol}")
         if self.on_price_update:
             self.on_price_update(data)
+        else:
+            logger.warning("[엔진] on_price_update 콜백이 등록되지 않음! 메시지 유실 가능")
 
     # ---------------------------------------------------------------------
     # Health

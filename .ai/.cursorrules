@@ -1,5 +1,7 @@
 # System Rules
 
+[RULE_TEST] 모든 답변 시작 시 "수행 중..."이라는 문구를 출력할 것
+
 ## 1. Language & contents Rules
 
 ### Language Requirements

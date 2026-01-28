@@ -72,6 +72,10 @@ class KISAuth:
         self.app_secret = app_secret or os.getenv("KIS_APP_SECRET" if not is_virtual else "KIS_PAPER_APP_SECRET")
         self.is_virtual = is_virtual
         
+        # HTS ID (Customer ID) - for execution notification, condition list verification, etc.
+        # Reference: https://github.com/koreainvestment/open-trading-api/blob/main/kis_devlp.yaml
+        self.hts_id = os.getenv("KIS_HTS_ID")
+        
         # Base URLs
         default_real_url = "https://openapi.koreainvestment.com:9443"
         default_virtual_url = "https://openapivts.koreainvestment.com:29443"
@@ -181,7 +185,8 @@ class KISAuth:
             return True
         
         # Consider token expired if less than 1 hour remaining
-        now = datetime.now(timezone.utc)
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Asia/Seoul"))
         time_remaining = self.token_expires_at - now
         return time_remaining.total_seconds() < 3600
     
@@ -195,7 +200,8 @@ class KISAuth:
         if not self.token_issued_at:
             return False
         
-        age = datetime.now(timezone.utc) - self.token_issued_at
+        from zoneinfo import ZoneInfo
+        age = datetime.now(ZoneInfo("Asia/Seoul")) - self.token_issued_at
         return age.total_seconds() >= (23 * 3600)
     
     async def _refresh_token(self) -> None:
@@ -243,7 +249,8 @@ class KISAuth:
                         
                         # Extract token
                         self.access_token = result["access_token"]
-                        self.token_issued_at = datetime.now(timezone.utc)
+                        from zoneinfo import ZoneInfo
+                        self.token_issued_at = datetime.now(ZoneInfo("Asia/Seoul"))
                         
                         # Token expires in 24 hours
                         expires_in = result.get("expires_in", 86400)
@@ -450,7 +457,8 @@ class KISAuth:
             expires_at = datetime.fromisoformat(cache["expires_at"])
             
             # Check if still valid (with 1-hour buffer)
-            now = datetime.now(timezone.utc)
+            from zoneinfo import ZoneInfo
+            now = datetime.now(ZoneInfo("Asia/Seoul"))
             if (expires_at - now).total_seconds() < 3600:
                 logger.info("Cached token expired or expiring soon, will refresh")
                 return

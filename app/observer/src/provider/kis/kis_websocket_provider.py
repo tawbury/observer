@@ -19,6 +19,7 @@ import os
 import json
 import ssl
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Callable, Optional, Dict, Any, Set
 from dataclasses import dataclass, field
 import websockets
@@ -367,7 +368,12 @@ class KISWebSocketProvider:
             if not self.websocket:
                 raise RuntimeError("WebSocket not initialized")
             
+            logger.info("📥 Starting message receive loop...")
+            msg_count = 0
             async for message in self.websocket:
+                msg_count += 1
+                if msg_count % 50 == 1:
+                    logger.info(f"📥 Received {msg_count} messages so far...")
                 try:
                     await self._process_message(message)
                 except Exception as e:
@@ -405,6 +411,9 @@ class KISWebSocketProvider:
                 message_str = raw_message.decode('euc-kr')
             else:
                 message_str = raw_message
+            
+            # Log raw message at INFO level for debugging (Korean output)
+            logger.info(f"[WS수신] {message_str[:150]}")
             
             # CRITICAL FIX: Handle PINGPONG for keep-alive
             if message_str == "PINGPONG":
@@ -460,9 +469,10 @@ class KISWebSocketProvider:
                 return None
             
             # Real-time execution data fields
+            from zoneinfo import ZoneInfo
             price_data = {
                 "symbol": symbol,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(ZoneInfo("Asia/Seoul")).isoformat(),
                 "price": {
                     "close": int(body.get("stck_prpr", 0)),  # Current price
                     "open": int(body.get("stck_oprc", 0)),   # Open price
@@ -486,8 +496,11 @@ class KISWebSocketProvider:
         """
         CRITICAL FIX: Process pipe-delimited real-time data (H0STCNT0)
         
-        Format: 0|H0STCNT0|data_count|record1^record2^...
-        Example: 0|H0STCNT0|2|005930|123000|...|051910|156000|...|
+        Format: 0|H0STCNT0|seq_num|field1^field2^field3^...
+        Example: 0|H0STCNT0|003|005930^112759^155200^2^3100^2.04^...
+        
+        IMPORTANT: ^ is field separator, NOT record separator
+        Each message contains ONE record with ^ separating its fields
         
         Args:
             data_str: Pipe-delimited data string
@@ -500,12 +513,7 @@ class KISWebSocketProvider:
             
             msg_type = parts[0]      # '0' for real-time, '1' for notification
             tr_id = parts[1]         # 'H0STCNT0' or other
-            try:
-                data_cnt = int(parts[2])  # Number of records
-            except ValueError:
-                logger.warning(f"⚠️ Invalid data count in: {data_str[:50]}")
-                return
-            
+            seq_num = parts[2]       # Sequence number (NOT record count!)
             payload = parts[3] if len(parts) > 3 else ""
             
             # Only process execution data (H0STCNT0)
@@ -513,28 +521,20 @@ class KISWebSocketProvider:
                 logger.debug(f"Ignoring non-execution data: {tr_id}")
                 return
             
-            # Parse records (separated by '^')
+            # Parse single record (fields separated by '^')
             if not payload:
                 logger.debug("Empty payload for H0STCNT0")
                 return
             
-            records = payload.split('^')
-            logger.debug(f"📊 Processing {len(records)} records (count={data_cnt})")
+            # Split payload into fields
+            fields = payload.split('^')
+            logger.debug(f"📊 Processing {len(fields)} fields (seq={seq_num})")
             
-            for i, record in enumerate(records):
-                if i >= data_cnt:
-                    break
-                
-                if not record.strip():
-                    continue
-                
-                # Parse individual fields (pipe-separated within record)
-                fields = record.split('|')
-                if len(fields) >= 3:
-                    price_data = self._parse_execution_record(fields)
-                    if price_data and self.on_price_update:
-                        logger.debug(f"📡 Real-time tick: {price_data['symbol']} @ {price_data['price']['close']}")
-                        self.on_price_update(price_data)
+            # Parse the execution record
+            price_data = self._parse_execution_record(fields)
+            if price_data and self.on_price_update:
+                logger.debug(f"📡 Real-time tick: {price_data['symbol']} @ {price_data['price']['close']}")
+                self.on_price_update(price_data)
         
         except Exception as e:
             logger.error(f"❌ Error processing real-time data: {e}")
@@ -543,54 +543,57 @@ class KISWebSocketProvider:
         """
         Parse H0STCNT0 execution record fields
         
-        H0STCNT0 fields (pipe-delimited):
-        0: 시장구분 (market)
-        1: 종목코드 (symbol)
-        2: 체결시간 (execution time HHMMSS)
-        3: 현재가 (current price)
-        4: 전일대비부호 (sign)
-        5: 전일대비 (change amount)
-        6: 등락율 (change rate)
+        H0STCNT0 fields (^-delimited):
+        0: 종목코드 (symbol)
+        1: 체결시간 (execution time HHMMSS)
+        2: 현재가 (current price)
+        3: 전일대비부호 (sign)
+        4: 전일대비 (change amount)
+        5: 등락율 (change rate)
+        6: 가중평균가 (weighted avg price)
         7: 시가 (open price)
         8: 고가 (high price)
         9: 저가 (low price)
-        10: 누적체결량 (accumulated volume)
-        11: 누적거래대금 (accumulated trade value)
-        12: 매도호가 (ask price)
-        13: 매수호가 (bid price)
-        14: (remaining fields...)
+        10: 매도호가 (ask price)
+        11: 매수호가 (bid price)
+        12: 체결량 (volume)
+        13: 누적체결량 (accumulated volume)
+        14: 누적거래대금 (accumulated trade value)
+        ...
         
         Args:
-            fields: Pipe-delimited fields from execution record
+            fields: ^-delimited fields from execution record
         
         Returns:
             Normalized price data dict or None if invalid
         """
         try:
-            if len(fields) < 11:
+            if len(fields) < 13:
+                logger.debug(f"⚠️ Insufficient fields: {len(fields)} (need at least 13)")
                 return None
             
-            symbol = fields[1]  # Symbol code
+            symbol = fields[0]  # Symbol code
             
             return {
                 "symbol": symbol,
-                "execution_time": fields[2],  # HHMMSS
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "execution_time": fields[1],  # HHMMSS
+                "timestamp": datetime.now(ZoneInfo("Asia/Seoul")).isoformat(),
                 "price": {
-                    "close": int(fields[3] or 0),    # Current price
-                    "change_amount": int(fields[5] or 0),
-                    "change_rate": float(fields[6] or 0),
+                    "close": int(fields[2] or 0),    # Current price
+                    "change_amount": int(fields[4] or 0),
+                    "change_rate": float(fields[5] or 0),
                     "open": int(fields[7] or 0),    # Open price
                     "high": int(fields[8] or 0),    # High price
                     "low": int(fields[9] or 0),     # Low price
                 },
                 "volume": {
-                    "accumulated": int(fields[10] or 0),  # Accumulated volume
-                    "trade_value": int(fields[11] or 0) if len(fields) > 11 else 0,
+                    "tick": int(fields[12] or 0),  # Tick volume
+                    "accumulated": int(fields[13] or 0) if len(fields) > 13 else 0,  # Accumulated volume
+                    "trade_value": int(fields[14] or 0) if len(fields) > 14 else 0,
                 },
                 "bid_ask": {
-                    "ask_price": int(fields[12] or 0) if len(fields) > 12 else 0,  # Ask/Sell
-                    "bid_price": int(fields[13] or 0) if len(fields) > 13 else 0,  # Bid/Buy
+                    "ask_price": int(fields[10] or 0),  # Ask/Sell
+                    "bid_price": int(fields[11] or 0),  # Bid/Buy
                 },
                 "source": "kis_websocket"
             }

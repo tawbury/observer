@@ -23,10 +23,10 @@ Observer 서비스를 로컬 환경에서 서버로 배포하는 자동화 스�
 
 ## 필수 로컬 파일 및 위치
 
-배포 전 다음 파일들이 `app/obs_deploy/` 디렉토리에 준비되어야 합니다:
+배포 전 다음 파일들이 `app/observer/` 디렉토리에 준비되어야 합니다:
 
 ```
-app/obs_deploy/
+app/observer/
 ├── .env.server                  # 서버 환경 변수 (KIS 자격증명 포함)
 ├── env.template                 # 환경 변수 템플릿 (검증용)
 ├── observer-image.tar           # Docker 이미지 (121MB)
@@ -38,7 +38,7 @@ app/obs_deploy/
 
 ```bash
 # 기본 템플릿에서 시작
-cp app\obs_deploy\env.template app\obs_deploy\.env.server
+cp app\observer\env.template app\observer\.env.server
 
 # 실제 값 채우기 (필수)
 # - KIS_APP_KEY
@@ -54,6 +54,27 @@ cp app\obs_deploy\env.template app\obs_deploy\.env.server
 - **백업 파일**: 서버에만 보관 (`.env.bak-YYYYMMDD-HHMMSS`)
 
 ## 사용 방법
+
+### 빌드 태그 생성
+
+Docker 이미지 빌드 전에 타임스탬프 기반 태그를 생성합니다:
+
+```powershell
+# 기본 사용 (태그를 stdout으로 출력)
+.\scripts\deploy\generate_build_tag.ps1
+
+# 파일로 저장
+.\scripts\deploy\generate_build_tag.ps1 -OutputFile "BUILD_TAG.txt"
+
+# 변수로 캡처
+$BUILD_TAG = .\scripts\deploy\generate_build_tag.ps1 | Select-Object -Last 1
+
+# Linux/Bash 환경
+./scripts/deploy/generate_build_tag.sh
+./scripts/deploy/generate_build_tag.sh -o BUILD_TAG.txt
+```
+
+**태그 형식**: `20YYMMDD-HHMMSS` (예: 20260126-155945)
 
 ### 기본 실행
 
@@ -81,8 +102,8 @@ cd d:\development\prj_obs
 | `-SshKeyPath` | `~/.ssh/id_rsa` | SSH 개인 키 경로 |
 | `-DeployDir` | `/home/azureuser/observer-deploy` | 서버 배포 디렉토리 |
 | `-ComposeFile` | `docker-compose.server.yml` | Compose 정의 파일명 |
-| `-LocalEnvFile` | `app\obs_deploy\.env.server` | 로컬 환경 파일 |
-| `-EnvTemplate` | `app\obs_deploy\env.template` | 환경 템플릿 파일 |
+| `-LocalEnvFile` | `app\observer\.env.server` | 로컬 환경 파일 |
+| `-EnvTemplate` | `app\observer\env.template` | 환경 템플릿 파일 |
 | `-ArtifactDir` | `app\obs_deploy` | 아티팩트 디렉토리 |
 
 ### 배포 단계 상세
@@ -237,9 +258,20 @@ docker compose up -d observer
 ```
 scripts/
 └── deploy/
-    ├── deploy.ps1              # Windows PowerShell 오케스트레이터
-    ├── server_deploy.sh        # Linux Bash 러너
-    └── README.md               # 이 파일
+    ├── deploy.ps1                    # Windows PowerShell 배포 오케스트레이터
+    ├── server_deploy.sh              # Linux Bash 서버 배포 러너
+    ├── generate_build_tag.ps1        # PowerShell 빌드 태그 생성기
+    ├── generate_build_tag.sh         # Bash 빌드 태그 생성기
+    ├── sync_to_oracle.ps1            # Oracle Cloud 동기화 스크립트
+    ├── oci_helpers.ps1               # OCI 헬퍼 함수
+    ├── oci_launch_instance.ps1       # OCI 인스턴스 시작
+    ├── setup_env_secure.sh           # 보안 환경 설정
+    ├── migrate.sh                    # 마이그레이션 스크립트
+    ├── oracle_bootstrap.sh           # Oracle 부트스트랩
+    ├── cloud-init-docker.yaml        # Cloud-init 설정
+    ├── QUICKSTART.md                 # 빠른 시작 가이드
+    ├── IMPLEMENTATION_REPORT.md      # 구현 보고서
+    └── README.md                     # 이 파일
 ```
 
 ## 확장 계획 (v2 이상)
@@ -295,18 +327,22 @@ scripts/
 ```powershell
 # 1. 로컬에서 환경 준비
 cd d:\development\prj_obs
-cp app\obs_deploy\env.template app\obs_deploy\.env.server
+cp app\observer\env.template app\observer\.env.server
 
-# 2. 실제 KIS 자격증명 입력 (텍스트 에디터로)
-# notepad app\obs_deploy\.env.server
+# 2. 빌드 태그 생성
+$BUILD_TAG = .\scripts\deploy\generate_build_tag.ps1 -OutputFile "BUILD_TAG.txt" | Select-Object -Last 1
+Write-Host "Build Tag: $BUILD_TAG"
 
-# 3. 배포 실행
-.\scripts\deploy\deploy.ps1 -ServerHost "your.server.ip"
+# 3. 실제 KIS 자격증명 입력 (텍스트 에디터로)
+# notepad app\observer\.env.server
 
-# 4. 로그 확인
+# 4. 배포 실행
+.\scripts\deploy\deploy.ps1 -ServerHost "your.server.ip" -ImageTag $BUILD_TAG
+
+# 5. 로그 확인
 cat ops\run_records\deploy_*.log
 
-# 5. 서버 로그 확인
+# 6. 서버 로그 확인
 # ssh azureuser@your.server.ip
 # docker logs observer --tail 100
 ```
@@ -320,6 +356,11 @@ cat ops\run_records\deploy_*.log
 
 ---
 
-**마지막 업데이트**: 2026-01-23  
-**버전**: v1.0.0  
+**마지막 업데이트**: 2026-01-26  
+**버전**: v1.1.0  
+**최근 변경사항**: 
+- 중복 스크립트 정리 (generate_build_tag_simple.ps1, deploy_simple.ps1 제거)
+- generate_build_tag.ps1 인코딩 문제 해결 및 안정화
+- 배포 스크립트 구조 최적화
+
 **관련 문서**: `.ai/workflows/deploy_automation.workflow.md`

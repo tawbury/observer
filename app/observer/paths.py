@@ -314,7 +314,7 @@ def system_log_dir() -> Path:
     System log directory for gap detector and slot overflow.
 
     Environment variable: OBSERVER_SYSTEM_LOG_DIR
-    Default: {log_dir}/system
+    Default: {config_dir}/system (app/observer/config/system)
 
     Used by:
     - GapDetector (gap_YYYYMMDD.jsonl)
@@ -323,7 +323,7 @@ def system_log_dir() -> Path:
     if env_path := os.environ.get("OBSERVER_SYSTEM_LOG_DIR"):
         path = Path(env_path)
     else:
-        path = log_dir() / "system"
+        path = config_dir() / "system"
     path.mkdir(parents=True, exist_ok=True)
     return path
 

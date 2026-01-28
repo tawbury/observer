@@ -73,32 +73,32 @@ class UniverseManager:
 
         # Fetch previous close concurrently with bounded concurrency
         selected: List[str] = []
-        sem = asyncio.Semaphore(5)
+        sem = asyncio.Semaphore(10)  # Increased concurrency for faster processing
+        processed_count = 0
+        total_candidates = len(candidates)
 
         async def fetch_and_filter(sym: str) -> None:
+            nonlocal processed_count
             async with sem:
                 try:
-                    # Check current price to filter suspended/delisted stocks
-                    current_data = await self.engine.fetch_current_price(sym)
-                    current_price = 0
-                    if current_data and current_data.get("instruments"):
-                        instrument = current_data["instruments"][0]
-                        price_info = instrument.get("price", {})
-                        current_price = price_info.get("close", 0)
-                    
-                    # Skip if current price is 0 (suspended/delisted)
-                    if current_price == 0:
-                        return
-                    
-                    # Then check historical data for price filter
+                    # Check historical data for price filter (and suspension check)
+                    # We use days=2 to get the most recent valid trading day
                     data = await self.engine.fetch_daily_prices(sym, days=2)
-                    # Expect most recent entries first; pick first item's close
+                    
+                    # If data is empty or first item has 0 price, it might be suspended/delisted
                     close = self._extract_prev_close(data)
+                    
                     if close is not None and close >= self.min_price:
+                        # Optional: check current price only for potential strategy-specific filtering
+                        # current_data = await self.engine.fetch_current_price(sym)
+                        # ...
                         selected.append(sym)
                 except Exception:
-                    # Ignore per-symbol failures; continue
                     pass
+                finally:
+                    processed_count += 1
+                    if processed_count % 100 == 0:
+                        print(f"[PROGRESS] Universe build: {processed_count}/{total_candidates} processed...")
 
         await asyncio.gather(*(fetch_and_filter(s) for s in candidates))
 

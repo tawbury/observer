@@ -24,3 +24,6 @@ uvicorn[standard]>=0.23.0
 
 # HTTP client for KIS REST
 aiohttp>=3.9.0
+
+# Symbol collection (manual script)
+pykrx>=1.0.0

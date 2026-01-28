@@ -2,6 +2,15 @@
 -- ?ùÏÑ± ?†Ïßú: 2026-01-22
 -- ?§Î™Ö: ?¨Ìä∏?¥Î¶¨??Ï∂îÏ†Å, Î¶¨Î∞∏?∞Ïã± Í≥ÑÌöç Î∞?Ï£ºÎ¨∏ Í¥ÄÎ¶?
 
+-- Drop existing tables if they exist (for idempotency)
+DROP TABLE IF EXISTS rebalance_orders CASCADE;
+DROP TABLE IF EXISTS rebalance_execution CASCADE;
+DROP TABLE IF EXISTS rebalance_plan CASCADE;
+DROP TABLE IF EXISTS portfolio_positions CASCADE;
+DROP TABLE IF EXISTS portfolio_snapshot CASCADE;
+DROP TABLE IF EXISTS target_weights CASCADE;
+DROP TABLE IF EXISTS portfolio_policy CASCADE;
+
 -- =====================================================
 -- 1. portfolio_policy ?åÏù¥Î∏?(?¨Ìä∏?¥Î¶¨???ïÏ±Ö)
 -- =====================================================

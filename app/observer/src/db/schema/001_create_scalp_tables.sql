@@ -1,9 +1,15 @@
--- Phase 13: Scalp (Track B) ?�이�??�성
--- ?�성 ?�짜: 2026-01-22
--- ?�명: WebSocket ?�시�????�이??�?1�?�??�이???�??
+-- Phase 13: Scalp (Track B) 테이블 생성
+-- 생성 날짜: 2026-01-22
+-- 설명: WebSocket 실시간 틱 데이터 및 1분 봉 데이터 저장
+
+-- Drop existing tables if they exist (for idempotency)
+DROP TABLE IF EXISTS migration_log CASCADE;
+DROP TABLE IF EXISTS scalp_gaps CASCADE;
+DROP TABLE IF EXISTS scalp_1m_bars CASCADE;
+DROP TABLE IF EXISTS scalp_ticks CASCADE;
 
 -- =====================================================
--- 1. scalp_ticks ?�이�?(?�시�????�이??
+-- 1. scalp_ticks 테이블 (실시간 틱 데이터)
 -- =====================================================
 CREATE TABLE scalp_ticks (
     id              BIGSERIAL PRIMARY KEY,
@@ -25,9 +31,9 @@ CREATE INDEX IF NOT EXISTS idx_scalp_ticks_event_time ON scalp_ticks(event_time 
 CREATE INDEX IF NOT EXISTS idx_scalp_ticks_session ON scalp_ticks(session_id);
 
 -- =====================================================
--- 2. scalp_1m_bars ?�이�?(1�?�??�이??
+-- 2. scalp_1m_bars 테이블 (1분 봉 데이터)
 -- =====================================================
-CREATE TABLE scalp_1m_bars (
+CREATE TABLE scalp_ticks (
     symbol          VARCHAR(20) NOT NULL,
     bar_time        TIMESTAMPTZ NOT NULL,
     open            NUMERIC(15,4),
@@ -46,7 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_scalp_1m_bars_time ON scalp_1m_bars(bar_time DESC
 CREATE INDEX IF NOT EXISTS idx_scalp_1m_bars_session ON scalp_1m_bars(session_id);
 
 -- =====================================================
--- 3. scalp_gaps ?�이�?(?�이??공백 기록)
+-- 3. scalp_gaps 테이블 (데이터 공백 기록)
 -- =====================================================
 CREATE TABLE scalp_gaps (
     id              SERIAL PRIMARY KEY,
@@ -62,7 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_scalp_gaps_session ON scalp_gaps(session_id);
 CREATE INDEX IF NOT EXISTS idx_scalp_gaps_time ON scalp_gaps(gap_start_ts DESC);
 
 -- =====================================================
--- 메�??�이???�이�?(마이그레?�션 추적)
+-- 메타데이터 테이블 (마이그레이션 추적)
 -- =====================================================
 CREATE TABLE migration_log (
     id              SERIAL PRIMARY KEY,

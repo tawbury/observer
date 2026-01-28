@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: observer-postgres-test
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=observer_db_pwd
+      - POSTGRES_DB=observer
+      - TZ=Asia/Seoul
+      - PGTZ=Asia/Seoul
+    volumes:
+      - postgres_data_test:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - observer-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  observer:
+    build:
+      context: ../../../
+      dockerfile: infra/docker/docker/Dockerfile
+    container_name: observer-test
+    restart: no
+    env_file:
+      - ../../../app/observer/.env
+    environment:
+      - OBSERVER_STANDALONE=1
+      - PYTHONPATH=/app/src
+      - TZ=Asia/Seoul
+      - OBSERVER_DATA_DIR=/app/data
+      - OBSERVER_LOG_DIR=/app/logs
+      - OBSERVER_SYSTEM_LOG_DIR=/app/logs/system
+      - OBSERVER_MAINTENANCE_LOG_DIR=/app/logs/maintenance
+      - OBSERVER_CONFIG_DIR=/app/config
+      - KIS_TOKEN_CACHE_DIR=/app/secrets/.kis_cache
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=observer
+      - DB_USER=postgres
+      - DB_PASSWORD=observer_db_pwd
+    volumes:
+      - ../../../app/observer/config/observer/scalp:/app/config/observer/scalp
+      - ../../../app/observer/config/observer/swing:/app/config/observer/swing
+      - ../../../app/observer/logs:/app/logs
+      - ../../../app/observer/data:/app/data
+    networks:
+      - observer-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        cd /app
+        echo "=========================================="
+        echo "DB 테이블 생성 시작 (KST)"
+        echo "=========================================="
+        python scripts/create_tables_direct.py
+        echo ""
+        echo "=========================================="
+        echo "완료 - 컨테이너 10초 후 종료"
+        echo "=========================================="
+        sleep 10
+
+networks:
+  observer-network:
+    driver: bridge
+
+volumes:
+  postgres_data_test:
+    driver: local

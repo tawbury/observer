@@ -1,17 +1,12 @@
-# Project-specific
 infra/output/
 app/*.tar.gz
-app/obs_deploy/MANIFEST.txt
+app/observer/MANIFEST.txt
 app/observer/config/observer/**/*.jsonl
 app/observer/config/system/**/*.jsonl
 app/observer/logs/
 app/observer/config/universe/*.json
 app/observer/config/symbols/kr_all_symbols.*
-app/obs_deploy/start_observer.sh
-app/obs_deploy/app/data/
-app/obs_deploy/app/config/observer/
-app/obs_deploy/app/logs/
-app/obs_deploy/config/observer/
+app/observer/data/
 ops/run_records/*.log
 
 # Python virtual environments
@@ -37,7 +32,7 @@ __pycache__/
 .env.*
 secrets.*
 secrets/
-app/obs_deploy/secrets/
+app/observer/secrets/
 **/.env
 **/.env.*
 **/secrets/
@@ -104,28 +99,26 @@ mcp-cli/dist/
 *.backup
 backup/
 backups/
-app/obs_deploy/app/config/backups/archives/
-app/obs_deploy/app/config/backups/manifests/
+app/observer/config/backups/archives/
+app/observer/config/backups/manifests/
 .github/workflows/*.backup
-!app/obs_deploy/app/backup/backup_manager.py
+!app/observer/backup/backup_manager.py
 
 # Universe cache files (auto-generated from API)
-app/obs_deploy/config/symbols/kr_all_symbols.txt
-app/obs_deploy/config/symbols/kr_all_symbols.csv
-app/obs_deploy/app/config/symbols/kr_all_symbols.txt
-app/obs_deploy/app/config/symbols/kr_all_symbols.csv
+app/observer/config/symbols/kr_all_symbols.txt
+app/observer/config/symbols/kr_all_symbols.csv
 
 # Runtime data
-app/obs_deploy/data/
-app/obs_deploy/logs/
-app/obs_deploy/config/universe/*.json
-app/obs_deploy/app/config/universe/*.json
+app/observer/data/
+app/observer/logs/
+app/observer/config/universe/*.json
 
 # Deployment artifacts (manage separately with Git LFS or direct SCP transfer)
 # Docker images and bundles
-app/obs_deploy/*.tar
-app/obs_deploy/*.tar.gz
-app/obs_deploy/*.tar.bak
+app/observer/*.tar
+app/observer/*.tar.gz
+app/observer/*.tar.bak
 observer-image.tar
 observer-compose-*.tar.gz
 obs_deploy_package.tar.gz
+BUILD_TAG.txt

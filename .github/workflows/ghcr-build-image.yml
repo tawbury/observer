@@ -48,12 +48,12 @@ jobs:
       - name: Compute timestamp tag
         id: meta
         run: |
-          # Timestamp-based tag: YYYYMMDD-HHMMSS
+          # Timestamp-based tag: build-YYYYMMDD-HHMMSS
           TS="$(date +%Y%m%d-%H%M%S)"
           if [ -n "${{ github.event.inputs.manual_tag }}" ]; then
             TAG="${{ github.event.inputs.manual_tag }}"
           else
-            TAG="$TS"
+            TAG="build-$TS"
           fi
 
           if [ -n "${{ github.event.inputs.image_name }}" ]; then
@@ -88,3 +88,16 @@ jobs:
 
           docker push "${IMAGE}:${TAG}"
           docker push "${IMAGE}:latest"
+
+      - name: Trigger CD Deployment
+        if: success()
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PAT_FOR_DEPLOY_REPO }} # PAT with access to Deployment repo
+          repository: tawbury/Deployment
+          event-type: app_built
+          client-payload: |
+            {
+              "image_tag": "${{ steps.meta.outputs.tag }}",
+              "environment": "OCI01"
+            }

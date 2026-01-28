@@ -88,4 +88,3 @@ jobs:
 
           docker push "${IMAGE}:${TAG}"
           docker push "${IMAGE}:latest"
-

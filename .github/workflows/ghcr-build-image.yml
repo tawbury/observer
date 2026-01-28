@@ -1,0 +1,91 @@
+name: Build and push GHCR image (template)
+
+on:
+  # CI builds for squash PR flow:
+  # - feature branch: observer
+  # - main branch:    master
+  push:
+    branches: [ observer ]
+    # Adjust paths in your app repo (example assumes app code lives under app/)
+    paths:
+      - "app/**"
+      - ".github/workflows/**"
+  pull_request:
+    branches: [ master ]
+    paths:
+      - "app/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+    inputs:
+      manual_tag:
+        description: "Optional override for image tag (default: timestamp)"
+        required: false
+        default: ""
+      image_name:
+        description: "Optional override for image name (default: <owner>/observer)"
+        required: false
+        default: ""
+
+env:
+  # Default registry and image name; change in your app repo if needed.
+  # For user: https://github.com/tawbury -> ghcr.io/tawbury/observer
+  REGISTRY: ghcr.io
+  DEFAULT_IMAGE_NAME: ${{ github.repository_owner }}/observer
+
+jobs:
+  build-and-push:
+    name: Build and push image to GHCR
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute timestamp tag
+        id: meta
+        run: |
+          # Timestamp-based tag: YYYYMMDD-HHMMSS
+          TS="$(date +%Y%m%d-%H%M%S)"
+          if [ -n "${{ github.event.inputs.manual_tag }}" ]; then
+            TAG="${{ github.event.inputs.manual_tag }}"
+          else
+            TAG="$TS"
+          fi
+
+          if [ -n "${{ github.event.inputs.image_name }}" ]; then
+            IMAGE_NAME="${{ github.event.inputs.image_name }}"
+          else
+            IMAGE_NAME="${DEFAULT_IMAGE_NAME}"
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image_name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
+          echo "Resolved image: $IMAGE_NAME:$TAG"
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build image
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}"
+          TAG="${{ steps.meta.outputs.tag }}"
+          # NOTE: Adjust context/dockerfile path in your app repo as needed.
+          docker build \
+            -t "${IMAGE}:${TAG}" \
+            -t "${IMAGE}:latest" \
+            -f infra/docker/docker/Dockerfile \
+            .
+
+      - name: Push image
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}"
+          TAG="${{ steps.meta.outputs.tag }}"
+
+          docker push "${IMAGE}:${TAG}"
+          docker push "${IMAGE}:latest"
+

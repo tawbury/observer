@@ -23,10 +23,10 @@ Observer 서비스를 로컬 환경에서 서버로 배포하는 자동화 스�
 
 ## 필수 로컬 파일 및 위치
 
-배포 전 다음 파일들이 `app/obs_deploy/` 디렉토리에 준비되어야 합니다:
+배포 전 다음 파일들이 `app/observer/` 디렉토리에 준비되어야 합니다:
 
 ```
-app/obs_deploy/
+app/observer/
 ├── .env.server                  # 서버 환경 변수 (KIS 자격증명 포함)
 ├── env.template                 # 환경 변수 템플릿 (검증용)
 ├── observer-image.tar           # Docker 이미지 (121MB)
@@ -38,7 +38,7 @@ app/obs_deploy/
 
 ```bash
 # 기본 템플릿에서 시작
-cp app\obs_deploy\env.template app\obs_deploy\.env.server
+cp app\observer\env.template app\observer\.env.server
 
 # 실제 값 채우기 (필수)
 # - KIS_APP_KEY
@@ -102,8 +102,8 @@ cd d:\development\prj_obs
 | `-SshKeyPath` | `~/.ssh/id_rsa` | SSH 개인 키 경로 |
 | `-DeployDir` | `/home/azureuser/observer-deploy` | 서버 배포 디렉토리 |
 | `-ComposeFile` | `docker-compose.server.yml` | Compose 정의 파일명 |
-| `-LocalEnvFile` | `app\obs_deploy\.env.server` | 로컬 환경 파일 |
-| `-EnvTemplate` | `app\obs_deploy\env.template` | 환경 템플릿 파일 |
+| `-LocalEnvFile` | `app\observer\.env.server` | 로컬 환경 파일 |
+| `-EnvTemplate` | `app\observer\env.template` | 환경 템플릿 파일 |
 | `-ArtifactDir` | `app\obs_deploy` | 아티팩트 디렉토리 |
 
 ### 배포 단계 상세
@@ -327,14 +327,14 @@ scripts/
 ```powershell
 # 1. 로컬에서 환경 준비
 cd d:\development\prj_obs
-cp app\obs_deploy\env.template app\obs_deploy\.env.server
+cp app\observer\env.template app\observer\.env.server
 
 # 2. 빌드 태그 생성
 $BUILD_TAG = .\scripts\deploy\generate_build_tag.ps1 -OutputFile "BUILD_TAG.txt" | Select-Object -Last 1
 Write-Host "Build Tag: $BUILD_TAG"
 
 # 3. 실제 KIS 자격증명 입력 (텍스트 에디터로)
-# notepad app\obs_deploy\.env.server
+# notepad app\observer\.env.server
 
 # 4. 배포 실행
 .\scripts\deploy\deploy.ps1 -ServerHost "your.server.ip" -ImageTag $BUILD_TAG

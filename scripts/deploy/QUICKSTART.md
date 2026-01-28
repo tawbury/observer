@@ -16,12 +16,12 @@
 - [ ] 포트 8000, 5432 개방 (방화벽)
 
 ### 3️⃣ 로컬 아티팩트 준비
-- [ ] `app/obs_deploy/.env.server` 파일 존재
+- [ ] `app/observer/.env.server` 파일 존재
 - [ ] KIS_APP_KEY 값 입력됨
 - [ ] KIS_APP_SECRET 값 입력됨
-- [ ] `app/obs_deploy/observer-image.tar` 존재 (121MB)
-- [ ] `app/obs_deploy/docker-compose.server.yml` 존재
-- [ ] `app/obs_deploy/env.template` 존재
+- [ ] `app/observer/observer-image.tar` 존재 (121MB)
+- [ ] `app/observer/docker-compose.server.yml` 존재
+- [ ] `app/observer/env.template` 존재
 
 ### 4️⃣ 스크립트 준비
 - [ ] `scripts/deploy/deploy.ps1` 존재
@@ -41,10 +41,10 @@
 ```powershell
 # 로컬 env.server 파일 생성
 cd d:\development\prj_obs
-Copy-Item app\obs_deploy\env.template app\obs_deploy\.env.server
+Copy-Item app\observer\env.template app\observer\.env.server
 
 # 텍스트 에디터로 열어서 값 입력
-notepad app\obs_deploy\.env.server
+notepad app\observer\.env.server
 
 # 입력 항목:
 # - KIS_APP_KEY=<실제_키>
@@ -213,17 +213,17 @@ curl http://localhost:8000/status
 **원인 & 해결:**
 1. .env.server 파일 확인
    ```powershell
-   Test-Path app\obs_deploy\.env.server
+   Test-Path app\observer\.env.server
    ```
 
 2. 파일 내용 확인 (첫 10줄)
    ```powershell
-   Get-Content app\obs_deploy\.env.server -Head 10
+   Get-Content app\observer\.env.server -Head 10
    ```
 
 3. 값 입력 확인 (비어있는지 체크)
    ```powershell
-   (Get-Content app\obs_deploy\.env.server | Where-Object { $_ -like "KIS_APP_KEY=*" })
+   (Get-Content app\observer\.env.server | Where-Object { $_ -like "KIS_APP_KEY=*" })
    ```
 
 ### Issue: 서버 docker-compose 실행 실패
@@ -327,8 +327,8 @@ docker compose up -d
 
 - **배포 스크립트**: `scripts/deploy/README.md` (상세 설명)
 - **워크플로우**: `.ai/workflows/deploy_automation.workflow.md`
-- **서버 Compose**: `app/obs_deploy/docker-compose.server.yml`
-- **환경 템플릿**: `app/obs_deploy/env.template`
+- **서버 Compose**: `app/observer/docker-compose.server.yml`
+- **환경 템플릿**: `app/observer/env.template`
 
 ---
 

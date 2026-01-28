@@ -25,7 +25,8 @@ from shared.trading_hours import in_trading_hours
 from provider import ProviderEngine
 from trigger.trigger_engine import TriggerEngine
 from slot.slot_manager import SlotManager, SlotCandidate
-from paths import observer_asset_dir
+from slot.slot_manager import SlotManager, SlotCandidate
+from paths import observer_asset_dir, observer_log_dir
 
 try:
     from paths import env_file_path
@@ -85,7 +86,34 @@ class TrackBCollector(TimeAwareMixin):
         
         self._on_error = on_error
         self._running = False
+        self._on_error = on_error
+        self._running = False
         self._subscribed_symbols: Dict[str, int] = {}  # symbol -> slot_id
+        
+        self._setup_logger()
+
+    def _setup_logger(self) -> None:
+        """Setup specialized file logger for scalp strategy"""
+        try:
+            # logs/scalp/YYYYMMDD.log
+            today_str = datetime.now().strftime("%Y%m%d")
+            log_dir = observer_log_dir() / self.cfg.daily_log_subdir
+            log_dir.mkdir(parents=True, exist_ok=True)
+            
+            log_file = log_dir / f"{today_str}.log"
+            
+            handler = logging.FileHandler(log_file, encoding='utf-8')
+            handler.setFormatter(logging.Formatter(
+                "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+            ))
+            
+            # Add handler to the module-level logger
+            log.addHandler(handler)
+            log.info(f"Scalp file logger initialized: {log_file}")
+            
+        except Exception as e:
+            # Fallback to console/default logger if file setup fails
+            log.error(f"Failed to setup scalp file logger: {e}")
         
     # -----------------------------------------------------
     # Scheduling

@@ -1,0 +1,199 @@
+# docker-compose.server.yml
+# Oracle Cloud VM (oracle-obs-vm-01) 서버 배포용
+#
+# 사용법:
+#   cd ~/observer-deploy
+#   export IMAGE_TAG=build-YYYYMMDD-HHMMSS
+#   docker compose -f docker-compose.server.yml up -d
+#
+# 사전 요구사항:
+#   1. ~/observer/secrets/.env 파일에 KIS 자격증명 설정
+#   2. init_server_dirs.sh 스크립트로 디렉토리 구조 생성
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: observer-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-observer_db_pwd}
+      - POSTGRES_DB=observer
+      - TZ=Asia/Seoul
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - observer-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  observer:
+    image: ghcr.io/tawbury/observer:${IMAGE_TAG:?IMAGE_TAG required}
+    container_name: observer
+    restart: unless-stopped
+    # .env 파일에서 KIS 자격증명 로드 (Critical!)
+    env_file:
+      - ../../observer/secrets/.env
+    environment:
+      # Core settings
+      - OBSERVER_STANDALONE=1
+      - PYTHONPATH=/app/src:/app
+      # 시간대 설정 (KST)
+      - TZ=Asia/Seoul
+      # Path settings (paths.py에서 사용)
+      - OBSERVER_DATA_DIR=/app/data
+      - OBSERVER_LOG_DIR=/app/logs
+      - OBSERVER_SYSTEM_LOG_DIR=/app/logs/system
+      - OBSERVER_MAINTENANCE_LOG_DIR=/app/logs/maintenance
+      - OBSERVER_CONFIG_DIR=/app/config
+      - KIS_TOKEN_CACHE_DIR=/app/secrets/.kis_cache
+      - OBSERVER_ENV_FILE=/app/secrets/.env
+      # Track A/B 활성화 (기본값: Track A만 활성화)
+      - TRACK_A_ENABLED=${TRACK_A_ENABLED:-true}
+      - TRACK_B_ENABLED=${TRACK_B_ENABLED:-false}
+      # Database settings
+      - DB_HOST=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-observer_db_pwd}
+      - DB_NAME=observer
+      - DB_PORT=5432
+    volumes:
+      # 호스트 ~/observer/ 디렉토리와 매핑
+      - ../../observer/data:/app/data
+      - ../../observer/logs:/app/logs
+      - ../../observer/config:/app/config
+      - ../../observer/secrets:/app/secrets
+    ports:
+      - "8000:8000"
+    networks:
+      - observer-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3); sys.exit(0 if r.getcode()==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 2
+    # 배포 최적화: 리소스 제한
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    # 배포 최적화: 로그 로테이션
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: observer-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ../monitoring/prometheus_alerting_rules.yaml:/etc/prometheus/rules.yaml
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - observer-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: observer-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      GF_PATHS_DASHBOARDS: /etc/grafana/provisioning/dashboards
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      TZ: Asia/Seoul
+    volumes:
+      - ../monitoring/grafana_dashboard.json:/etc/grafana/provisioning/dashboards/observer.json
+      - ../monitoring/grafana_datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - grafana_data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - prometheus
+    networks:
+      - observer-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: observer-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ../monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9093"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - observer-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  observer-network:
+    driver: bridge
+    name: observer-network
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:

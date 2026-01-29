@@ -9,6 +9,8 @@
 set -euo pipefail
 
 DEPLOY_DIR="${1:-/home/ubuntu/observer-deploy}"
+OBSERVER_DATA_DIR="${2:-$(dirname "$DEPLOY_DIR")/observer}"
+COMPOSE_FILE="${3:-docker-compose.server.yml}"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -24,6 +26,7 @@ echo ""
 echo "═══════════════════════════════════════════════════════════════"
 echo "  oracle-obs-vm-01 서버 점검 — $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "  배포 디렉토리: $DEPLOY_DIR"
+echo "  Observer 데이터 디렉토리: $OBSERVER_DATA_DIR"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
 
@@ -80,12 +83,48 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# 3. 실행 로그 (logs/system, logs/maintenance)
+# 3. Observer 데이터 디렉터리 및 볼륨/권한 (E2E)
 # ---------------------------------------------------------------------------
-echo "▶ 3. 실행 로그 (logs/system, logs/maintenance)"
+echo "▶ 3. Observer 데이터 디렉터리 및 볼륨 권한"
 echo "─────────────────────────────────────────────────────────────────"
-for subdir in system maintenance; do
-    dir="$DEPLOY_DIR/logs/$subdir"
+if [ ! -d "$OBSERVER_DATA_DIR" ]; then
+    fail "Observer 데이터 디렉토리 없음: $OBSERVER_DATA_DIR"
+else
+    ok "Observer 데이터 디렉토리 존재: $OBSERVER_DATA_DIR"
+    for subdir in config data logs secrets; do
+        dir="$OBSERVER_DATA_DIR/$subdir"
+        if [ ! -d "$dir" ]; then
+            warn "  하위 디렉토리 없음: $subdir"
+        else
+            if [ -w "$dir" ]; then
+                ok "  $subdir 쓰기 가능"
+            else
+                warn "  $subdir 쓰기 불가 (권한 확인 필요)"
+            fi
+        fi
+    done
+fi
+
+# observer 컨테이너 볼륨 마운트 확인
+if docker inspect observer --format '{{json .Mounts}}' 2>/dev/null | grep -q '"Source":"'"$OBSERVER_DATA_DIR"'/config"'; then
+    ok "observer 컨테이너 볼륨 마운트 (config/data/logs/secrets) 적용됨"
+else
+    mount_count=$(docker inspect observer --format '{{len .Mounts}}' 2>/dev/null || echo "0")
+    if [ "$mount_count" -eq 0 ]; then
+        fail "observer 컨테이너에 볼륨 마운트 없음 (compose 실행 CWD 확인)"
+    else
+        warn "observer 마운트 ${mount_count}개 (경로 확인: docker inspect observer)"
+    fi
+fi
+echo ""
+
+# ---------------------------------------------------------------------------
+# 4. 실행 로그 (observer 데이터 디렉터리 기준)
+# ---------------------------------------------------------------------------
+echo "▶ 4. 실행 로그 (logs/system, logs/scalp)"
+echo "─────────────────────────────────────────────────────────────────"
+for subdir in system maintenance scalp; do
+    dir="$OBSERVER_DATA_DIR/logs/$subdir"
     if [ ! -d "$dir" ]; then
         warn "디렉토리 없음: $dir"
     else
@@ -100,10 +139,9 @@ for subdir in system maintenance; do
     fi
 done
 
-# 호스트 로그 비어 있으면 컨테이너 내부 확인
 host_log_count=0
-[ -d "$DEPLOY_DIR/logs/system" ] && host_log_count=$((host_log_count + $(find "$DEPLOY_DIR/logs/system" -maxdepth 1 -type f 2>/dev/null | wc -l)))
-[ -d "$DEPLOY_DIR/logs/maintenance" ] && host_log_count=$((host_log_count + $(find "$DEPLOY_DIR/logs/maintenance" -maxdepth 1 -type f 2>/dev/null | wc -l)))
+[ -d "$OBSERVER_DATA_DIR/logs/system" ] && host_log_count=$((host_log_count + $(find "$OBSERVER_DATA_DIR/logs/system" -maxdepth 1 -type f 2>/dev/null | wc -l)))
+[ -d "$OBSERVER_DATA_DIR/logs/maintenance" ] && host_log_count=$((host_log_count + $(find "$OBSERVER_DATA_DIR/logs/maintenance" -maxdepth 1 -type f 2>/dev/null | wc -l)))
 if [ "$host_log_count" -eq 0 ] && docker exec observer test -d /app/logs/system 2>/dev/null; then
     cont_count=$(docker exec observer find /app/logs/system /app/logs/maintenance -maxdepth 1 -type f 2>/dev/null | wc -l)
     if [ "$cont_count" -gt 0 ]; then
@@ -112,10 +150,9 @@ if [ "$host_log_count" -eq 0 ] && docker exec observer test -d /app/logs/system 
     fi
 fi
 
-# Docker 로그 (observer) 마지막 몇 줄
 echo ""
 echo "  [Observer 컨테이너 로그 — 최근 5줄]"
-docker compose -f docker-compose.server.yml logs --tail 5 observer 2>/dev/null || docker logs --tail 5 observer 2>/dev/null || warn "Observer 로그 조회 실패"
+docker compose -f "$COMPOSE_FILE" logs --tail 5 observer 2>/dev/null || docker logs --tail 5 observer 2>/dev/null || warn "Observer 로그 조회 실패"
 echo ""
 
 echo "═══════════════════════════════════════════════════════════════"

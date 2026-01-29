@@ -9,6 +9,7 @@ param(
     [string]$SshUser = "ubuntu",
     [string]$SshKeyPath = "C:\Users\tawbu\.ssh\oracle-obs-vm-01.key",
     [string]$DeployDir = "/home/ubuntu/observer-deploy",
+    [string]$ObserverDataDir = "/home/ubuntu/observer",
     [string]$ComposeFile = "docker-compose.server.yml",
     [string]$LocalEnvFile = "app\observer\.env",
     [string]$EnvTemplate = "app\observer\env.template",
@@ -118,28 +119,41 @@ function Test-ServerDeployDir {
 }
 
 # ---------------------------------------------------------------------------
-# 서버 .env 백업
+# 서버 .env 백업 (observer-deploy/.env, observer/secrets/.env)
 # ---------------------------------------------------------------------------
 function Backup-ServerEnv {
     Log-Message "[STEP] 서버 .env 백업" "INFO"
     $backupTs = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
     $backupFile = ".env.bak-$backupTs"
-    $remoteBackup = 'cd ' + $DeployDir + '; if [ -f .env ]; then cp .env ' + $backupFile + '; fi'
-    $null = ssh -i $SshKeyPath -o StrictHostKeyChecking=accept-new "${SshUser}@${ServerHost}" $remoteBackup 2>$null
-    Log-Message "백업 파일: $backupFile" "SUCCESS"
+    $remoteBackup = @(
+        "cd $DeployDir; if [ -f .env ]; then cp .env $backupFile; echo deploy_ok; fi",
+        "mkdir -p $ObserverDataDir/secrets; if [ -f $ObserverDataDir/secrets/.env ]; then cp $ObserverDataDir/secrets/.env $ObserverDataDir/secrets/$backupFile; echo secrets_ok; fi"
+    )
+    foreach ($cmd in $remoteBackup) {
+        $null = ssh -i $SshKeyPath -o StrictHostKeyChecking=accept-new "${SshUser}@${ServerHost}" $cmd 2>$null
+    }
+    Log-Message "백업 파일: $backupFile (deploy), secrets/$backupFile (observer)" "SUCCESS"
     return $true
 }
 
 # ---------------------------------------------------------------------------
-# .env 업로드
+# .env 업로드 (옵션 1: observer-deploy/.env + observer/secrets/.env 둘 다)
+# 로컬 .env는 env.template 키로 검증된 후 두 위치에 동일 내용 업로드.
 # ---------------------------------------------------------------------------
 function Upload-EnvFile {
-    Log-Message "[STEP] .env 업로드" "INFO"
+    Log-Message "[STEP] .env 업로드 (deploy + observer/secrets)" "INFO"
     scp -i $SshKeyPath -o StrictHostKeyChecking=accept-new $LocalEnvFile "${SshUser}@${ServerHost}:${DeployDir}/.env.tmp"
     if ($LASTEXITCODE -ne 0) { Log-Message "env 업로드 실패" "ERROR"; return $false }
-    $null = ssh -i $SshKeyPath -o StrictHostKeyChecking=accept-new "${SshUser}@${ServerHost}" "cd $DeployDir; mv .env.tmp .env; chmod 600 .env"
-    if ($LASTEXITCODE -ne 0) { Log-Message "env 권한 설정 실패" "ERROR"; return $false }
-    Log-Message "env 업로드 완료" "SUCCESS"; return $true
+    $remoteEnvSetup = @(
+        "cd $DeployDir; mv .env.tmp .env; chmod 600 .env",
+        "mkdir -p $ObserverDataDir/secrets",
+        "cp $DeployDir/.env $ObserverDataDir/secrets/.env; chmod 600 $ObserverDataDir/secrets/.env"
+    )
+    foreach ($cmd in $remoteEnvSetup) {
+        $null = ssh -i $SshKeyPath -o StrictHostKeyChecking=accept-new "${SshUser}@${ServerHost}" $cmd
+        if ($LASTEXITCODE -ne 0) { Log-Message "env 권한/복사 실패: $cmd" "ERROR"; return $false }
+    }
+    Log-Message "env 업로드 완료: $DeployDir/.env, $ObserverDataDir/secrets/.env" "SUCCESS"; return $true
 }
 
 # ---------------------------------------------------------------------------
@@ -177,7 +191,7 @@ function Execute-ServerDeploy {
 # ---------------------------------------------------------------------------
 function Health-Check {
     Log-Message "[STEP] 헬스 체크" "INFO"
-    $status = ssh -i $SshKeyPath -o StrictHostKeyChecking=accept-new "${SshUser}@${ServerHost}" "cd $DeployDir; docker compose ps"
+    $status = ssh -i $SshKeyPath -o StrictHostKeyChecking=accept-new "${SshUser}@${ServerHost}" "cd $DeployDir; docker compose -f $ComposeFile ps"
     $status | ForEach-Object { Log-Message $_ "INFO" }
     $health = ssh -i $SshKeyPath -o StrictHostKeyChecking=accept-new "${SshUser}@${ServerHost}" "curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/health"
     if ($health -eq "200") { Log-Message "Health endpoint 200" "SUCCESS" } else { Log-Message "Health endpoint code: $health" "WARN" }
@@ -191,6 +205,7 @@ function Main {
     Log-Message "==== Observer Deployment Orchestrator v1.1.0 ====" "INFO"
     Log-Message "Server: $ServerHost" "INFO"
     Log-Message "DeployDir: $DeployDir" "INFO"
+    Log-Message "ObserverDataDir: $ObserverDataDir" "INFO"
     Log-Message "Compose: $ComposeFile" "INFO"
     if ($EnvOnly) { Log-Message "Mode: EnvOnly (env 업데이트만 수행)" "INFO" }
     if ($Rollback) { Log-Message "Mode: Rollback (last_good_tag 사용)" "INFO" }

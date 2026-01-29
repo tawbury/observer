@@ -245,7 +245,10 @@ class UniverseManager:
             "028260", "006400", "105560", "055550", "012330",
             "096770", "034730", "003550", "259960", "066570",
         ]
-        return list(dict.fromkeys(result))
+        result = list(dict.fromkeys(result))
+        # 트리거 발동 시 캐시 파일 생성 (서버 등에서 API 미동작 시에도 kr_all_symbols.txt 생성)
+        await self._cache_symbols_to_file(result)
+        return result
     
     async def _cache_symbols_to_file(self, symbols: List[str]) -> None:
         """Cache fetched symbols to file for future fallback use."""

@@ -239,7 +239,7 @@ check_time_drift() {
 
     cd "$DEPLOY_DIR"
 
-    if ! docker compose ps "$service" >/dev/null 2>&1; then
+    if ! docker compose -f "$COMPOSE_FILE" ps "$service" >/dev/null 2>&1; then
         log_warn "서비스($service)가 실행 중이 아니어서 시간 확인을 건너뜁니다."
         return 0
     fi
@@ -248,7 +248,7 @@ check_time_drift() {
     host_epoch=$(date +%s)
 
     local container_epoch
-    container_epoch=$(docker compose exec -T "$service" date +%s 2>/dev/null || true)
+    container_epoch=$(docker compose -f "$COMPOSE_FILE" exec -T "$service" date +%s 2>/dev/null || true)
 
     if [[ -z "$container_epoch" ]]; then
         log_warn "컨테이너 시간 조회 실패 (서비스: $service)"
@@ -278,17 +278,17 @@ check_compose_status() {
     cd "$DEPLOY_DIR"
     
     echo ""
-    docker compose ps
+    docker compose -f "$COMPOSE_FILE" ps
     echo ""
     
     # 모든 서비스가 Up 상태인지 확인
-    local down_count=$(docker compose ps --format "{{.Status}}" | grep -v "Up" | wc -l)
+    local down_count=$(docker compose -f "$COMPOSE_FILE" ps --format "{{.Status}}" | grep -v "Up" | wc -l)
     
     if [ "$down_count" -gt 0 ]; then
         log_warn "⚠️  일부 서비스가 Up 상태가 아님 (다시 시작 중...)"
-        docker compose restart
+        docker compose -f "$COMPOSE_FILE" restart
         sleep 5
-        docker compose ps
+        docker compose -f "$COMPOSE_FILE" ps
     fi
     
     log_info "✅ Docker Compose 상태 확인 완료"
@@ -305,12 +305,12 @@ check_initial_logs() {
     echo ""
     log_info "Observer 서비스 로그 (최근 100줄):"
     echo "─────────────────────────────────────────────────────────────────"
-    docker compose logs --tail 100 observer || true
+    docker compose -f "$COMPOSE_FILE" logs --tail 100 observer || true
     echo "─────────────────────────────────────────────────────────────────"
     echo ""
     
     # 심각한 에러 감지 (선택적)
-    if docker compose logs observer | grep -i "fatal\|critical error" > /dev/null 2>&1; then
+    if docker compose -f "$COMPOSE_FILE" logs observer | grep -i "fatal\|critical error" > /dev/null 2>&1; then
         log_warn "⚠️  로그에서 심각한 에러 발견 (상세 로그 참조)"
     fi
     
@@ -391,18 +391,18 @@ operational_summary() {
     echo "─────────────────────────────────────────────────────────────────"
     
     # 1. Compose 상태
-    local total=$(docker compose ps --format "table" | tail -n +2 | wc -l)
-    local running=$(docker compose ps --format "{{.Status}}" | grep "Up" | wc -l)
+    local total=$(docker compose -f "$COMPOSE_FILE" ps --format "table" | tail -n +2 | wc -l)
+    local running=$(docker compose -f "$COMPOSE_FILE" ps --format "{{.Status}}" | grep "Up" | wc -l)
     log_info "  · Docker Compose: $running/$total 서비스 실행 중"
     
     # 2. 이미지 정보
-    local image=$(docker compose ps --format "{{.Image}}" | head -1)
+    local image=$(docker compose -f "$COMPOSE_FILE" ps --format "{{.Image}}" | head -1)
     if [ ! -z "$image" ]; then
         log_info "  · Observer 이미지: $image"
     fi
     
     # 3. 포트 확인
-    if docker compose ps observer | grep -q "8000"; then
+    if docker compose -f "$COMPOSE_FILE" ps observer | grep -q "8000"; then
         log_info "  · API 포트: 8000 바인딩됨"
     fi
     

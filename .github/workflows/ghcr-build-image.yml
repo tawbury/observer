@@ -67,27 +67,33 @@ jobs:
           echo "Resolved image: $IMAGE_NAME:$TAG"
 
       - name: Log in to GHCR
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build image
-        run: |
-          IMAGE="${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}"
-          TAG="${{ steps.meta.outputs.tag }}"
-          # NOTE: Adjust context/dockerfile path in your app repo as needed.
-          docker build \
-            -t "${IMAGE}:${TAG}" \
-            -t "${IMAGE}:latest" \
-            -f infra/docker/docker/Dockerfile \
-            .
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-      - name: Push image
-        run: |
-          IMAGE="${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}"
-          TAG="${{ steps.meta.outputs.tag }}"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-          docker push "${IMAGE}:${TAG}"
-          docker push "${IMAGE}:latest"
-          
-          echo "✅ Image pushed: ${IMAGE}:${TAG}"
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infra/docker/docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "✅ Image pushed: ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.tag }}"
           echo "Deployment repo will detect this new image and deploy automatically."
+

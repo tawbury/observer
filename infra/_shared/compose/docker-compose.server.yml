@@ -43,8 +43,9 @@ services:
     container_name: observer
     restart: unless-stopped
     # .env 파일에서 KIS 자격증명 로드 (Critical!)
+    # ~/observer-deploy 에서 실행 시 ../observer = ~/observer
     env_file:
-      - ../../observer/secrets/.env
+      - ../observer/secrets/.env
     environment:
       # Core settings
       - OBSERVER_STANDALONE=1
@@ -69,11 +70,11 @@ services:
       - DB_NAME=observer
       - DB_PORT=5432
     volumes:
-      # 호스트 ~/observer/ 디렉토리와 매핑
-      - ../../observer/data:/app/data
-      - ../../observer/logs:/app/logs
-      - ../../observer/config:/app/config
-      - ../../observer/secrets:/app/secrets
+      # 호스트 ~/observer/ 와 매핑 (~/observer-deploy 에서 ../observer = ~/observer)
+      - ../observer/data:/app/data
+      - ../observer/logs:/app/logs
+      - ../observer/config:/app/config
+      - ../observer/secrets:/app/secrets
     ports:
       - "8000:8000"
     networks:

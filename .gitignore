@@ -2,7 +2,11 @@ infra/output/
 app/*.tar.gz
 app/observer/MANIFEST.txt
 app/observer/config/observer/**/*.jsonl
+app/observer/config/observer/scalp/**/*.jsonl
+app/observer/config/observer/swing/**/*.jsonl
+app/observer/config/observer/system/**/*.jsonl
 app/observer/config/system/**/*.jsonl
+app/observer/config/**/**/*.jsonl
 app/observer/logs/
 app/observer/config/universe/*.json
 app/observer/config/symbols/kr_all_symbols.*

@@ -27,3 +27,42 @@
 - Compose 파일: `infra/_shared/compose/docker-compose.prod.yml` 등, 아티팩트: `infra/docker/compose/`
 - env 파일: `infra/_shared/secrets/.env.prod`
 - 실행은 **프로젝트 루트**에서 호출하는 것을 전제로 상대 경로 작성
+
+---
+
+## Server (obs-prod-arm) 수동 배포
+
+`~/observer-deploy` 와 `~/observer` 가 형제 디렉터리일 때, **최소 구성** (postgres + observer) 배포:
+
+### 1. 기존 observer 컨테이너 정리
+
+```bash
+docker stop observer
+docker rm observer
+```
+
+### 2. compose 파일 SCP 업로드 (로컬 PowerShell)
+
+```powershell
+scp -i "C:\Users\tawbu\.ssh\oracle-obs-vm-01.key" `
+  infra/_shared/compose/docker-compose.server.minimal.yml `
+  ubuntu@<서버IP>:~/observer-deploy/docker-compose.server.minimal.yml
+```
+
+### 3. 서버에서 기동
+
+```bash
+cd ~/observer-deploy
+export IMAGE_TAG=build-YYYYMMDD-HHMMSS   # 실제 빌드 태그로 변경
+docker compose -f docker-compose.server.minimal.yml up -d
+```
+
+### 4. 확인
+
+```bash
+docker logs observer --tail 50
+docker exec observer env | grep KIS
+```
+
+- `KIS_APP_KEY`, `KIS_APP_SECRET` 이 보이면 env_file 적용됨.
+- Track A/B 관련 로그에서 Collector 활성화 여부 확인.

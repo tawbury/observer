@@ -20,7 +20,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 ```
 
 ### 3. 배포용 docker-compose.prod.yml
-**파일**: `infra/oci_deploy/docker-compose.prod.yml`
+**파일**: `infra/_shared/compose/docker-compose.prod.yml`
 - **모든 서비스**: KST 시간대 설정 포함
 - **환경 변수**: `.env.prod` 파일에서 관리
 
@@ -29,16 +29,16 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 ### 1. 환경 설정
 ```bash
 # 배포 환경 변수 파일 생성
-cp infra/oci_deploy/.env.prod.example infra/oci_deploy/.env.prod
+cp infra/_shared/secrets/env.prod.example infra/_shared/secrets/.env.prod
 
 # 환경 변수 편집
-nano infra/oci_deploy/.env.prod
+nano infra/_shared/secrets/.env.prod
 ```
 
 ### 2. 배포 실행
 ```bash
 # 배포용 docker-compose 사용
-cd infra/oci_deploy
+cd infra/_shared/compose
 docker-compose -f docker-compose.prod.yml up -d --build
 ```
 
@@ -126,9 +126,9 @@ docker-compose restart observer
 - `infra/docker/compose/docker-compose.yml` - TZ 환경 변수 추가
 
 ### 새로 생성된 파일
-- `infra/oci_deploy/docker-compose.prod.yml` - 배포용 설정
-- `infra/oci_deploy/.env.prod.example` - 환경 변수 예시
-- `infra/oci_deploy/DEPLOYMENT_GUIDE.md` - 배포 가이드
+- `infra/_shared/compose/docker-compose.prod.yml` - 배포용 설정
+- `infra/_shared/secrets/env.prod.example` - 환경 변수 예시
+- `docs/guides/DEPLOYMENT_GUIDE.md` - 배포 가이드
 
 ## 🎯 중요 사항
 

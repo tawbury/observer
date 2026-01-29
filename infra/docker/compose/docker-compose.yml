@@ -11,7 +11,7 @@ services:
       - POSTGRES_DB=observer
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ../../oci_deploy/migrations:/docker-entrypoint-initdb.d
+      - ../../_shared/migrations:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
     networks:

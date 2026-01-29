@@ -1,3 +1,14 @@
+# OCI (Oracle Cloud Infrastructure) 배포 가이드 (레거시)
+
+> **주의**: 이 문서는 레거시 구조(`app/oci_deploy/`)를 설명합니다. 현재는 다음 구조로 통합되었습니다:
+> - 모니터링: `infra/_shared/monitoring/`
+> - 마이그레이션: `infra/_shared/migrations/`
+> - 배포 Compose: `infra/_shared/compose/docker-compose.prod.yml`
+> 
+> 참고용으로만 보관합니다.
+
+---
+
 # OCI (Oracle Cloud Infrastructure) 배포 가이드
 
 ## 개요

@@ -103,8 +103,8 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ../_shared/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ../_shared/monitoring/prometheus_alerting_rules.yaml:/etc/prometheus/rules.yaml
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ../monitoring/prometheus_alerting_rules.yaml:/etc/prometheus/rules.yaml
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -138,8 +138,8 @@ services:
       # 시간대 설정 (KST)
       TZ: Asia/Seoul
     volumes:
-      - ../_shared/monitoring/grafana_dashboard.json:/etc/grafana/provisioning/dashboards/observer.json
-      - ../_shared/monitoring/grafana_datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ../monitoring/grafana_dashboard.json:/etc/grafana/provisioning/dashboards/observer.json
+      - ../monitoring/grafana_datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
       - grafana_data:/var/lib/grafana
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
@@ -163,7 +163,7 @@ services:
     ports:
       - "9093:9093"
     volumes:
-      - ../_shared/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - ../monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
       - alertmanager_data:/alertmanager
     command:
       - "--config.file=/etc/alertmanager/alertmanager.yml"

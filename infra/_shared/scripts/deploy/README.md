@@ -24,6 +24,6 @@
 
 ## 경로 관례
 
-- Compose 파일: `infra/oci_deploy/docker-compose.prod.yml` 등, 아티팩트: `infra/docker/compose/`
+- Compose 파일: `infra/_shared/compose/docker-compose.prod.yml` 등, 아티팩트: `infra/docker/compose/`
 - env 파일: `infra/_shared/secrets/.env.prod`
-- 실행은 **프로젝트 루트** 또는 **infra/oci_deploy**에서 호출하는 것을 전제로 상대 경로 작성
+- 실행은 **프로젝트 루트**에서 호출하는 것을 전제로 상대 경로 작성

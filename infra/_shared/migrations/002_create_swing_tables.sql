@@ -1,11 +1,11 @@
--- Phase 13: Swing (Track A) ?åÏù¥Î∏??ùÏÑ± Î∞??§ÌÇ§Îß??òÏ†ï
--- ?ùÏÑ± ?†Ïßú: 2026-01-22
--- ?§Î™Ö: REST API 10Î∂?Î¥??∞Ïù¥???Ä??(bid/ask ?ÑÎìú Ï∂îÍ?)
+-- Phase 13: Swing (Track A) ??? ?? ? ??? ??
+-- ?? ??: 2026-01-22
+-- ??: REST API 10? ? ??? ?? (bid/ask ?? ??)
 
 -- =====================================================
--- 1. swing_bars_10m ?åÏù¥Î∏?(10Î∂?Î¥??∞Ïù¥??
+-- 1. swing_bars_10m ??? (10? ? ???)
 -- =====================================================
-CREATE TABLE swing_bars_10m (
+CREATE TABLE IF NOT EXISTS swing_bars_10m (
     symbol          VARCHAR(20) NOT NULL,
     bar_time        TIMESTAMPTZ NOT NULL,
     open            NUMERIC(15,4),
@@ -28,7 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_swing_10m_session ON swing_bars_10m(session_id);
 CREATE INDEX IF NOT EXISTS idx_swing_10m_bid_ask ON swing_bars_10m(symbol, bar_time, bid_price, ask_price);
 
 -- =====================================================
--- Î©îÌ??∞Ïù¥???ÖÎç∞?¥Ìä∏
+-- ????? ????
 -- =====================================================
 INSERT INTO migration_log (migration_name, status)
 VALUES ('002_create_swing_tables', 'success');

@@ -15,7 +15,7 @@
 
 ## 참조 경로
 
-- 예시 파일: `infra/_shared/secrets/env.prod.example` (또는 `infra/oci_deploy/.env.prod.example`)
+- 예시 파일: `infra/_shared/secrets/env.prod.example`
 - 출력/검증 대상: `infra/_shared/secrets/.env.prod` 등
 
 스크립트 추가 시 `infra/_shared/secrets/` 이하만 참조하고, 환경별 env는 인자 또는 환경변수로 구분하면 됩니다.

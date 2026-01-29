@@ -79,12 +79,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Single platform (arm64) for oracle-obs-vm-01. Switch to multi-platform when adding more servers.
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           file: infra/docker/docker/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.tag }}

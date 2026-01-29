@@ -1,11 +1,11 @@
--- Phase 13: Scalp (Track B) ?åÏù¥Î∏??ùÏÑ±
--- ?ùÏÑ± ?†Ïßú: 2026-01-22
--- ?§Î™Ö: WebSocket ?§ÏãúÍ∞????∞Ïù¥??Î∞?1Î∂?Î¥??∞Ïù¥???Ä??
+-- Phase 13: Scalp (Track B) ??? ??
+-- ?? ??: 2026-01-22
+-- ??: WebSocket ??? ? ??? ? 1? ? ??? ??
 
 -- =====================================================
--- 1. scalp_ticks ?åÏù¥Î∏?(?§ÏãúÍ∞????∞Ïù¥??
+-- 1. scalp_ticks ??? (??? ? ???)
 -- =====================================================
-CREATE TABLE scalp_ticks (
+CREATE TABLE IF NOT EXISTS scalp_ticks (
     id              BIGSERIAL PRIMARY KEY,
     symbol          VARCHAR(20) NOT NULL,
     event_time      TIMESTAMPTZ NOT NULL,
@@ -25,9 +25,9 @@ CREATE INDEX IF NOT EXISTS idx_scalp_ticks_event_time ON scalp_ticks(event_time 
 CREATE INDEX IF NOT EXISTS idx_scalp_ticks_session ON scalp_ticks(session_id);
 
 -- =====================================================
--- 2. scalp_1m_bars ?åÏù¥Î∏?(1Î∂?Î¥??∞Ïù¥??
+-- 2. scalp_1m_bars ??? (1? ? ???)
 -- =====================================================
-CREATE TABLE scalp_1m_bars (
+CREATE TABLE IF NOT EXISTS scalp_1m_bars (
     symbol          VARCHAR(20) NOT NULL,
     bar_time        TIMESTAMPTZ NOT NULL,
     open            NUMERIC(15,4),
@@ -46,9 +46,9 @@ CREATE INDEX IF NOT EXISTS idx_scalp_1m_bars_time ON scalp_1m_bars(bar_time DESC
 CREATE INDEX IF NOT EXISTS idx_scalp_1m_bars_session ON scalp_1m_bars(session_id);
 
 -- =====================================================
--- 3. scalp_gaps ?åÏù¥Î∏?(?∞Ïù¥??Í≥µÎ∞± Í∏∞Î°ù)
+-- 3. scalp_gaps ??? (??? ?? ??)
 -- =====================================================
-CREATE TABLE scalp_gaps (
+CREATE TABLE IF NOT EXISTS scalp_gaps (
     id              SERIAL PRIMARY KEY,
     gap_start_ts    TIMESTAMPTZ NOT NULL,
     gap_end_ts      TIMESTAMPTZ NOT NULL,
@@ -62,9 +62,9 @@ CREATE INDEX IF NOT EXISTS idx_scalp_gaps_session ON scalp_gaps(session_id);
 CREATE INDEX IF NOT EXISTS idx_scalp_gaps_time ON scalp_gaps(gap_start_ts DESC);
 
 -- =====================================================
--- Î©îÌ??∞Ïù¥???åÏù¥Î∏?(ÎßàÏù¥Í∑∏Î†à?¥ÏÖò Ï∂îÏ†Å)
+-- ????? ??? (?????? ??)
 -- =====================================================
-CREATE TABLE migration_log (
+CREATE TABLE IF NOT EXISTS migration_log (
     id              SERIAL PRIMARY KEY,
     migration_name  VARCHAR(100) NOT NULL,
     executed_at     TIMESTAMPTZ DEFAULT NOW(),

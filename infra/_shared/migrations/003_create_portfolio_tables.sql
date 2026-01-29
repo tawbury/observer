@@ -1,11 +1,11 @@
--- Phase 13: Portfolio Î∞?Î¶¨Î∞∏?∞Ïã± Í¥Ä???åÏù¥Î∏??ùÏÑ±
--- ?ùÏÑ± ?†Ïßú: 2026-01-22
--- ?§Î™Ö: ?¨Ìä∏?¥Î¶¨??Ï∂îÏ†Å, Î¶¨Î∞∏?∞Ïã± Í≥ÑÌöç Î∞?Ï£ºÎ¨∏ Í¥ÄÎ¶?
+-- Phase 13: Portfolio ? ???? ?? ??? ??
+-- ?? ??: 2026-01-22
+-- ??: ????? ??, ???? ?? ? ?? ??
 
 -- =====================================================
--- 1. portfolio_policy ?åÏù¥Î∏?(?¨Ìä∏?¥Î¶¨???ïÏ±Ö)
+-- 1. portfolio_policy ??? (????? ??)
 -- =====================================================
-CREATE TABLE portfolio_policy (
+CREATE TABLE IF NOT EXISTS portfolio_policy (
     policy_id           VARCHAR(50) PRIMARY KEY,
     policy_name         VARCHAR(100) NOT NULL,
     created_at          TIMESTAMPTZ DEFAULT NOW(),
@@ -15,9 +15,9 @@ CREATE TABLE portfolio_policy (
 );
 
 -- =====================================================
--- 2. target_weights ?åÏù¥Î∏?(Î™©Ìëú ÎπÑÏ§ë)
+-- 2. target_weights ??? (?? ??)
 -- =====================================================
-CREATE TABLE target_weights (
+CREATE TABLE IF NOT EXISTS target_weights (
     policy_id           VARCHAR(50) NOT NULL,
     symbol              VARCHAR(20) NOT NULL,
     target_weight       FLOAT NOT NULL,
@@ -29,9 +29,9 @@ CREATE TABLE target_weights (
 CREATE INDEX IF NOT EXISTS idx_target_weights_policy ON target_weights(policy_id);
 
 -- =====================================================
--- 3. portfolio_snapshot ?åÏù¥Î∏?(?¨Ìä∏?¥Î¶¨???§ÎÉÖ??
+-- 3. portfolio_snapshot ??? (????? ???)
 -- =====================================================
-CREATE TABLE portfolio_snapshot (
+CREATE TABLE IF NOT EXISTS portfolio_snapshot (
     snapshot_id         BIGSERIAL PRIMARY KEY,
     policy_id           VARCHAR(50) NOT NULL,
     snapshot_time       TIMESTAMPTZ NOT NULL,
@@ -45,9 +45,9 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_snapshot_policy ON portfolio_snapshot(p
 CREATE INDEX IF NOT EXISTS idx_portfolio_snapshot_time ON portfolio_snapshot(snapshot_time DESC);
 
 -- =====================================================
--- 4. portfolio_positions ?åÏù¥Î∏?(?¨Ï????ÑÌô©)
+-- 4. portfolio_positions ??? (??? ??)
 -- =====================================================
-CREATE TABLE portfolio_positions (
+CREATE TABLE IF NOT EXISTS portfolio_positions (
     position_id         BIGSERIAL PRIMARY KEY,
     snapshot_id         BIGINT NOT NULL,
     symbol              VARCHAR(20) NOT NULL,
@@ -64,9 +64,9 @@ CREATE INDEX IF NOT EXISTS idx_portfolio_positions_snapshot ON portfolio_positio
 CREATE INDEX IF NOT EXISTS idx_portfolio_positions_symbol ON portfolio_positions(symbol);
 
 -- =====================================================
--- 5. rebalance_plan ?åÏù¥Î∏?(Î¶¨Î∞∏?∞Ïã± Í≥ÑÌöç)
+-- 5. rebalance_plan ??? (???? ??)
 -- =====================================================
-CREATE TABLE rebalance_plan (
+CREATE TABLE IF NOT EXISTS rebalance_plan (
     plan_id             BIGSERIAL PRIMARY KEY,
     policy_id           VARCHAR(50) NOT NULL,
     snapshot_id         BIGINT NOT NULL,
@@ -82,9 +82,9 @@ CREATE INDEX IF NOT EXISTS idx_rebalance_plan_policy ON rebalance_plan(policy_id
 CREATE INDEX IF NOT EXISTS idx_rebalance_plan_status ON rebalance_plan(status);
 
 -- =====================================================
--- 6. rebalance_orders ?åÏù¥Î∏?(Î¶¨Î∞∏?∞Ïã± Ï£ºÎ¨∏)
+-- 6. rebalance_orders ??? (???? ??)
 -- =====================================================
-CREATE TABLE rebalance_orders (
+CREATE TABLE IF NOT EXISTS rebalance_orders (
     order_id            BIGSERIAL PRIMARY KEY,
     plan_id             BIGINT NOT NULL,
     symbol              VARCHAR(20) NOT NULL,
@@ -100,9 +100,9 @@ CREATE INDEX IF NOT EXISTS idx_rebalance_orders_plan ON rebalance_orders(plan_id
 CREATE INDEX IF NOT EXISTS idx_rebalance_orders_symbol ON rebalance_orders(symbol);
 
 -- =====================================================
--- 7. rebalance_execution ?åÏù¥Î∏?(Î¶¨Î∞∏?∞Ïã± Ï≤¥Í≤∞ Í∏∞Î°ù)
+-- 7. rebalance_execution ??? (???? ?? ??)
 -- =====================================================
-CREATE TABLE rebalance_execution (
+CREATE TABLE IF NOT EXISTS rebalance_execution (
     exec_id             BIGSERIAL PRIMARY KEY,
     order_id            BIGINT NOT NULL,
     filled_qty          BIGINT,
@@ -120,7 +120,7 @@ CREATE INDEX IF NOT EXISTS idx_rebalance_execution_order ON rebalance_execution(
 CREATE INDEX IF NOT EXISTS idx_rebalance_execution_time ON rebalance_execution(exec_time DESC);
 
 -- =====================================================
--- Î©îÌ??∞Ïù¥???ÖÎç∞?¥Ìä∏
+-- ????? ????
 -- =====================================================
 INSERT INTO migration_log (migration_name, status)
 VALUES ('003_create_portfolio_tables', 'success');

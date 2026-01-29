@@ -74,6 +74,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3); sys.exit(0 if r.getcode()==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 2
     # 배포 최적화: 리소스 제한
     deploy:
       resources:
@@ -97,8 +103,8 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ../monitoring/prometheus_alerting_rules.yaml:/etc/prometheus/rules.yaml
+      - ../_shared/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ../_shared/monitoring/prometheus_alerting_rules.yaml:/etc/prometheus/rules.yaml
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -132,8 +138,8 @@ services:
       # 시간대 설정 (KST)
       TZ: Asia/Seoul
     volumes:
-      - ../monitoring/grafana_dashboard.json:/etc/grafana/provisioning/dashboards/observer.json
-      - ../monitoring/grafana_datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ../_shared/monitoring/grafana_dashboard.json:/etc/grafana/provisioning/dashboards/observer.json
+      - ../_shared/monitoring/grafana_datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
       - grafana_data:/var/lib/grafana
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
@@ -157,7 +163,7 @@ services:
     ports:
       - "9093:9093"
     volumes:
-      - ../monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - ../_shared/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
       - alertmanager_data:/alertmanager
     command:
       - "--config.file=/etc/alertmanager/alertmanager.yml"

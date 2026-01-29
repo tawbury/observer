@@ -5,7 +5,7 @@ Key Responsibilities (Track A 독립형):
 - Track A 데이터 없이도 자체 부트스트랩 심볼로 즉시 구독
 - 41개 슬롯(WebSocket) 동적 관리 (SlotManager)
 - 실시간 2Hz 체결 데이터 수집 및 스캘프 로그 저장
-- config/observer/scalp/YYYYMMDD.jsonl 로깅
+- config/scalp/YYYYMMDD.jsonl 로깅
 """
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ from trigger.trigger_engine import TriggerEngine
 from slot.slot_manager import SlotManager, SlotCandidate
 from slot.slot_manager import SlotManager, SlotCandidate
 from paths import observer_asset_dir, observer_log_dir
+from db.realtime_writer import RealtimeDBWriter
 
 try:
     from paths import env_file_path
@@ -44,7 +45,7 @@ class TrackBConfig:
     mode: str = "PROD"
     max_slots: int = 41  # KIS WebSocket limit
     min_dwell_seconds: int = 120  # 2 minutes minimum slot occupancy
-    daily_log_subdir: str = "scalp"  # under config/observer/{subdir}
+    daily_log_subdir: str = "scalp"  # under config/{subdir}
     trading_start: time = time(9, 30)  # Track B starts 30min after market open
     trading_end: time = time(15, 00)   # Track B ends 30min before market close (장마감 변동성 감지)
     trigger_check_interval_seconds: int = 30  # Trigger processing interval
@@ -90,26 +91,29 @@ class TrackBCollector(TimeAwareMixin):
         self._running = False
         self._subscribed_symbols: Dict[str, int] = {}  # symbol -> slot_id
         
+        # DB 실시간 저장
+        self._db_writer = RealtimeDBWriter()
+        
         self._setup_logger()
 
     def _setup_logger(self) -> None:
-        """Setup specialized file logger for scalp strategy"""
+        """Setup specialized file logger for scalp strategy with hourly rotation"""
         try:
-            # logs/scalp/YYYYMMDD.log
-            today_str = datetime.now().strftime("%Y%m%d")
+            from shared.hourly_handler import HourlyRotatingFileHandler
+            
             log_dir = observer_log_dir() / self.cfg.daily_log_subdir
             log_dir.mkdir(parents=True, exist_ok=True)
             
-            log_file = log_dir / f"{today_str}.log"
-            
-            handler = logging.FileHandler(log_file, encoding='utf-8')
+            # HourlyRotatingFileHandler로 정각 기준 시간별 로테이션
+            # 파일명 형식: YYYYMMDD_HH.log
+            handler = HourlyRotatingFileHandler(log_dir)
             handler.setFormatter(logging.Formatter(
                 "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
             ))
             
             # Add handler to the module-level logger
             log.addHandler(handler)
-            log.info(f"Scalp file logger initialized: {log_file}")
+            log.info(f"Scalp file logger initialized with hourly rotation: {log_dir}/YYYYMMDD_HH.log")
             
         except Exception as e:
             # Fallback to console/default logger if file setup fails
@@ -132,6 +136,13 @@ class TrackBCollector(TimeAwareMixin):
         """
         log.info("TrackBCollector started (max_slots=%d)", self.cfg.max_slots)
         self._running = True
+
+        # DB 연결 초기화
+        db_connected = await self._db_writer.connect()
+        if db_connected:
+            log.info("✅ DB 연결 성공 - 실시간 저장 활성화")
+        else:
+            log.warning("⚠️ DB 연결 실패 - JSONL 파일만 저장됩니다")
 
         # Debug mode: bypass trading hours check for testing
         debug_mode = os.environ.get("TRACK_B_DEBUG", "").lower() in ("1", "true", "yes")
@@ -333,23 +344,24 @@ class TrackBCollector(TimeAwareMixin):
     # -----------------------------------------------------
     def _log_scalp_data(self, data: Dict[str, Any]) -> None:
         """
-        Log real-time scalp data to JSONL file.
+        Log real-time scalp data to JSONL file and DB.
         
-        File: config/observer/scalp/YYYYMMDD.jsonl
+        File: config/scalp/YYYYMMDD_HH.jsonl (시간별 로테이션)
+        DB: scalp_ticks 테이블
         
         Enhanced record format includes execution time, bid/ask, and volume details
         for scalp strategy analysis.
         """
         try:
             now = self._now()
-            date_str = now.strftime("%Y%m%d")
+            hour_str = now.strftime("%Y%m%d_%H")
             
-            # Scalp log path: config/observer/scalp/YYYYMMDD.jsonl
+            # Scalp log path: config/scalp/YYYYMMDD_HH.jsonl (시간별 로테이션)
             base_dir = observer_asset_dir()
             log_dir = base_dir / self.cfg.daily_log_subdir
             log_dir.mkdir(parents=True, exist_ok=True)
             
-            log_file = log_dir / f"{date_str}.jsonl"
+            log_file = log_dir / f"{hour_str}.jsonl"
             
             # Prepare enhanced record
             record = {
@@ -372,10 +384,14 @@ class TrackBCollector(TimeAwareMixin):
                 "session_id": self.cfg.session_id
             }
             
-            # Write to file
+            # Write to JSONL file
             with open(log_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
                 f.flush()  # Force flush to disk
+
+            # DB 저장 (비동기 - fire and forget)
+            if self._db_writer.is_connected:
+                asyncio.create_task(self._db_writer.save_scalp_tick(record, self.cfg.session_id))
 
             # Log every save for visibility (Korean output)
             symbol = data.get("symbol", "UNKNOWN")

@@ -28,23 +28,28 @@ def observer_asset_dir() -> Path:
     """
     Get Observer asset directory for deployment.
     
+    Structure (simplified):
+        config/scalp/   - Track B real-time data
+        config/swing/   - Track A interval data
+        config/system/  - Gap/overflow logs
+    
     In deployment structure:
-    - Observer data is stored in /app/data/observer
+    - Observer data is stored in /app/config (no /observer subdirectory)
     - This is mounted as volume in Docker
     
     In local development:
-    - Observer data is stored in app/observer/config/observer
+    - Observer data is stored in app/observer/config
     """
     if os.environ.get("OBSERVER_DATA_DIR"):
         return Path(os.environ["OBSERVER_DATA_DIR"])
     
     # Check if running in deployment environment
     if os.environ.get("OBSERVER_STANDALONE") == "1" or Path("/app").exists():
-        return DATA_ROOT / "observer"
+        return CONFIG_ROOT  # /app/config directly (no /observer subdirectory)
     
-    # Local development - use relative path to config/observer
+    # Local development - use relative path to config
     # This path is relative to the project root
-    return Path("app/observer/config/observer")
+    return Path("app/observer/config")
 
 def observer_asset_file(filename: str) -> Path:
     """Get full path to Observer asset file."""

@@ -2,18 +2,15 @@ name: Build and push GHCR image (template)
 
 on:
   # CI builds for squash PR flow:
-  # - feature branch: observer
-  # - main branch:    master
+  # - Only build when PR is merged to master (not on PR creation/update)
+  # - Not triggered by observer branch push or backup branches
   push:
-    branches: [ master, observer ]
+    branches: 
+      - master
     # Adjust paths in your app repo (example assumes app code lives under app/)
     paths:
       - "app/**"
-      - ".github/workflows/**"
-  pull_request:
-    branches: [ master ]
-    paths:
-      - "app/**"
+      - "infra/**"
       - ".github/workflows/**"
   workflow_dispatch:
     inputs:
@@ -48,12 +45,12 @@ jobs:
       - name: Compute timestamp tag
         id: meta
         run: |
-          # Timestamp-based tag: YYYYMMDD-HHMMSS
+          # Timestamp-based tag: build-YYYYMMDD-HHMMSS
           TS="$(date +%Y%m%d-%H%M%S)"
           if [ -n "${{ github.event.inputs.manual_tag }}" ]; then
             TAG="${{ github.event.inputs.manual_tag }}"
           else
-            TAG="$TS"
+            TAG="build-$TS"
           fi
 
           if [ -n "${{ github.event.inputs.image_name }}" ]; then
@@ -67,24 +64,34 @@ jobs:
           echo "Resolved image: $IMAGE_NAME:$TAG"
 
       - name: Log in to GHCR
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build image
-        run: |
-          IMAGE="${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}"
-          TAG="${{ steps.meta.outputs.tag }}"
-          # NOTE: Adjust context/dockerfile path in your app repo as needed.
-          docker build \
-            -t "${IMAGE}:${TAG}" \
-            -t "${IMAGE}:latest" \
-            -f infra/docker/docker/Dockerfile \
-            .
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-      - name: Push image
-        run: |
-          IMAGE="${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}"
-          TAG="${{ steps.meta.outputs.tag }}"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-          docker push "${IMAGE}:${TAG}"
-          docker push "${IMAGE}:latest"
+      # Single platform (arm64) for oracle-obs-vm-01. Switch to multi-platform when adding more servers.
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infra/docker/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "✅ Image pushed: ${{ env.REGISTRY }}/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.tag }}"
+          echo "Deployment repo will detect this new image and deploy automatically."
+

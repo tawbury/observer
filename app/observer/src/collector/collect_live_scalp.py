@@ -4,7 +4,7 @@ Minimal live KIS WebSocket tick collector (Track B helper)
 
 - Connects via ProviderEngine (real or virtual based on .env)
 - Subscribes to a few symbols (default: 005930, 000660, 373220)
-- Logs ticks to config/observer/scalp/YYYYMMDD.jsonl (same path as Track B)
+- Logs ticks to config/scalp/YYYYMMDD.jsonl (same path as Track B)
 
 Run:
   python -m collector.collect_live_scalp --symbols 005930,000660,373220 --seconds 120

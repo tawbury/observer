@@ -146,6 +146,175 @@ class JSONLToDBMigrator:
         
         return total_rows
     
+    async def migrate_scalp_ticks(self, jsonl_dir: Path) -> int:
+        """scalp_ticks 테이블로 JSONL 데이터 마이그레이션"""
+        if not self.conn:
+            logger.error("✗ DB 연결이 필요합니다")
+            return 0
+        
+        jsonl_files = list(jsonl_dir.glob("*scalp*.jsonl"))
+        if not jsonl_files:
+            logger.warning(f"⚠ scalp JSONL 파일을 찾을 수 없음: {jsonl_dir}")
+            return 0
+        
+        total_rows = 0
+        for jsonl_file in sorted(jsonl_files):
+            logger.info(f"  처리 중: {jsonl_file.name}")
+            batch = []
+            line_num = 0
+            
+            try:
+                with open(jsonl_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line_num += 1
+                        try:
+                            if line.strip():
+                                data = json.loads(line)
+                                
+                                # scalp tick 데이터 추출
+                                if 'event_time' in data and 'bid_price' in data and 'ask_price' in data:
+                                    batch.append((
+                                        data.get('symbol', ''),
+                                        datetime.fromisoformat(data['event_time'].replace('Z', '+00:00')),
+                                        float(data['bid_price']),
+                                        float(data['ask_price']),
+                                        int(data.get('bid_size', 0)) if data.get('bid_size') else None,
+                                        int(data.get('ask_size', 0)) if data.get('ask_size') else None,
+                                        float(data.get('last_price', 0)) if data.get('last_price') else None,
+                                        int(data.get('volume', 0)) if data.get('volume') else None,
+                                        data.get('session_id', ''),
+                                        int(data.get('mitigation_level', 0)),
+                                        data.get('quality_flag', 'normal')
+                                    ))
+                                    
+                                    # 배치 단위로 삽입
+                                    if len(batch) >= self.batch_size:
+                                        await self.conn.executemany(
+                                            """
+                                            INSERT INTO scalp_ticks 
+                                            (symbol, event_time, bid_price, ask_price, bid_size, ask_size,
+                                             last_price, volume, session_id, mitigation_level, quality_flag)
+                                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                                            ON CONFLICT DO NOTHING
+                                            """,
+                                            batch
+                                        )
+                                        total_rows += len(batch)
+                                        batch = []
+                        except (json.JSONDecodeError, ValueError, KeyError, TypeError) as e:
+                            logger.debug(f"    라인 {line_num} 파싱 오류: {str(e)}")
+                            continue
+                
+                # 남은 배치 처리
+                if batch:
+                    await self.conn.executemany(
+                        """
+                        INSERT INTO scalp_ticks 
+                        (symbol, event_time, bid_price, ask_price, bid_size, ask_size,
+                         last_price, volume, session_id, mitigation_level, quality_flag)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                        ON CONFLICT DO NOTHING
+                        """,
+                        batch
+                    )
+                    total_rows += len(batch)
+                
+                logger.info(f"✓ {jsonl_file.name} 완료: {total_rows} 행 저장")
+            except Exception as e:
+                logger.error(f"✗ {jsonl_file.name} 처리 실패: {e}")
+        
+        return total_rows
+
+    async def migrate_scalp_1m_bars(self, jsonl_dir: Path) -> int:
+        """scalp_1m_bars 테이블로 JSONL 데이터 마이그레이션"""
+        if not self.conn:
+            logger.error("✗ DB 연결이 필요합니다")
+            return 0
+        
+        jsonl_files = list(jsonl_dir.glob("*scalp*1m*.jsonl"))
+        if not jsonl_files:
+            logger.warning(f"⚠ scalp 1m bar JSONL 파일을 찾을 수 없음: {jsonl_dir}")
+            return 0
+        
+        total_rows = 0
+        for jsonl_file in sorted(jsonl_files):
+            logger.info(f"  처리 중: {jsonl_file.name}")
+            batch = []
+            line_num = 0
+            
+            try:
+                with open(jsonl_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line_num += 1
+                        try:
+                            if line.strip():
+                                data = json.loads(line)
+                                
+                                # scalp 1m bar 데이터 추출
+                                if 'bar_time' in data and 'symbol' in data:
+                                    batch.append((
+                                        data.get('symbol', ''),
+                                        datetime.fromisoformat(data['bar_time'].replace('Z', '+00:00')),
+                                        float(data.get('open', 0)) if data.get('open') else None,
+                                        float(data.get('high', 0)) if data.get('high') else None,
+                                        float(data.get('low', 0)) if data.get('low') else None,
+                                        float(data.get('close', 0)) if data.get('close') else None,
+                                        int(data.get('volume', 0)) if data.get('volume') else None,
+                                        float(data.get('coverage_ratio', 0.0)),
+                                        data.get('session_id', ''),
+                                        data.get('quality_flag', 'normal')
+                                    ))
+                                    
+                                    # 배치 단위로 삽입
+                                    if len(batch) >= self.batch_size:
+                                        await self.conn.executemany(
+                                            """
+                                            INSERT INTO scalp_1m_bars 
+                                            (symbol, bar_time, open, high, low, close, volume,
+                                             coverage_ratio, session_id, quality_flag)
+                                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                                            ON CONFLICT (symbol, bar_time) DO UPDATE
+                                            SET open = EXCLUDED.open,
+                                                high = EXCLUDED.high,
+                                                low = EXCLUDED.low,
+                                                close = EXCLUDED.close,
+                                                volume = EXCLUDED.volume,
+                                                coverage_ratio = EXCLUDED.coverage_ratio
+                                            """,
+                                            batch
+                                        )
+                                        total_rows += len(batch)
+                                        batch = []
+                        except (json.JSONDecodeError, ValueError, KeyError, TypeError) as e:
+                            logger.debug(f"    라인 {line_num} 파싱 오류: {str(e)}")
+                            continue
+                
+                # 남은 배치 처리
+                if batch:
+                    await self.conn.executemany(
+                        """
+                        INSERT INTO scalp_1m_bars 
+                        (symbol, bar_time, open, high, low, close, volume,
+                         coverage_ratio, session_id, quality_flag)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (symbol, bar_time) DO UPDATE
+                        SET open = EXCLUDED.open,
+                            high = EXCLUDED.high,
+                            low = EXCLUDED.low,
+                            close = EXCLUDED.close,
+                            volume = EXCLUDED.volume,
+                            coverage_ratio = EXCLUDED.coverage_ratio
+                        """,
+                        batch
+                    )
+                    total_rows += len(batch)
+                
+                logger.info(f"✓ {jsonl_file.name} 완료: {total_rows} 행 저장")
+            except Exception as e:
+                logger.error(f"✗ {jsonl_file.name} 처리 실패: {e}")
+        
+        return total_rows
+
     async def get_statistics(self) -> Dict[str, int]:
         """DB 내 데이터 통계 조회"""
         stats = {}
@@ -174,31 +343,85 @@ async def main():
     db_name = os.getenv('DB_NAME', 'observer')
     db_port = int(os.getenv('DB_PORT', 5432))
     
-    # 데이터 소스 경로
-    project_root = Path(__file__).parent.parent.parent.parent.parent.parent
-    swing_data_dir = project_root / 'app' / 'obs_deploy' / 'app' / 'config' / 'observer' / 'swing'
+    # 데이터 소스 경로 (config 폴더에서 소스 JSONL 읽음)
+    project_root = Path(__file__).parent.parent.parent.parent.parent
+    scalp_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'scalp'
+    swing_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'swing'
+    test_data_dir = project_root / 'tests' / 'test_data'
     
     logger.info("=" * 70)
     logger.info("Phase 13 Task 13.2: JSONL → PostgreSQL 마이그레이션")
     logger.info("=" * 70)
     logger.info(f"DB Host: {db_host}:{db_port}/{db_name}")
+    logger.info(f"Scalp Source Dir: {scalp_source_dir}")
+    logger.info(f"Swing Source Dir: {swing_source_dir}")
+    logger.info(f"Test Data Dir: {test_data_dir}")
     
     migrator = JSONLToDBMigrator(db_host, db_user, db_password, db_name, db_port)
     
     try:
         await migrator.connect()
         
-        # Swing 10분 봉 데이터 마이그레이션
-        logger.info("\n[Step 1] Swing 10분 봉 데이터 마이그레이션")
-        if swing_data_dir.exists():
-            swing_bars_count = await migrator.migrate_swing_bars_10m(swing_data_dir)
-            logger.info(f"✓ Swing 10분 봉: {swing_bars_count} 행 저장")
+        # Step 1: Scalp 틱 데이터 마이그레이션 (실제 소스 + 테스트 데이터)
+        logger.info("\n[Step 1] Scalp 틱 데이터 마이그레이션")
+        scalp_ticks_count = 0
+        
+        # 실제 scalp 소스 디렉토리 (config에서 읽음)
+        if scalp_source_dir.exists():
+            count = await migrator.migrate_scalp_ticks(scalp_source_dir)
+            scalp_ticks_count += count
+            logger.info(f"✓ Scalp 틱 데이터 (소스): {count} 행 저장")
         else:
-            logger.warning(f"⚠ Swing 데이터 디렉토리 없음: {swing_data_dir}")
-            swing_bars_count = 0
+            logger.warning(f"⚠ Scalp 소스 디렉토리 없음: {scalp_source_dir}")
+        
+        # 테스트 데이터도 포함
+        if test_data_dir.exists():
+            count = await migrator.migrate_scalp_ticks(test_data_dir)
+            scalp_ticks_count += count
+            logger.info(f"✓ Scalp 틱 데이터 (테스트): {count} 행 저장")
+        
+        logger.info(f"✓ 총 Scalp 틱 데이터: {scalp_ticks_count} 행")
+        
+        # Step 2: Scalp 1분 봉 데이터 마이그레이션 (실제 소스 + 테스트 데이터)
+        logger.info("\n[Step 2] Scalp 1분 봉 데이터 마이그레이션")
+        scalp_1m_count = 0
+        
+        # 실제 scalp 소스 디렉토리 (config에서 읽음)
+        if scalp_source_dir.exists():
+            count = await migrator.migrate_scalp_1m_bars(scalp_source_dir)
+            scalp_1m_count += count
+            logger.info(f"✓ Scalp 1분 봉 (소스): {count} 행 저장")
+        
+        # 테스트 데이터도 포함
+        if test_data_dir.exists():
+            count = await migrator.migrate_scalp_1m_bars(test_data_dir)
+            scalp_1m_count += count
+            logger.info(f"✓ Scalp 1분 봉 (테스트): {count} 행 저장")
+        
+        logger.info(f"✓ 총 Scalp 1분 봉: {scalp_1m_count} 행")
+        
+        # Step 3: Swing 10분 봉 데이터 마이그레이션 (실제 소스 + 테스트 데이터)
+        logger.info("\n[Step 3] Swing 10분 봉 데이터 마이그레이션")
+        swing_bars_count = 0
+        
+        # 실제 swing 소스 디렉토리 (config에서 읽음)
+        if swing_source_dir.exists():
+            count = await migrator.migrate_swing_bars_10m(swing_source_dir)
+            swing_bars_count += count
+            logger.info(f"✓ Swing 10분 봉 (소스): {count} 행 저장")
+        else:
+            logger.warning(f"⚠ Swing 소스 디렉토리 없음: {swing_source_dir}")
+        
+        # 테스트 데이터도 포함
+        if test_data_dir.exists():
+            count = await migrator.migrate_swing_bars_10m(test_data_dir)
+            swing_bars_count += count
+            logger.info(f"✓ Swing 10분 봉 (테스트): {count} 행 저장")
+        
+        logger.info(f"✓ 총 Swing 10분 봉: {swing_bars_count} 행")
         
         # 최종 통계
-        logger.info("\n[Step 2] 최종 데이터 통계")
+        logger.info("\n[Step 4] 최종 데이터 통계")
         stats = await migrator.get_statistics()
         logger.info("\n" + "=" * 70)
         logger.info("마이그레이션 완료! 최종 통계:")

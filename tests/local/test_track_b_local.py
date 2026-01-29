@@ -15,8 +15,10 @@ import logging
 from pathlib import Path
 
 # Setup paths
-APP_ROOT = str(Path(__file__).resolve().parent)
-sys.path.insert(0, str(Path(APP_ROOT) / "src"))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+APP_ROOT = PROJECT_ROOT / "app" / "observer"
+sys.path.insert(0, str(APP_ROOT / "src"))
+sys.path.insert(0, str(APP_ROOT))
 
 # Configure logging
 logging.basicConfig(
@@ -25,11 +27,11 @@ logging.basicConfig(
 )
 log = logging.getLogger("TestTrackB")
 
-# Load env if available - check both app root and obs_deploy root
+# Load env if available - check multiple locations
 from dotenv import load_dotenv
 env_paths = [
-    Path(APP_ROOT) / ".env",  # app/ root
-    Path(APP_ROOT).parent / ".env",  # obs_deploy/ root
+    APP_ROOT / ".env",  # app/observer/.env
+    PROJECT_ROOT / ".env",  # project root .env
 ]
 for env_path in env_paths:
     if env_path.exists():

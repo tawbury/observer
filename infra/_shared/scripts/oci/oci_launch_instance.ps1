@@ -1,7 +1,7 @@
 # Provision a new OCI compute instance with cloud-init for Docker
 # Fill placeholders before running.
 # Usage:
-#   powershell -ExecutionPolicy Bypass -File scripts/deploy/oci_launch_instance.ps1 \
+#   powershell -ExecutionPolicy Bypass -File infra/_shared/scripts/oci/oci_launch_instance.ps1 \
 #     -CompartmentId ocid1.compartment.oc1..xxxx \
 #     -SubnetId ocid1.subnet.oc1..yyyy \
 #     -ImageId ocid1.image.oc1..zzzz \
@@ -23,7 +23,7 @@ param(
 function Log($m) { Write-Host "[oci] $m" }
 
 # Read cloud-init file and base64 encode
-$cloudInitPath = Join-Path (Get-Location).Path "scripts/deploy/cloud-init-docker.yaml"
+$cloudInitPath = Join-Path (Get-Location).Path "infra/_shared/scripts/oci/cloud-init-docker.yaml"
 if (-not (Test-Path $cloudInitPath)) { throw "cloud-init file not found: $cloudInitPath" }
 $cloudInitContent = Get-Content -Raw -Path $cloudInitPath
 $cloudInitBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($cloudInitContent))

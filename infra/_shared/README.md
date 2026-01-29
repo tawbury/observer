@@ -13,34 +13,33 @@
 
 ```
 infra/_shared/
-├── monitoring/          # 모니터링 스택 설정
+├── compose/             # 프로덕션 docker-compose 파일
+│   ├── docker-compose.prod.yml
+│   └── docker-compose.server.yml
+│
+├── monitoring/          # 모니터링 스택 설정 (compose 제외)
 │   ├── prometheus.yml
 │   ├── alertmanager.yml
 │   ├── prometheus_alerting_rules.yaml
 │   ├── grafana_dashboard.json
-│   ├── grafana_datasources.yml
-│   └── docker-compose.yml
+│   └── grafana_datasources.yml
 │
-├── deploy/            # 선언형 배포 스펙 (통합 운영, 클라우드 비종속)
+├── deploy/              # 선언형 배포 스펙 (통합 운영, 클라우드 비종속)
 │   └── observer.yaml
 │
-├── migrations/         # 데이터베이스 마이그레이션 스크립트
+├── migrations/          # 데이터베이스 마이그레이션 스크립트
 │   ├── 001_create_scalp_tables.sql
 │   ├── 002_create_swing_tables.sql
 │   └── 003_create_portfolio_tables.sql
 │
-├── secrets/           # 민감한 정보 (환경 변수, 인증서, 키 등)
-│   ├── .env.prod      # 프로덕션 환경 변수 (Git에 커밋되지 않음)
-│   ├── .env.dev       # 개발 환경 변수 (선택적)
-│   ├── ssl/           # SSL 인증서 (필요시)
-│   ├── ssh/           # SSH 키 (필요시)
-│   └── oci/           # 클라우드 인증 정보 (필요시)
-│
-└── scripts/          # 공통 스크립트
-    ├── deploy/        # 배포 (deploy.ps1, server_deploy.sh 등)
-    ├── migrate/       # DB 마이그레이션 (migrate.sh)
-    ├── docker/        # Docker/Compose 헬퍼 (compose-up.sh 등)
-    ├── env/           # 환경 설정 (setup_env_secure.sh 등)
+└── scripts/             # 공통 스크립트
+    ├── build/           # 빌드 태그 생성
+    ├── deploy/          # 배포 (deploy.ps1, server_deploy.sh 등)
+    ├── docker/          # Docker/Compose 헬퍼
+    ├── docs/            # 문서 (QUICKSTART, IMPLEMENTATION_REPORT)
+    ├── env/             # 환경 설정 (setup_env_secure.sh 등)
+    ├── migrate/         # DB 마이그레이션 (migrate.sh)
+    ├── oci/             # OCI 프로비저닝 스크립트
     └── README.md
 ```
 
@@ -58,10 +57,10 @@ volumes:
   - ../_shared/monitoring/grafana_datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
 ```
 
-#### 독립 실행 (모니터링 스택만)
+#### 독립 실행 (전체 스택)
 ```bash
-cd infra/_shared/monitoring
-docker-compose up -d
+cd infra/_shared/compose
+docker-compose -f docker-compose.server.yml up -d
 ```
 
 ### 데이터베이스 마이그레이션 사용
@@ -100,12 +99,13 @@ psql -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME} < infra/_shared/migrations/003_cr
 자세한 내용은 [`secrets/README.md`](secrets/README.md) 참조
 
 ### Scripts (공통 스크립트)
-- **deploy/**: 배포 (deploy.ps1, server_deploy.sh, deploy_simple.ps1 등)
-- **migrate/**: DB 마이그레이션 실행 (migrate.sh → _shared/migrations 호출)
-- **docker/**: Docker/Compose 헬퍼 (compose-up.sh, compose-down.sh 등)
-- **env/**: 환경 설정 (setup_env_secure.sh → _shared/secrets 참조)
-
-환경 전용 스크립트는 `infra/oci_deploy/scripts/`, `infra/k8s/scripts/` 등 해당 환경 폴더에 둡니다.
+- **build/**: 빌드 태그 생성 (generate_build_tag.ps1, generate_build_tag.sh)
+- **deploy/**: 배포 (deploy.ps1, server_deploy.sh, init_server_dirs.sh 등)
+- **docker/**: Docker/Compose 헬퍼 (sync_container_time.ps1 등)
+- **docs/**: 문서 (QUICKSTART.md, IMPLEMENTATION_REPORT.md)
+- **env/**: 환경 설정 (setup_env_secure.sh)
+- **migrate/**: DB 마이그레이션 실행 (migrate.sh)
+- **oci/**: OCI 프로비저닝 (oci_launch_instance.ps1, oracle_bootstrap.sh 등)
 
 자세한 내용은 [`scripts/README.md`](scripts/README.md) 참조
 

@@ -30,7 +30,7 @@ services:
   observer:
     build:
       context: ../../../  # 프로젝트 루트(prj_obs) 기준
-      dockerfile: infra/docker/docker/Dockerfile
+      dockerfile: infra/docker/Dockerfile
     container_name: observer
     restart: unless-stopped
     env_file:

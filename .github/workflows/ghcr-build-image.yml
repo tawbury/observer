@@ -85,7 +85,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: infra/docker/docker/Dockerfile
+          file: infra/docker/Dockerfile
           platforms: linux/arm64
           push: true
           tags: |

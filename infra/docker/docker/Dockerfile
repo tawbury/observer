@@ -22,10 +22,16 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY app/observer/ /app/
 
 # 필수 디렉토리 생성 (단순화된 구조)
-RUN mkdir -p /app/data \
+RUN mkdir -p /app/data/scalp \
+    && mkdir -p /app/data/swing \
+    && mkdir -p /app/logs/scalp \
+    && mkdir -p /app/logs/swing \
     && mkdir -p /app/logs/system \
     && mkdir -p /app/logs/maintenance \
-    && mkdir -p /app/config/observer \
+    && mkdir -p /app/config/scalp \
+    && mkdir -p /app/config/swing \
+    && mkdir -p /app/config/symbols \
+    && mkdir -p /app/config/universe \
     && mkdir -p /app/secrets/.kis_cache
 
 # 환경 변수 설정 (Standalone 모드)

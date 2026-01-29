@@ -28,7 +28,7 @@ class TrackAConfig:
     session_id: str = "track_a_session"
     mode: str = "PROD"
     semaphore_limit: int = 20  # respect 20 req/sec
-    daily_log_subdir: str = "swing"  # under config/observer/{subdir}
+    daily_log_subdir: str = "swing"  # under config/{subdir}
     trading_start: time = time(9, 0)
     trading_end: time = time(15, 30)
 
@@ -127,7 +127,7 @@ class TrackACollector(TimeAwareMixin):
         if not symbols:
             raise RuntimeError("Universe symbols unavailable for Track A")
 
-        # Prepare JSONL path under config/observer/swing/YYYYMMDD.jsonl
+        # Prepare JSONL path under config/swing/YYYYMMDD.jsonl
         ymd = datetime.now().strftime("%Y%m%d")
         log_dir = observer_asset_dir() / self.cfg.daily_log_subdir
         log_dir.mkdir(parents=True, exist_ok=True)

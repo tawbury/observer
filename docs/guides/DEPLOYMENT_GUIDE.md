@@ -16,10 +16,10 @@ chmod +x init_server_dirs.sh
 또는 수동으로 디렉토리를 생성합니다:
 
 ```bash
-# 디렉토리 구조 생성
-mkdir -p ~/observer/config/observer/{scalp,swing,system}
+# 디렉토리 구조 생성 (간소화된 구조)
+mkdir -p ~/observer/config/{scalp,swing,symbols,universe}
 mkdir -p ~/observer/logs/{scalp,swing,system,maintenance}
-mkdir -p ~/observer/data/observer
+mkdir -p ~/observer/data/{scalp,swing}
 mkdir -p ~/observer/secrets/.kis_cache
 
 # 권한 설정
@@ -91,8 +91,8 @@ docker logs observer --tail 30
 docker inspect observer --format '{{json .Mounts}}' | python3 -m json.tool
 
 # 호스트-컨테이너 파일 동기화 테스트
-docker exec observer touch /app/config/observer/swing/test.txt
-ls -la ~/observer/config/observer/swing/
+docker exec observer touch /app/config/swing/test.txt
+ls -la ~/observer/config/swing/
 ```
 
 ---

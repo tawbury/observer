@@ -151,9 +151,9 @@ curl http://localhost:8000/status
 │     • docker load -i observer-image.tar                      │
 │                                                               │
 │ 3️⃣  필수 디렉토리 생성                                        │
-│     • data/observer, data/postgres                           │
-│     • logs/system, logs/maintenance                          │
-│     • config, secrets                                        │
+│     • data/scalp, data/swing                                 │
+│     • logs/scalp, logs/swing, logs/system, logs/maintenance  │
+│     • config/scalp, config/swing, secrets                    │
 │                                                               │
 │ 4️⃣  Docker Compose 시작                                       │
 │     • docker compose up -d                                   │
@@ -281,7 +281,7 @@ watch -n 60 'docker compose ps; echo "---"; curl -s http://localhost:8000/health
 docker stats observer postgres
 
 # 볼륨 사용량
-docker exec observer du -sh /app/data/observer
+docker exec observer du -sh /app/data
 
 # 데이터베이스 상태
 docker compose logs postgres | grep "ready to accept connections"

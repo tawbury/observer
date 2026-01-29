@@ -179,11 +179,16 @@ create_required_directories() {
     cd "$DEPLOY_DIR"
     
     local required_dirs=(
-        "data/observer"
-        "data/postgres"
+        "data/scalp"
+        "data/swing"
+        "logs/scalp"
+        "logs/swing"
         "logs/system"
         "logs/maintenance"
-        "config"
+        "config/scalp"
+        "config/swing"
+        "config/symbols"
+        "config/universe"
         "secrets"
         "runtime/state"
         "backups/archives"
@@ -402,7 +407,7 @@ operational_summary() {
     fi
     
     # 4. 데이터 디렉토리
-    if [ -d "data/observer" ]; then
+    if [ -d "data/scalp" ] && [ -d "data/swing" ]; then
         log_info "  · 데이터 디렉토리: 준비 완료"
     fi
     

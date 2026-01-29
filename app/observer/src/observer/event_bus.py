@@ -84,7 +84,7 @@ class JsonlFileSink(SnapshotSink):
     - rotation은 append-only 정책을 유지
 
     출력 경로:
-    observer_asset_dir() / {filename}
+    config/{filename}
     """
 
     def __init__(

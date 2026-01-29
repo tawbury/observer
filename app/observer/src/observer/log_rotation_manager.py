@@ -127,7 +127,7 @@ class LogRotationManager(TimeAwareMixin):
         Initialize log rotation manager.
         
         Args:
-            base_dir: Base directory for all logs (e.g., config/observer/)
+            base_dir: Base directory for all logs (e.g., config/)
             tz_name: Timezone name
         """
         self.base_dir = Path(base_dir)

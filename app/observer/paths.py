@@ -173,12 +173,13 @@ def observer_asset_dir() -> Path:
     All observer-generated JSON / JSONL artifacts
     MUST be placed here.
 
-    Example:
-        config/observer/*.jsonl
+    Structure (simplified):
+        config/scalp/*.jsonl   - Track B real-time data
+        config/swing/*.jsonl   - Track A interval data
+        config/system/*.jsonl  - Gap/overflow logs
     """
-    path = config_dir() / "observer"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    # Return config_dir() directly (no /observer subdirectory)
+    return config_dir()
 
 
 def observer_asset_file(filename: str) -> Path:
@@ -190,20 +191,14 @@ def observer_asset_file(filename: str) -> Path:
 
 def observer_data_dir() -> Path:
     """
-    DEPRECATED.
+    Observer runtime data directory.
 
-    Legacy observer runtime data directory.
-    This path should NOT be used for new artifacts.
-
-    Kept for backward compatibility only.
+    Structure (simplified):
+        data/scalp/   - Ephemeral scalp data
+        data/swing/   - Ephemeral swing data
     """
-    logger.warning(
-        "observer_data_dir() is deprecated. "
-        "Use observer_asset_dir() instead."
-    )
-    path = data_dir() / "observer"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    # Return data_dir() directly (no /observer subdirectory)
+    return data_dir()
 
 
 def observer_log_dir() -> Path:
@@ -314,7 +309,7 @@ def system_log_dir() -> Path:
     System log directory for gap detector and slot overflow.
 
     Environment variable: OBSERVER_SYSTEM_LOG_DIR
-    Default: {config_dir}/system (app/observer/config/system)
+    Default: {log_dir}/system (app/observer/logs/system)
 
     Used by:
     - GapDetector (gap_YYYYMMDD.jsonl)
@@ -323,7 +318,7 @@ def system_log_dir() -> Path:
     if env_path := os.environ.get("OBSERVER_SYSTEM_LOG_DIR"):
         path = Path(env_path)
     else:
-        path = config_dir() / "system"
+        path = log_dir() / "system"
     path.mkdir(parents=True, exist_ok=True)
     return path
 

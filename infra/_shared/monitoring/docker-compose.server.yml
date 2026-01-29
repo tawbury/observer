@@ -8,7 +8,7 @@ services:
       - POSTGRES_PASSWORD=observer_db_pwd
       - POSTGRES_DB=observer
     volumes:
-      - ../../observer/data/postgres:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
@@ -29,7 +29,7 @@ services:
     environment:
       - OBSERVER_STANDALONE=1
       - PYTHONPATH=/app/src:/app
-      - OBSERVER_DATA_DIR=/app/data/observer
+      - OBSERVER_DATA_DIR=/app/data
       - OBSERVER_LOG_DIR=/app/logs
       - OBSERVER_SYSTEM_LOG_DIR=/app/logs/system
       - OBSERVER_MAINTENANCE_LOG_DIR=/app/logs/maintenance
@@ -47,7 +47,7 @@ services:
       - DB_NAME=observer
       - DB_PORT=5432
     volumes:
-      - ../../observer/data/observer:/app/data/observer
+      - ../../observer/data:/app/data
       - ../../observer/logs:/app/logs
       - ../../observer/config:/app/config
       - ../../observer/secrets:/app/secrets
@@ -67,3 +67,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  postgres_data:

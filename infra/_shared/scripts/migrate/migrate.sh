@@ -10,8 +10,8 @@ echo "================================="
 echo ""
 
 # 데이터 확인
-SCALP_DIR="/app/config/observer/scalp"
-SWING_DIR="/app/config/observer/swing"
+SCALP_DIR="/app/config/scalp"
+SWING_DIR="/app/config/swing"
 
 echo "Checking data directories:"
 echo "  Scalp: $SCALP_DIR"

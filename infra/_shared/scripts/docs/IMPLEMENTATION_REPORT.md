@@ -108,9 +108,9 @@ Observer 서비스의 배포 자동화 시스템 v1.0.0을 구현했습니다. �
    ✓ docker load -i observer-image.tar
 
 3. 필수 디렉토리 생성
-   ✓ data/observer, data/postgres
-   ✓ logs/system, logs/maintenance
-   ✓ config, secrets
+   ✓ data/scalp, data/swing
+   ✓ logs/scalp, logs/swing, logs/system, logs/maintenance
+   ✓ config/scalp, config/swing, secrets
 
 4. Docker Compose 시작
    ✓ docker compose up -d

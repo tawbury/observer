@@ -52,8 +52,8 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=observer_db_pwd
     volumes:
-      - ../../../app/observer/config/observer/scalp:/app/config/observer/scalp
-      - ../../../app/observer/config/observer/swing:/app/config/observer/swing
+      - ../../../app/observer/config/scalp:/app/config/scalp
+      - ../../../app/observer/config/swing:/app/config/swing
       - ../../../app/observer/logs:/app/logs
       - ../../../app/observer/data:/app/data
     networks:

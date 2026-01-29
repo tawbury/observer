@@ -5,7 +5,7 @@ Key Responsibilities (Track A 독립형):
 - Track A 데이터 없이도 자체 부트스트랩 심볼로 즉시 구독
 - 41개 슬롯(WebSocket) 동적 관리 (SlotManager)
 - 실시간 2Hz 체결 데이터 수집 및 스캘프 로그 저장
-- config/observer/scalp/YYYYMMDD.jsonl 로깅
+- config/scalp/YYYYMMDD.jsonl 로깅
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ class TrackBConfig:
     mode: str = "PROD"
     max_slots: int = 41  # KIS WebSocket limit
     min_dwell_seconds: int = 120  # 2 minutes minimum slot occupancy
-    daily_log_subdir: str = "scalp"  # under config/observer/{subdir}
+    daily_log_subdir: str = "scalp"  # under config/{subdir}
     trading_start: time = time(9, 30)  # Track B starts 30min after market open
     trading_end: time = time(15, 00)   # Track B ends 30min before market close (장마감 변동성 감지)
     trigger_check_interval_seconds: int = 30  # Trigger processing interval
@@ -335,7 +335,7 @@ class TrackBCollector(TimeAwareMixin):
         """
         Log real-time scalp data to JSONL file.
         
-        File: config/observer/scalp/YYYYMMDD.jsonl
+        File: config/scalp/YYYYMMDD.jsonl
         
         Enhanced record format includes execution time, bid/ask, and volume details
         for scalp strategy analysis.
@@ -344,7 +344,7 @@ class TrackBCollector(TimeAwareMixin):
             now = self._now()
             date_str = now.strftime("%Y%m%d")
             
-            # Scalp log path: config/observer/scalp/YYYYMMDD.jsonl
+            # Scalp log path: config/scalp/YYYYMMDD.jsonl
             base_dir = observer_asset_dir()
             log_dir = base_dir / self.cfg.daily_log_subdir
             log_dir.mkdir(parents=True, exist_ok=True)

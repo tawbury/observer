@@ -16,6 +16,7 @@ from provider import ProviderEngine, KISAuth
 from universe.universe_manager import UniverseManager
 from universe.universe_manager import UniverseManager
 from paths import observer_asset_dir, observer_log_dir
+from db.realtime_writer import RealtimeDBWriter
 
 log = logging.getLogger("TrackACollector")
 
@@ -23,7 +24,7 @@ log = logging.getLogger("TrackACollector")
 @dataclass
 class TrackAConfig:
     tz_name: str = "Asia/Seoul"
-    interval_minutes: int = 10
+    interval_minutes: int = 5
     market: str = "kr_stocks"
     session_id: str = "track_a_session"
     mode: str = "PROD"
@@ -53,6 +54,10 @@ class TrackACollector(TimeAwareMixin):
             min_count=100,
         )
         self._on_error = on_error
+        
+        # DB 실시간 저장
+        self._db_writer = RealtimeDBWriter()
+        
         self._setup_logger()
 
     def _setup_logger(self) -> None:
@@ -84,6 +89,14 @@ class TrackACollector(TimeAwareMixin):
     async def start(self) -> None:
         """Run every interval during trading hours."""
         log.info("TrackACollector started (interval=%dm)", self.cfg.interval_minutes)
+        
+        # DB 연결 초기화
+        db_connected = await self._db_writer.connect()
+        if db_connected:
+            log.info("✅ DB 연결 성공 - 실시간 저장 활성화")
+        else:
+            log.warning("⚠️ DB 연결 실패 - JSONL 파일만 저장됩니다")
+        
         last_in_trading: Optional[bool] = None
         while True:
             now = self._now()
@@ -147,8 +160,10 @@ class TrackACollector(TimeAwareMixin):
 
         await asyncio.gather(*(fetch(s) for s in symbols))
 
-        # Write JSONL records
+        # Write JSONL records and save to DB
         published = 0
+        db_saved = 0
+        import json
         with open(log_path, "a", encoding="utf-8") as f:
             for item in results:
                 sym = item["symbol"]
@@ -172,12 +187,17 @@ class TrackACollector(TimeAwareMixin):
                     "ask_price": inst.get("ask_price"),
                     "source": "kis",
                 }
-                import json
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
                 published += 1
+                
+                # DB 저장
+                if self._db_writer.is_connected:
+                    saved = await self._db_writer.save_swing_bar(record, self.cfg.session_id)
+                    if saved:
+                        db_saved += 1
 
         if published > 0:
-            log.info(f"[저장] Swing list updated: {published} items → {log_path}")
+            log.info(f"[저장] Swing list updated: {published} items → {log_path} (DB: {db_saved})")
 
 
         return {

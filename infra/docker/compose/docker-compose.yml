@@ -7,10 +7,12 @@ services:
     restart: unless-stopped
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=observer_db_pwd
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-observer_db_pwd}
       - POSTGRES_DB=observer
+      - TZ=Asia/Seoul
+      - PGTZ=Asia/Seoul
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ../../../app/observer/data/postgres:/var/lib/postgresql/data
       - ../../_shared/migrations:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
@@ -52,7 +54,7 @@ services:
       # Database settings
       - DB_HOST=postgres
       - DB_USER=postgres
-      - DB_PASSWORD=observer_db_pwd
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-observer_db_pwd}
       - DB_NAME=observer
       - DB_PORT=5432
     volumes:
@@ -178,7 +180,6 @@ networks:
     name: observer-network
 
 volumes:
-  postgres_data:
   prometheus_data:
   grafana_data:
   alertmanager_data:

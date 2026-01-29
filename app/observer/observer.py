@@ -70,10 +70,12 @@ def run_observer_with_api():
     system_log_dir.mkdir(parents=True, exist_ok=True)
 
     # Setup logging with both console and file outputs
-    log_file = system_log_dir / "observer.log"
+    # HourlyRotatingFileHandler로 정각 기준 시간별 로테이션
+    from shared.hourly_handler import HourlyRotatingFileHandler
     
-    # Configure logging with flushing enabled
-    file_handler = logging.FileHandler(str(log_file), mode='a')
+    # Configure logging with hourly rotation (정각 기준)
+    # 파일명 형식: YYYYMMDD_HH.log
+    file_handler = HourlyRotatingFileHandler(system_log_dir)
     file_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s"))
     file_handler.setLevel(logging.INFO)
     
@@ -175,12 +177,13 @@ def run_observer_with_api():
             kis_auth_a = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
             provider_engine_a = ProviderEngine(kis_auth_a, is_virtual=kis_is_virtual)
             
-            # Explicitly set universe_dir to ensure correct path
-            universe_dir = Path("/app/config/universe")
+            # Use environment variable for config path (production parity)
+            config_dir = Path(os.environ.get("OBSERVER_CONFIG_DIR", "/app/config"))
+            universe_dir = config_dir / "universe"
             universe_dir.mkdir(parents=True, exist_ok=True)
             
             track_a_config = TrackAConfig(
-                interval_minutes=10,
+                interval_minutes=5,
                 market="kr_stocks",
                 session_id=session_id,
                 mode="DOCKER"
@@ -192,7 +195,7 @@ def run_observer_with_api():
                 universe_dir=str(universe_dir),
                 on_error=lambda msg: log.warning(f"Track A Error: {msg}")
             )
-            log.info("Track A Collector configured: 10-minute interval (universe_dir=%s)", universe_dir)
+            log.info("Track A Collector configured: 5-minute interval (universe_dir=%s)", universe_dir)
         except Exception as e:
             log.error(f"Failed to initialize Track A Collector: {e}")
     else:
@@ -245,7 +248,6 @@ def run_observer_with_api():
         log.info("Observer system fully operational")
         log.info("Event archive: %s", observer_data_dir)
         log.info("Logs: %s", log_dir)
-        log.info("Log file: %s", log_file)
         log.info("Starting FastAPI server on 0.0.0.0:8000")
 
         # Start Track A Collector in background thread

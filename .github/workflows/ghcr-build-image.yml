@@ -2,19 +2,15 @@ name: Build and push GHCR image (template)
 
 on:
   # CI builds for squash PR flow:
-  # - Only build when merging to master (not on observer branch push)
-  # - Exclude backup branches
+  # - Only build when PR is merged to master (not on PR creation/update)
+  # - Not triggered by observer branch push or backup branches
   push:
     branches: 
       - master
     # Adjust paths in your app repo (example assumes app code lives under app/)
     paths:
       - "app/**"
-      - ".github/workflows/**"
-  pull_request:
-    branches: [ master ]
-    paths:
-      - "app/**"
+      - "infra/**"
       - ".github/workflows/**"
   workflow_dispatch:
     inputs:

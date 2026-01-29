@@ -12,6 +12,10 @@ on:
       - "app/**"
       - "infra/**"
       - ".github/workflows/**"
+  pull_request:
+    branches:
+      - master
+    types: [closed]
   workflow_dispatch:
     inputs:
       manual_tag:

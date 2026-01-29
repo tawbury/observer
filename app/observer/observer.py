@@ -107,10 +107,10 @@ def run_observer_with_api():
             provider_engine = ProviderEngine(kis_auth, is_virtual=kis_is_virtual)
             
             scheduler_config = SchedulerConfig(
-                hour=16,  # 16:05 PM KST (after market close)
-                minute=5,
+                hour=17,  # TEMPORARY TEST: Changed from 16:05 to 17:00 KST for E2E validation
+                minute=5,  # Next run at 17:05
                 min_price=4000,
-                min_count=100,
+                min_count=10,  # TEMPORARY TEST: Lowered from 100 to allow fallback symbols
                 market="kr_stocks",
                 anomaly_ratio=0.30
             )

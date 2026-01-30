@@ -97,6 +97,7 @@ mcp-cli/dist/
 
 # .claude
 .claude/
+tmpclaude-*
 
 # backup files
 *.bak

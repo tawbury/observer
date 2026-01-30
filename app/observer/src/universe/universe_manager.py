@@ -42,7 +42,7 @@ class UniverseManager:
 
     # ----------------------- Public APIs -----------------------
     def get_current_universe(self) -> List[str]:
-        """Load today's universe list; falls back to last available snapshot."""
+        """Load today's universe list; falls back to last available snapshot, then file/candidates."""
         today = date.today()
         symbols = self._try_load_universe_list(today)
         if symbols is not None:
@@ -51,7 +51,8 @@ class UniverseManager:
         latest = self._find_latest_snapshot()
         if latest:
             return self._load_universe_list_from_path(latest)
-        return []
+        # No snapshot: sync file-only candidates or built-in 20 symbols (no API)
+        return self._load_candidates_from_file_sync()
 
     def load_universe(self, day: str | date | datetime) -> List[str]:
         """Load universe list for the given day (YYYY-MM-DD|date|datetime)."""
@@ -152,6 +153,55 @@ class UniverseManager:
             return None
         files.sort(reverse=True)  # filename starts with YYYYMMDD
         return files[0]
+
+    def _load_candidates_from_file_sync(self) -> List[str]:
+        """
+        Load candidate symbols from file only (sync, no API).
+        Used when no today snapshot and no latest snapshot exist.
+        Priority: config/symbols/kr_all_symbols.txt -> .csv -> built-in 20 symbols.
+        """
+        base_dir = os.environ.get("OBSERVER_CONFIG_DIR")
+        if not base_dir:
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "config"))
+        symbols_dir = os.path.join(base_dir, "symbols")
+        txt_path = os.path.join(symbols_dir, "kr_all_symbols.txt")
+        csv_path = os.path.join(symbols_dir, "kr_all_symbols.csv")
+        result: List[str] = []
+
+        if os.path.exists(txt_path):
+            with open(txt_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    s = line.strip()
+                    if s:
+                        result.append(s)
+            if result:
+                return list(dict.fromkeys(result))
+
+        if os.path.exists(csv_path):
+            with open(csv_path, "r", encoding="utf-8") as f:
+                header = f.readline()
+                cols = [c.strip().lower() for c in header.split(",")]
+                sym_idx = None
+                for i, c in enumerate(cols):
+                    if c in ("symbol", "code", "sym"):
+                        sym_idx = i
+                        break
+                if sym_idx is None:
+                    sym_idx = 0
+                for line in f:
+                    parts = [p.strip() for p in line.split(",")]
+                    if parts and parts[0]:
+                        result.append(parts[sym_idx])
+            if result:
+                return list(dict.fromkeys(result))
+
+        # Built-in minimal fallback (20 symbols)
+        return [
+            "005930", "000660", "005380", "373220", "207940",
+            "035420", "035720", "051910", "005490", "068270",
+            "028260", "006400", "105560", "055550", "012330",
+            "096770", "034730", "003550", "259960", "066570",
+        ]
 
     def _as_date(self, day: str | date | datetime) -> date:
         if isinstance(day, datetime):

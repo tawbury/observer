@@ -90,6 +90,24 @@ def _configure_deployment_env() -> None:
     os.environ.setdefault("TRACK_B_ENABLED", "true")
 
 
+def _load_env_file_from_env_var() -> None:
+    """Load .env from OBSERVER_ENV_FILE when set (e.g. /app/secrets/.env in Docker)."""
+    env_file_path = os.environ.get("OBSERVER_ENV_FILE")
+    if not env_file_path:
+        return
+    p = Path(env_file_path)
+    if not p.exists():
+        return
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(p)
+        logging.getLogger("ObserverDocker").info("Loaded .env from OBSERVER_ENV_FILE: %s", p)
+    except ImportError:
+        pass
+    except Exception as e:
+        logging.getLogger("ObserverDocker").warning("Failed to load OBSERVER_ENV_FILE %s: %s", p, e)
+
+
 async def run_observer_with_api(
     host: str = "0.0.0.0",
     port: int = 8000,
@@ -108,6 +126,7 @@ async def run_observer_with_api(
         log_level: Logging level (default: info)
     """
     _configure_deployment_env()
+    _load_env_file_from_env_var()
 
     logging.basicConfig(
         level=getattr(logging, log_level.upper(), logging.INFO),

@@ -26,5 +26,6 @@ DB 마이그레이션 실행용 공통 스크립트를 둡니다.
 - `infra/_shared/migrations/001_create_scalp_tables.sql`
 - `infra/_shared/migrations/002_create_swing_tables.sql`
 - `infra/_shared/migrations/003_create_portfolio_tables.sql`
+- `infra/_shared/migrations/004_create_analysis_tables.sql`
 
 migrate.sh는 이 순서대로 실행하는 식으로 구현하면 됩니다.

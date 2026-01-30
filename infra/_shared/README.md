@@ -30,7 +30,8 @@ infra/_shared/
 ├── migrations/          # 데이터베이스 마이그레이션 스크립트
 │   ├── 001_create_scalp_tables.sql
 │   ├── 002_create_swing_tables.sql
-│   └── 003_create_portfolio_tables.sql
+│   ├── 003_create_portfolio_tables.sql
+│   └── 004_create_analysis_tables.sql
 │
 └── scripts/             # 공통 스크립트
     ├── build/           # 빌드 태그 생성
@@ -76,6 +77,7 @@ volumes:
 psql -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME} < infra/_shared/migrations/001_create_scalp_tables.sql
 psql -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME} < infra/_shared/migrations/002_create_swing_tables.sql
 psql -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME} < infra/_shared/migrations/003_create_portfolio_tables.sql
+psql -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME} < infra/_shared/migrations/004_create_analysis_tables.sql
 ```
 
 ## 📋 포함된 리소스
@@ -89,6 +91,7 @@ psql -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME} < infra/_shared/migrations/003_cr
 - **001_create_scalp_tables.sql**: Scalp Trading (Track B) 테이블
 - **002_create_swing_tables.sql**: Swing Trading (Track A) 테이블
 - **003_create_portfolio_tables.sql**: 포트폴리오 및 리밸런싱 테이블
+- **004_create_analysis_tables.sql**: 분석용 테이블(롤링 통계, 임계값 후보, 시그널 이벤트)
 
 ### Secrets (민감한 정보)
 - **환경 변수 파일**: `.env.prod`, `.env.dev` 등 환경별 설정

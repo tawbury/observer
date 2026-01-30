@@ -39,6 +39,13 @@ Example:
 
 from __future__ import annotations
 
+import asyncio
+import logging
+import os
+import signal
+from pathlib import Path
+from uuid import uuid4
+
 # Core classes
 from .observer import Observer
 from .snapshot import (
@@ -59,6 +66,8 @@ from .api_server import (
     run_api_server,
     start_api_server_background,
     ObserverStatusTracker,
+    status_tracker,
+    get_status_tracker,
 )
 
 # Deployment modes
@@ -69,102 +78,212 @@ from .deployment_mode import (
     create_deployment_mode,
 )
 
-# Docker entry point
+
+def _configure_deployment_env() -> None:
+    """Set default env for Docker/Kubernetes deployment (aligned with observer.py)."""
+    os.environ.setdefault("OBSERVER_STANDALONE", "1")
+    os.environ.setdefault("PYTHONPATH", "/app/src:/app")
+    os.environ.setdefault("OBSERVER_DATA_DIR", "/app/data/observer")
+    os.environ.setdefault("OBSERVER_LOG_DIR", "/app/logs")
+    os.environ.setdefault("OBSERVER_DEPLOYMENT_MODE", "docker")
+    os.environ.setdefault("TRACK_A_ENABLED", "true")
+    os.environ.setdefault("TRACK_B_ENABLED", "true")
+
+
 async def run_observer_with_api(
     host: str = "0.0.0.0",
     port: int = 8000,
-    log_level: str = "info"
+    log_level: str = "info",
 ) -> None:
     """
-    Run Observer with FastAPI server (Docker entry point).
+    Run Observer with FastAPI server and async Universe/Track A/B collectors (Docker entry point).
 
-    This is the main entry point for Docker container deployment.
-    It starts both the Observer core and the FastAPI monitoring server.
+    Starts Observer core, EventBus → JsonlFileSink, FastAPI server (thread), and optionally
+    UniverseScheduler, TrackACollector, TrackBCollector as asyncio tasks when KIS credentials
+    are present. API and core do not block each other.
 
     Args:
         host: Host to bind API server to (default: 0.0.0.0)
         port: Port to bind API server to (default: 8000)
         log_level: Logging level (default: info)
-
-    Example:
-        import asyncio
-        asyncio.run(run_observer_with_api())
     """
-    import os
-    import logging
-    from uuid import uuid4
-    from datetime import datetime, timezone
+    _configure_deployment_env()
 
-    # Configure environment
-    os.environ.setdefault("OBSERVER_STANDALONE", "1")
-    os.environ.setdefault("PYTHONPATH", "/app/src:/app")
-    os.environ.setdefault("OBSERVER_DATA_DIR", "/app/data/observer")
-    os.environ.setdefault("OBSERVER_LOG_DIR", "/app/logs")
-
-    # Setup logging
     logging.basicConfig(
         level=getattr(logging, log_level.upper(), logging.INFO),
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
-
     log = logging.getLogger("ObserverDocker")
     session_id = f"observer-{uuid4()}"
 
-    log.info(f"Starting Observer Docker system with API server | session_id={session_id}")
+    log.info("Starting Observer Docker system with API server | session_id=%s", session_id)
+
+    # Ensure log and data dirs exist
+    log_dir = Path(os.environ.get("OBSERVER_LOG_DIR", "/app/logs"))
+    log_dir.mkdir(parents=True, exist_ok=True)
+    observer_data_dir = Path(os.environ.get("OBSERVER_DATA_DIR", "/app/data/observer"))
+    observer_data_dir.mkdir(parents=True, exist_ok=True)
+    jsonl_path = observer_data_dir / "observer.jsonl"
+    log.info("Event archive (EventBus → JsonlFileSink): %s", jsonl_path)
+
+    event_bus = EventBus([JsonlFileSink(str(jsonl_path))])
+    observer = Observer(
+        session_id=session_id,
+        mode="DOCKER",
+        event_bus=event_bus,
+    )
+
+    status_tracker.update_state("starting", ready=False)
+    observer.start()
+    status_tracker.mark_observer_started()
+    status_tracker.mark_eventbus_connected(True)
+
+    # KIS credentials: drive Universe + Track A/B when set
+    kis_app_key = os.environ.get("KIS_APP_KEY")
+    kis_app_secret = os.environ.get("KIS_APP_SECRET")
+    kis_is_virtual = os.environ.get("KIS_IS_VIRTUAL", "false").lower() in ("true", "1", "yes")
+    track_a_enabled = os.environ.get("TRACK_A_ENABLED", "true").lower() in ("true", "1", "yes")
+    track_b_enabled = os.environ.get("TRACK_B_ENABLED", "false").lower() in ("true", "1", "yes")
+
+    universe_scheduler = None
+    track_a_collector = None
+    track_b_collector = None
+
+    if kis_app_key and kis_app_secret:
+        log.info("KIS credentials found - Universe Scheduler and Track A/B will be enabled per env")
+        try:
+            from provider import KISAuth, ProviderEngine
+            from universe.universe_scheduler import UniverseScheduler, SchedulerConfig
+
+            kis_auth = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
+            provider_engine = ProviderEngine(kis_auth, is_virtual=kis_is_virtual)
+            scheduler_config = SchedulerConfig(
+                hour=17,
+                minute=5,
+                min_price=4000,
+                min_count=10,
+                market="kr_stocks",
+                anomaly_ratio=0.30,
+            )
+            universe_scheduler = UniverseScheduler(
+                engine=provider_engine,
+                config=scheduler_config,
+                on_alert=lambda alert_type, data: log.warning("Universe Alert: %s | %s", alert_type, data),
+            )
+            log.info("Universe Scheduler configured (daily run 17:05 KST)")
+        except Exception as e:
+            log.error("Failed to initialize Universe Scheduler: %s", e)
+
+        if track_a_enabled:
+            try:
+                from provider import KISAuth, ProviderEngine
+                from collector.track_a_collector import TrackACollector, TrackAConfig
+
+                kis_auth_a = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
+                provider_engine_a = ProviderEngine(kis_auth_a, is_virtual=kis_is_virtual)
+                config_dir = Path(os.environ.get("OBSERVER_CONFIG_DIR", "/app/config"))
+                universe_dir = config_dir / "universe"
+                universe_dir.mkdir(parents=True, exist_ok=True)
+                track_a_config = TrackAConfig(
+                    interval_minutes=5,
+                    market="kr_stocks",
+                    session_id=session_id,
+                    mode="DOCKER",
+                )
+                track_a_collector = TrackACollector(
+                    provider_engine_a,
+                    config=track_a_config,
+                    universe_dir=str(universe_dir),
+                    on_error=lambda msg: log.warning("Track A Error: %s", msg),
+                )
+                log.info("Track A Collector configured (interval=5m, universe_dir=%s)", universe_dir)
+            except Exception as e:
+                log.error("Failed to initialize Track A Collector: %s", e)
+
+        if track_b_enabled:
+            try:
+                from provider import KISAuth, ProviderEngine
+                from collector.track_b_collector import TrackBCollector, TrackBConfig
+                from trigger.trigger_engine import TriggerEngine, TriggerConfig
+
+                kis_auth_b = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
+                provider_engine_b = ProviderEngine(kis_auth_b, is_virtual=kis_is_virtual)
+                trigger_config = TriggerConfig(
+                    volume_surge_ratio=5.0,
+                    volatility_spike_threshold=0.05,
+                    max_candidates=100,
+                )
+                trigger_engine = TriggerEngine(config=trigger_config)
+                track_b_config = TrackBConfig(
+                    market="kr_stocks",
+                    session_id=session_id,
+                    mode="DOCKER",
+                    max_slots=41,
+                    trigger_check_interval_seconds=30,
+                )
+                track_b_collector = TrackBCollector(
+                    provider_engine_b,
+                    trigger_engine=trigger_engine,
+                    config=track_b_config,
+                    on_error=lambda msg: log.warning("Track B Error: %s", msg),
+                )
+                log.info("Track B Collector configured (max_slots=41)")
+            except Exception as e:
+                log.error("Failed to initialize Track B Collector: %s", e)
+    else:
+        log.warning("KIS_APP_KEY/SECRET not set - Universe and Track A/B collectors disabled")
+
+    # API server in background thread (non-blocking)
+    start_api_server_background(host=host, port=port, log_level=log_level)
+    log.info("FastAPI server started on %s:%s | health=%s/health | status=%s/status", host, port, host, host)
+
+    # Async tasks: Universe + Track A/B run in same event loop (no blocking)
+    shutdown = asyncio.Event()
+    tasks: list[asyncio.Task] = []
+
+    def _on_shutdown() -> None:
+        shutdown.set()
 
     try:
-        # Setup event bus with file sink
-        event_bus = EventBus([
-            JsonlFileSink("observer.jsonl")
-        ])
-
-        # Create observer
-        observer = Observer(
-            session_id=session_id,
-            mode="DOCKER",
-            event_bus=event_bus
-        )
-
-        # Get status tracker for monitoring
-        from .api_server import status_tracker
-        status_tracker.update_state("starting", ready=False)
-
-        # Start observer
-        await observer.start()
-        status_tracker.mark_observer_started()
-        status_tracker.mark_eventbus_connected(True)
-
-        log.info("Observer system fully operational")
-        log.info("Event archive: /app/data/observer/")
-        log.info("Logs: /app/logs/")
-        log.info(f"Starting FastAPI server on {host}:{port}")
-
-        # Start API server in background
-        api_task = start_api_server_background(host=host, port=port, log_level=log_level)
-
-        log.info(f"FastAPI server started - accessible at http://localhost:{port}")
-        log.info(f"Health check: http://localhost:{port}/health")
-        log.info(f"Status endpoint: http://localhost:{port}/status")
-        log.info(f"Metrics endpoint: http://localhost:{port}/metrics")
-
-        # Keep running until interrupted
-        await asyncio.Event().wait()
-
-    except KeyboardInterrupt:
-        log.info("Shutting down Observer system...")
-        status_tracker.mark_observer_stopped()
-    except Exception as e:
-        log.error(f"Observer system error: {e}")
-        status_tracker.mark_observer_stopped()
-        import traceback
-        traceback.print_exc()
-        raise
-    finally:
-        # Cleanup
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            try:
+                loop.add_signal_handler(sig, _on_shutdown)
+            except NotImplementedError:
+                break
+    except NotImplementedError:
+        signal.signal(signal.SIGINT, lambda s, f: _on_shutdown())
         try:
-            await observer.stop()
-        except Exception:
+            signal.signal(signal.SIGTERM, lambda s, f: _on_shutdown())
+        except (AttributeError, ValueError):
             pass
+
+    if universe_scheduler:
+        tasks.append(asyncio.create_task(universe_scheduler.run_forever()))
+        log.info("Universe Scheduler task registered")
+    if track_a_collector:
+        tasks.append(asyncio.create_task(track_a_collector.start()))
+        log.info("Track A Collector task registered")
+    if track_b_collector:
+        tasks.append(asyncio.create_task(track_b_collector.start()))
+        log.info("Track B Collector task registered")
+
+    log.info("Observer system fully operational (EventBus → JsonlFileSink; data flow logged every 100 dispatches)")
+
+    try:
+        await shutdown.wait()
+    except asyncio.CancelledError:
+        pass
+    finally:
+        log.info("Shutting down Observer system...")
+        if track_b_collector:
+            track_b_collector.stop()
+        for t in tasks:
+            t.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        observer.stop()
+        status_tracker.mark_observer_stopped()
         log.info("Observer system stopped")
 
 
@@ -178,16 +297,18 @@ __all__ = [
     "PatternRecord",
     "EventBus",
     "JsonlFileSink",
-    "IEventSink",
+    "SnapshotSink",
     # Entry points
     "run_api_server",
     "start_api_server_background",
     "ObserverStatusTracker",
+    "status_tracker",
+    "get_status_tracker",
     "run_observer_with_api",
     # Deployment
     "IDeploymentMode",
-    "DeploymentMode",
-    "DeploymentModeType",
+    "DeploymentType",
     "DeploymentConfig",
     "create_deployment_mode",
+    "DeploymentModeType",
 ]

@@ -26,7 +26,24 @@ mkdir -p ~/observer/secrets/.kis_cache
 chmod -R 777 ~/observer/
 ```
 
-### 2. KIS API 자격증명 설정 (Critical!)
+### 2. Docker CMD 및 필수 환경 변수 (python -m observer)
+
+컨테이너 기본 실행 명령은 `python -m observer`입니다. 이 진입점에서 API 서버(스레드)와 Observer Core, UniverseScheduler/Track A/B(비동기 asyncio 태스크)가 함께 동작합니다.
+
+| 구분 | 환경 변수 | 필수 | 설명 |
+|------|-----------|------|------|
+| KIS | `KIS_APP_KEY` | Universe/Track A·B 사용 시 | KIS 앱 키 |
+| KIS | `KIS_APP_SECRET` | Universe/Track A·B 사용 시 | KIS 앱 시크릿 |
+| KIS | `KIS_IS_VIRTUAL` | 선택 | `true`/`false` (기본: false) |
+| Track | `TRACK_A_ENABLED` | 선택 | `true`/`false` (기본: true) |
+| Track | `TRACK_B_ENABLED` | 선택 | `true`/`false` (기본: false) |
+| 경로 | `OBSERVER_DATA_DIR` | 선택 | 기본: `/app/data` |
+| 경로 | `OBSERVER_LOG_DIR` | 선택 | 기본: `/app/logs` |
+| 경로 | `OBSERVER_CONFIG_DIR` | 선택 | 기본: `/app/config` |
+
+EventBus → JsonlFileSink 데이터 흐름 확인: 로그에 `EventBus dispatch count=N → sinks=[JsonlFileSink]` 가 주기적으로 출력됩니다.
+
+### 3. KIS API 자격증명 설정 (Critical!)
 
 **중요**: 이 설정이 없으면 Track A/B Collector가 비활성화됩니다.
 
@@ -53,7 +70,7 @@ EOF
 chmod 600 ~/observer/secrets/.env
 ```
 
-### 3. docker-compose.server.yml 배포
+### 4. docker-compose.server.yml 배포
 
 ```bash
 # observer-deploy 디렉토리로 이동
@@ -67,7 +84,7 @@ export IMAGE_TAG=build-YYYYMMDD-HHMMSS  # GHCR에서 확인한 태그
 docker compose -f docker-compose.server.yml up -d
 ```
 
-### 4. 배포 확인
+### 5. 배포 확인
 
 ```bash
 # 컨테이너 상태 확인
@@ -84,7 +101,7 @@ docker logs observer --tail 30
 # INFO | Track B Collector started (또는 disabled if TRACK_B_ENABLED=false)
 ```
 
-### 5. 볼륨 마운트 확인
+### 6. 볼륨 마운트 확인
 
 ```bash
 # 볼륨 마운트 확인

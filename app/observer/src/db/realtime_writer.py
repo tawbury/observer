@@ -4,9 +4,11 @@
 Track A/B collector에서 공통으로 사용하는 DB 저장 클래스.
 JSONL 파일 저장과 병행하여 PostgreSQL에 실시간 저장.
 
-DB 연결: 호스트/포트는 환경변수(DB_HOST, DB_PORT)에서만 읽음.
-기본값 postgres:5432 (Docker Compose 서비스명). 배포 시 DB_HOST=postgres,
-observer와 postgres를 동일 네트워크에 두어야 함.
+DB 연결:
+- 호스트/포트는 환경변수(DB_HOST, DB_PORT)에서만 읽음. 기본값 postgres:5432 (Docker Compose 서비스명).
+- 배포 시 DB_HOST=postgres, observer와 postgres를 동일 네트워크에 두어야 함.
+- 초기화 시 연결 실패해도 앱을 종료하지 않음. connect()는 False를 반환하고 "DB 비활성" 상태로 두며,
+  수집·아카이브(JSONL) 흐름은 계속 진행됨.
 
 Phase 14: BatchedRealtimeDBWriter 추가 - 고빈도 틱 데이터용 마이크로 배치 처리
 """

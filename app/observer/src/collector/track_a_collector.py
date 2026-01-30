@@ -160,10 +160,10 @@ class TrackACollector(TimeAwareMixin):
 
         await asyncio.gather(*(fetch(s) for s in symbols))
 
-        # Write JSONL records and save to DB
-        published = 0
-        db_saved = 0
+        # 1) 아카이브: 먼저 JSONL에 모두 기록 (저장 순서 보장)
         import json
+        published = 0
+        records_for_db: List[Dict[str, Any]] = []
         with open(log_path, "a", encoding="utf-8") as f:
             for item in results:
                 sym = item["symbol"]
@@ -189,12 +189,18 @@ class TrackACollector(TimeAwareMixin):
                 }
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
                 published += 1
-                
-                # DB 저장
-                if self._db_writer.is_connected:
+                records_for_db.append(record)
+
+        # 2) DB 쓰기는 선택적(best-effort). 실패해도 예외 전파하지 않고 로그만 남김
+        db_saved = 0
+        if self._db_writer.is_connected and records_for_db:
+            for record in records_for_db:
+                try:
                     saved = await self._db_writer.save_swing_bar(record, self.cfg.session_id)
                     if saved:
                         db_saved += 1
+                except Exception as e:
+                    log.warning("DB 저장 실패 - JSONL 아카이브만 저장됨: %s", e)
 
         if published > 0:
             log.info(f"[저장] Swing list updated: {published} items → {log_path} (DB: {db_saved})")

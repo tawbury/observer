@@ -59,9 +59,28 @@ def configure_environment():
     os.environ.setdefault("TRACK_B_ENABLED", "true")
 
 
+def _load_env_file_from_env_var():
+    """Load .env from OBSERVER_ENV_FILE when set (e.g. /app/secrets/.env in Docker)."""
+    env_file_path = os.environ.get("OBSERVER_ENV_FILE")
+    if not env_file_path:
+        return
+    p = Path(env_file_path)
+    if not p.exists():
+        return
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(p)
+        print(f"[INFO] Loaded .env from OBSERVER_ENV_FILE: {p}")
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"[WARN] Failed to load OBSERVER_ENV_FILE {p}: {e}")
+
+
 def run_observer_with_api():
     """Run Observer system with FastAPI server and Universe Scheduler"""
     configure_environment()
+    _load_env_file_from_env_var()
 
     # Ensure log directory exists
     log_dir = Path(os.environ.get("OBSERVER_LOG_DIR", "/app/logs"))

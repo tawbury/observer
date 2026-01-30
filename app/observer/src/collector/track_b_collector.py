@@ -384,14 +384,22 @@ class TrackBCollector(TimeAwareMixin):
                 "session_id": self.cfg.session_id
             }
             
-            # Write to JSONL file
+            # 1) 아카이브: 먼저 JSONL에 기록
             with open(log_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
                 f.flush()  # Force flush to disk
 
-            # DB 저장 (비동기 - fire and forget)
+            # 2) DB 쓰기는 선택적(best-effort). 실패 시 예외 전파하지 않고 done_callback에서 로그만
             if self._db_writer.is_connected:
-                asyncio.create_task(self._db_writer.save_scalp_tick(record, self.cfg.session_id))
+                task = asyncio.create_task(
+                    self._db_writer.save_scalp_tick(record, self.cfg.session_id)
+                )
+                def _on_db_done(t):
+                    try:
+                        t.result()
+                    except Exception as e:
+                        log.warning("DB 저장 실패 - JSONL 아카이브만 저장됨: %s", e)
+                task.add_done_callback(_on_db_done)
 
             # Log every save for visibility (Korean output)
             symbol = data.get("symbol", "UNKNOWN")

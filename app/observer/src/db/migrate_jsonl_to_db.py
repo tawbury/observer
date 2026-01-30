@@ -337,7 +337,7 @@ async def main():
     """메인 마이그레이션 프로세스"""
     
     # DB 연결 정보 (환경 변수 또는 기본값)
-    db_host = os.getenv('DB_HOST', 'localhost')
+    db_host = os.getenv('DB_HOST', 'postgres')
     db_user = os.getenv('DB_USER', 'postgres')
     db_password = os.getenv('DB_PASSWORD', 'observer_db_pwd')
     db_name = os.getenv('DB_NAME', 'observer')

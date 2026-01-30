@@ -80,6 +80,16 @@ psql -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME} < infra/_shared/migrations/003_cr
 psql -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME} < infra/_shared/migrations/004_create_analysis_tables.sql
 ```
 
+### Observer 앱 ↔ DB 연결 (Docker 배포 시)
+
+Observer 컨테이너에서 PostgreSQL에 접속할 때 **반드시** 다음을 지켜야 합니다.
+
+- **DB_HOST**: Docker Compose 서비스명 사용. 기본값 `postgres` (localhost 아님).
+- **동일 네트워크**: `observer` 서비스와 `postgres` 서비스를 같은 Docker 네트워크에 두어야 `DB_HOST=postgres`로 이름 해석이 됩니다.
+- 환경 변수: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`은 모두 환경변수로만 주입하며, 앱 코드 기본값은 `postgres:5432`(Docker 서비스명 기준)입니다.
+
+연결 실패 시 앱은 종료하지 않고 "DB 비활성" 상태로 두며, JSONL 아카이브만 사용합니다.
+
 ## 📋 포함된 리소스
 
 ### 모니터링 스택

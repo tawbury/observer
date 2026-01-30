@@ -67,5 +67,10 @@ EXPOSE 8000
 # 비-root 사용자로 실행 (CMD/entrypoint 실행 시)
 USER observer
 
-# 기본 실행 명령
+# 기본 실행 명령: python -m observer → __main__.py → DeploymentMode → run_observer_with_api()
+# - API 서버(스레드) + Observer Core + UniverseScheduler/Track A/B(asyncio tasks) 비동기 동작
+# - 데이터 수집 활성화를 위해 런타임에 다음 환경 변수 설정 권장:
+#   필수(Universe + Track A/B): KIS_APP_KEY, KIS_APP_SECRET
+#   선택: KIS_IS_VIRTUAL=false, TRACK_A_ENABLED=true, TRACK_B_ENABLED=false
+#   경로: OBSERVER_DATA_DIR, OBSERVER_LOG_DIR, OBSERVER_CONFIG_DIR (기본값 있음)
 CMD ["python", "-m", "observer"]

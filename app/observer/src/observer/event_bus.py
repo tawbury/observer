@@ -177,6 +177,9 @@ class EventBus:
     - Sink를 추가해도 Observer 코드는 바뀌지 않는다.
     """
 
+    # Log every N dispatches so Docker/monitoring can verify data flow to sinks
+    _LOG_EVERY_N_DISPATCHES = 100
+
     def __init__(self, sinks: Iterable[SnapshotSink]) -> None:
         """
         sinks:
@@ -184,11 +187,14 @@ class EventBus:
         - 보통 1개(JsonlFileSink)만 사용
         """
         self._sinks: List[SnapshotSink] = list(sinks)
+        self._dispatch_count = 0
 
     def dispatch(self, record: PatternRecord) -> None:
         """
         PatternRecord를 모든 Sink에 전달한다.
         """
+        self._dispatch_count += 1
+        n = self._dispatch_count
         for sink in self._sinks:
             try:
                 sink.publish(record)
@@ -198,3 +204,12 @@ class EventBus:
                     "Unexpected exception from SnapshotSink",
                     extra={"sink": sink.__class__.__name__},
                 )
+        # Data-flow verification: log periodically so Docker logs show EventBus -> Sink flow
+        if n == 1 or n % self._LOG_EVERY_N_DISPATCHES == 0:
+            sink_names = [s.__class__.__name__ for s in self._sinks]
+            logger.info(
+                "EventBus dispatch count=%d → sinks=%s (data flow OK)",
+                n,
+                sink_names,
+                extra={"dispatch_count": n, "sinks": sink_names},
+            )

@@ -36,7 +36,7 @@ from typing import Optional
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-# Import deployment mode interfaces
+# Import deployment mode interfaces (observer package is app/observer/src/observer)
 from observer.deployment_mode import (
     DeploymentModeType,
     DeploymentConfig,
@@ -155,7 +155,7 @@ def main():
     # Setup logging
     logger = setup_logging(
         log_level=args.log_level,
-        mode=DeploymentMode(args.mode)
+        mode=DeploymentModeType(args.mode),
     )
 
     logger.info(f"Observer v1.0.0 starting in {args.mode.upper()} mode")

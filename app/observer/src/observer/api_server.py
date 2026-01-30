@@ -121,6 +121,18 @@ class ObserverStatusTracker:
             self._ready = ready
             logger.info(f"Observer readiness set to: {ready}")
 
+    def mark_observer_started(self) -> None:
+        """Mark observer core as started (alias for deployment entry point)."""
+        self.update_state("running", ready=True)
+
+    def mark_observer_stopped(self) -> None:
+        """Mark observer core as stopped (alias for deployment entry point)."""
+        self.update_state("stopped", ready=False)
+
+    def mark_eventbus_connected(self, connected: bool) -> None:
+        """Mark EventBus/sink connectivity (alias for deployment entry point)."""
+        self.set_ready(connected)
+
     def record_error(self, error: str):
         """
         Record an error

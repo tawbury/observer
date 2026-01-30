@@ -1,17 +1,7 @@
 name: Build and push GHCR image (template)
 
 on:
-  # CI builds for squash PR flow:
-  # - Only build when PR is merged to master (not on PR creation/update)
-  # - Not triggered by observer branch push or backup branches
-  push:
-    branches: 
-      - master
-    # Adjust paths in your app repo (example assumes app code lives under app/)
-    paths:
-      - "app/**"
-      - "infra/**"
-      - ".github/workflows/**"
+  # 이미지 빌드는 master로 PR이 머지될 때만 실행 (직접 push 시에는 실행 안 함)
   pull_request:
     branches:
       - master
@@ -37,6 +27,8 @@ jobs:
   build-and-push:
     name: Build and push image to GHCR
     runs-on: ubuntu-latest
+    # 머지된 PR이거나 수동 실행(workflow_dispatch)일 때만 실행
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
 
     permissions:
       contents: read
@@ -45,6 +37,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # PR 머지 시 머지 커밋 기준으로 빌드 (수동 실행 시에는 기본 ref 사용)
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.merge_commit_sha || github.ref }}
 
       - name: Compute timestamp tag
         id: meta

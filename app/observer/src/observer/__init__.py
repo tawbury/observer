@@ -90,22 +90,55 @@ def _configure_deployment_env() -> None:
     os.environ.setdefault("TRACK_B_ENABLED", "true")
 
 
-def _load_env_file_from_env_var() -> None:
-    """Load .env from OBSERVER_ENV_FILE when set (e.g. /app/secrets/.env in Docker)."""
-    env_file_path = os.environ.get("OBSERVER_ENV_FILE")
-    if not env_file_path:
-        return
-    p = Path(env_file_path)
-    if not p.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(p)
-        logging.getLogger("ObserverDocker").info("Loaded .env from OBSERVER_ENV_FILE: %s", p)
-    except ImportError:
-        pass
-    except Exception as e:
-        logging.getLogger("ObserverDocker").warning("Failed to load OBSERVER_ENV_FILE %s: %s", p, e)
+def _resolve_env_file_paths() -> tuple[list[Path], Path | None]:
+    """
+    Resolve .env file path(s) to try: OBSERVER_ENV_FILE first, then Docker/local defaults.
+    Returns (paths_attempted, path_loaded). Uses load_dotenv(override=False) so system env wins.
+    """
+    paths_attempted: list[Path] = []
+    path_loaded: Path | None = None
+    explicit = os.environ.get("OBSERVER_ENV_FILE")
+    if explicit:
+        p = Path(explicit).resolve()
+        paths_attempted.append(p)
+        if p.exists():
+            try:
+                from dotenv import load_dotenv
+                load_dotenv(p, override=False)
+                path_loaded = p
+            except ImportError:
+                pass
+            except Exception:
+                pass
+        return (paths_attempted, path_loaded)
+    # Docker: default paths when OBSERVER_STANDALONE=1 or /app exists
+    if os.environ.get("OBSERVER_STANDALONE") == "1" or Path("/app").exists():
+        for candidate in [Path("/app/secrets/.env"), Path("/app/.env")]:
+            paths_attempted.append(candidate)
+            if candidate.exists() and path_loaded is None:
+                try:
+                    from dotenv import load_dotenv
+                    load_dotenv(candidate, override=False)
+                    path_loaded = candidate
+                except ImportError:
+                    pass
+                except Exception:
+                    pass
+        return (paths_attempted, path_loaded)
+    # Local: project root .env (package __file__ -> parent.parent.parent = app/observer)
+    project_root = Path(__file__).resolve().parent.parent.parent
+    for candidate in [project_root / ".env", project_root / "secrets" / ".env"]:
+        paths_attempted.append(candidate)
+        if candidate.exists() and path_loaded is None:
+            try:
+                from dotenv import load_dotenv
+                load_dotenv(candidate, override=False)
+                path_loaded = candidate
+            except ImportError:
+                pass
+            except Exception:
+                pass
+    return (paths_attempted, path_loaded)
 
 
 async def run_observer_with_api(
@@ -126,7 +159,7 @@ async def run_observer_with_api(
         log_level: Logging level (default: info)
     """
     _configure_deployment_env()
-    _load_env_file_from_env_var()
+    env_paths_attempted, env_path_loaded = _resolve_env_file_paths()
 
     logging.basicConfig(
         level=getattr(logging, log_level.upper(), logging.INFO),
@@ -136,6 +169,14 @@ async def run_observer_with_api(
     session_id = f"observer-{uuid4()}"
 
     log.info("Starting Observer Docker system with API server | session_id=%s", session_id)
+    if env_path_loaded:
+        log.info("Env file loaded from: %s (absolute)", env_path_loaded.resolve())
+    else:
+        log.info(
+            "Env file not loaded; paths attempted (absolute): %s; OBSERVER_ENV_FILE=%s",
+            [str(p.resolve()) for p in env_paths_attempted],
+            os.environ.get("OBSERVER_ENV_FILE", "(not set)"),
+        )
 
     # Ensure log and data dirs exist
     log_dir = Path(os.environ.get("OBSERVER_LOG_DIR", "/app/logs"))
@@ -250,7 +291,13 @@ async def run_observer_with_api(
             except Exception as e:
                 log.error("Failed to initialize Track B Collector: %s", e)
     else:
-        log.warning("KIS_APP_KEY/SECRET not set - Universe and Track A/B collectors disabled")
+        log.warning(
+            "KIS_APP_KEY/SECRET not set - Universe and Track A/B collectors disabled. "
+            "Env file paths attempted (absolute): %s; loaded from: %s; OBSERVER_ENV_FILE=%s",
+            [str(p.resolve()) for p in env_paths_attempted],
+            str(env_path_loaded.resolve()) if env_path_loaded else "none",
+            os.environ.get("OBSERVER_ENV_FILE", "(not set)"),
+        )
 
     # API server in background thread (non-blocking)
     start_api_server_background(host=host, port=port, log_level=log_level)

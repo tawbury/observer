@@ -4,6 +4,10 @@
 Track A/B collector에서 공통으로 사용하는 DB 저장 클래스.
 JSONL 파일 저장과 병행하여 PostgreSQL에 실시간 저장.
 
+DB 연결: 호스트/포트는 환경변수(DB_HOST, DB_PORT)에서만 읽음.
+기본값 postgres:5432 (Docker Compose 서비스명). 배포 시 DB_HOST=postgres,
+observer와 postgres를 동일 네트워크에 두어야 함.
+
 Phase 14: BatchedRealtimeDBWriter 추가 - 고빈도 틱 데이터용 마이크로 배치 처리
 """
 import asyncpg
@@ -25,14 +29,13 @@ class RealtimeDBWriter:
         self._connected = False
     
     async def connect(self) -> bool:
-        """DB 연결 풀 초기화"""
+        """DB 연결 풀 초기화. DB_HOST/DB_PORT는 환경변수만 사용, 기본 postgres:5432(Docker)."""
         try:
-            # 환경변수에서 DB 설정 로드
             db_host = os.environ.get("DB_HOST", "postgres")
+            db_port = int(os.environ.get("DB_PORT", "5432"))
             db_user = os.environ.get("DB_USER", "postgres")
             db_password = os.environ.get("DB_PASSWORD")
             db_name = os.environ.get("DB_NAME", "observer")
-            db_port = int(os.environ.get("DB_PORT", "5432"))
             
             # 비밀번호 미설정 시 경고 (프로덕션에서는 필수)
             if not db_password:
@@ -229,13 +232,13 @@ class BatchedRealtimeDBWriter:
         self._total_batches = 0
 
     async def connect(self) -> bool:
-        """DB 연결 풀 초기화 (Writer 전용 설정)"""
+        """DB 연결 풀 초기화. DB_HOST/DB_PORT는 환경변수만 사용, 기본 postgres:5432(Docker)."""
         try:
             db_host = os.environ.get("DB_HOST", "postgres")
+            db_port = int(os.environ.get("DB_PORT", "5432"))
             db_user = os.environ.get("DB_USER", "postgres")
             db_password = os.environ.get("DB_PASSWORD")
             db_name = os.environ.get("DB_NAME", "observer")
-            db_port = int(os.environ.get("DB_PORT", "5432"))
 
             if not db_password:
                 log.warning("DB_PASSWORD not set, using default")

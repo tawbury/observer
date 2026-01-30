@@ -33,54 +33,69 @@ from datetime import datetime, timezone
 import asyncio
 
 def configure_environment():
-    """Configure environment variables for Docker deployment"""
-    # Load .env file first (for local testing)
-    try:
-        from dotenv import load_dotenv
-        env_file = Path(__file__).parent / ".env"
-        if env_file.exists():
-            load_dotenv(env_file)
-            import sys
-            sys.stdout.reconfigure(encoding='utf-8')
-            print(f"[INFO] Loaded .env file from {env_file}")
-    except ImportError:
-        pass  # dotenv not installed, skip
-    except Exception:
-        pass  # Ignore encoding errors
-    
+    """Set default environment variables for Docker deployment (no .env load here)."""
     os.environ.setdefault("OBSERVER_STANDALONE", "1")
     os.environ.setdefault("PYTHONPATH", "/app/src:/app")
     os.environ.setdefault("OBSERVER_DATA_DIR", "/app/data/observer")
     os.environ.setdefault("OBSERVER_LOG_DIR", "/app/logs")
-    # For backward compatibility with deployment paths module
     os.environ.setdefault("OBSERVER_DEPLOYMENT_MODE", "docker")
-    # Track A/B control
     os.environ.setdefault("TRACK_A_ENABLED", "true")
     os.environ.setdefault("TRACK_B_ENABLED", "true")
 
 
-def _load_env_file_from_env_var():
-    """Load .env from OBSERVER_ENV_FILE when set (e.g. /app/secrets/.env in Docker)."""
-    env_file_path = os.environ.get("OBSERVER_ENV_FILE")
-    if not env_file_path:
-        return
-    p = Path(env_file_path)
-    if not p.exists():
-        return
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(p)
-        print(f"[INFO] Loaded .env from OBSERVER_ENV_FILE: {p}")
-    except ImportError:
-        pass
-    except Exception as e:
-        print(f"[WARN] Failed to load OBSERVER_ENV_FILE {p}: {e}")
+def _resolve_env_file_paths():
+    """
+    Resolve .env path(s): OBSERVER_ENV_FILE first, then Docker defaults (/app/secrets/.env, /app/.env), else local.
+    Returns (paths_attempted, path_loaded). Uses load_dotenv(override=False) so system env wins.
+    """
+    paths_attempted = []
+    path_loaded = None
+    explicit = os.environ.get("OBSERVER_ENV_FILE")
+    if explicit:
+        p = Path(explicit).resolve()
+        paths_attempted.append(p)
+        if p.exists():
+            try:
+                from dotenv import load_dotenv
+                load_dotenv(p, override=False)
+                path_loaded = p
+            except ImportError:
+                pass
+            except Exception:
+                pass
+        return (paths_attempted, path_loaded)
+    if os.environ.get("OBSERVER_STANDALONE") == "1" or Path("/app").exists():
+        for candidate in [Path("/app/secrets/.env"), Path("/app/.env")]:
+            paths_attempted.append(candidate)
+            if candidate.exists() and path_loaded is None:
+                try:
+                    from dotenv import load_dotenv
+                    load_dotenv(candidate, override=False)
+                    path_loaded = candidate
+                except ImportError:
+                    pass
+                except Exception:
+                    pass
+        return (paths_attempted, path_loaded)
+    local_root = Path(__file__).resolve().parent
+    for candidate in [local_root / ".env", local_root / "secrets" / ".env"]:
+        paths_attempted.append(candidate)
+        if candidate.exists() and path_loaded is None:
+            try:
+                from dotenv import load_dotenv
+                load_dotenv(candidate, override=False)
+                path_loaded = candidate
+            except ImportError:
+                pass
+            except Exception:
+                pass
+    return (paths_attempted, path_loaded)
 
 
 def run_observer_with_api():
     """Run Observer system with FastAPI server and Universe Scheduler"""
     configure_environment()
-    _load_env_file_from_env_var()
+    env_paths_attempted, env_path_loaded = _resolve_env_file_paths()
 
     # Ensure log directory exists
     log_dir = Path(os.environ.get("OBSERVER_LOG_DIR", "/app/logs"))
@@ -112,6 +127,14 @@ def run_observer_with_api():
     session_id = f"observer-{uuid4()}"
 
     log.info("Starting Observer Docker system with API server | session_id=%s", session_id)
+    if env_path_loaded:
+        log.info("Env file loaded from: %s (absolute)", env_path_loaded.resolve())
+    else:
+        log.info(
+            "Env file not loaded; paths attempted (absolute): %s; OBSERVER_ENV_FILE=%s",
+            [str(p.resolve()) for p in env_paths_attempted],
+            os.environ.get("OBSERVER_ENV_FILE", "(not set)"),
+        )
 
     # Setup KIS credentials for Universe Scheduler
     kis_app_key = os.environ.get("KIS_APP_KEY")
@@ -145,7 +168,13 @@ def run_observer_with_api():
         except Exception as e:
             log.error(f"Failed to initialize Universe Scheduler: {e}")
     else:
-        log.warning("KIS_APP_KEY/SECRET not found - Universe Scheduler disabled")
+        log.warning(
+            "KIS_APP_KEY/SECRET not set - Universe Scheduler disabled. "
+            "Env file paths attempted (absolute): %s; loaded from: %s; OBSERVER_ENV_FILE=%s",
+            [str(p.resolve()) for p in env_paths_attempted],
+            str(env_path_loaded.resolve()) if env_path_loaded else "none",
+            os.environ.get("OBSERVER_ENV_FILE", "(not set)"),
+        )
 
     # Setup event bus with file sink
     observer_data_dir = Path(os.environ.get("OBSERVER_DATA_DIR", "/app/data/observer"))

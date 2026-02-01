@@ -13,7 +13,7 @@ on:
         required: false
         default: ""
       image_name:
-        description: "Optional override for image name (default: <owner>/observer)"
+        description: "Optional override for image name (default: <owner>/<repository>))"
         required: false
         default: ""
 
@@ -21,7 +21,7 @@ env:
   # Default registry and image name; change in your app repo if needed.
   # For user: https://github.com/tawbury -> ghcr.io/tawbury/observer
   REGISTRY: ghcr.io
-  DEFAULT_IMAGE_NAME: ${{ github.repository_owner }}/observer
+  DEFAULT_IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -80,7 +80,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: infra/docker/Dockerfile
+          file: ./Dockerfile
           platforms: linux/arm64
           push: true
           tags: |

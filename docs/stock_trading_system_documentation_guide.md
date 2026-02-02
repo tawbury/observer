@@ -10,7 +10,7 @@
 - Last Updated: 2026-01-20
 - Author: AI System
 - Version: 1.0.0
- 
+
 ---
 
 ## 목적 (Purpose)

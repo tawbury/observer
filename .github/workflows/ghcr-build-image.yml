@@ -97,7 +97,7 @@ jobs:
       - name: Update Deployment Repo
         run: |
           # 1. 배포 레포지토리 클론 (PAT_TOKEN 필요)
-          git clone https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/tawbury/deployment.git deploy-repo
+          git clone https://x-access-token:${{ secrets.oci_deploy_ghcr }}@github.com/tawbury/deployment.git deploy-repo
           
           # 2. 배포 레포의 YAML 파일에서 이미지 태그 수정
           # k8s/overlays/production/kustomization.yaml 파일의 이미지를 새 태그로 변경

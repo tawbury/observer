@@ -30,8 +30,8 @@ services:
 
   observer:
     build:
-      context: ../../../
-      dockerfile: infra/docker/Dockerfile
+      context: ../../../app/observer
+      dockerfile: ../../../app/observer/Dockerfile
     container_name: observer-test
     restart: no
     env_file:

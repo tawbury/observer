@@ -75,12 +75,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Build from repo root; docker/Dockerfile copies app/observer into image.
       # Single platform (arm64) for oracle-obs-vm-01. Switch to multi-platform when adding more servers.
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: app/observer
-          file: app/observer/Dockerfile
+          context: .
+          file: docker/Dockerfile
           platforms: linux/arm64
           push: true
           tags: |

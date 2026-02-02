@@ -17,13 +17,13 @@ Docker 이미지 빌드 시 사용하는 타임스탬프 기반 태그(20YYMMDD-
 ## 실행 예 (프로젝트 루트 기준)
 
 ```powershell
-# PowerShell
-.\infra\_shared\scripts\build\generate_build_tag.ps1
-.\infra\_shared\scripts\build\generate_build_tag.ps1 -OutputFile "BUILD_TAG.txt"
+# PowerShell (from repo root)
+.\scripts\build\generate_build_tag.ps1
+.\scripts\build\generate_build_tag.ps1 -OutputFile "BUILD_TAG.txt"
 ```
 
 ```bash
-# Bash
-./infra/_shared/scripts/build/generate_build_tag.sh
-./infra/_shared/scripts/build/generate_build_tag.sh BUILD_TAG.txt
+# Bash (from repo root)
+./scripts/build/generate_build_tag.sh
+./scripts/build/generate_build_tag.sh BUILD_TAG.txt
 ```

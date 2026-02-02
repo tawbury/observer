@@ -12,7 +12,7 @@ Phase 3.2-3.3: Docker 컨테이너 내 Track A/B 실행 및 파일 동기화 검
   
 사전 요구사항:
   1. Docker Desktop 실행
-  2. docker-compose up -d (infra/docker/compose/)
+  2. docker-compose up -d (backups/.../docker-compose/ if using legacy compose)
 """
 
 import subprocess
@@ -92,7 +92,7 @@ def test_docker_prerequisites():
     else:
         result.fail("Docker prerequisites", message)
         print("\n  To start Docker containers:")
-        print("    cd infra/docker/compose")
+        print("    cd backups/pre-k8s-refactor-20260202/docker-compose (legacy)")
         print("    docker-compose up -d")
         return result, False
 

@@ -102,9 +102,10 @@ def test_volume_mount_configuration():
     print("\n[2] Volume Mount Configuration Check")
     result = TestResult()
     
+    backup_root = PROJECT_ROOT / "backups" / "pre-k8s-refactor-20260202"
     compose_files = [
-        PROJECT_ROOT / "infra" / "docker" / "compose" / "docker-compose.yml",
-        PROJECT_ROOT / "infra" / "_shared" / "compose" / "docker-compose.prod.yml",
+        backup_root / "docker-compose" / "docker-compose.yml",
+        backup_root / "compose" / "docker-compose.prod.yml",
     ]
     
     expected_mounts = [
@@ -126,7 +127,7 @@ def test_volume_mount_configuration():
                 else:
                     result.fail(f"{name} volume mount", f"Not found in {compose_file.name}")
         else:
-            result.skip(f"{compose_file.name}", "File not found")
+            result.skip(f"{compose_file.name}", "File not found (compose in backups/)")
     
     return result
 
@@ -414,7 +415,7 @@ def main():
     
     if not docker_ok:
         print("\n[!] Docker or container not available. Skipping remaining tests.")
-        print("    Run 'docker-compose up -d' from infra/docker/compose/ first.")
+        print("    Run 'docker-compose up -d' from backups/.../docker-compose/ (legacy) or use k8s.")
         print_summary(all_results)
         return 1
     

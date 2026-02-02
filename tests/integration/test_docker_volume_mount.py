@@ -106,9 +106,10 @@ def test_volume_mount():
     else:
         print("❌ Container file NOT updated from local write")
     
-    # 6. docker-compose.yml volume configuration
+    # 6. docker-compose.yml volume configuration (legacy: in backups/)
     print("\n6️⃣ Docker Compose Volume Configuration")
-    compose_path = Path("d:/development/prj_obs/infra/docker/compose/docker-compose.yml")
+    project_root = Path(__file__).resolve().parent.parent.parent
+    compose_path = project_root / "backups" / "pre-k8s-refactor-20260202" / "docker-compose" / "docker-compose.yml"
     if compose_path.exists():
         with open(compose_path, 'r', encoding='utf-8') as f:
             content = f.read()

@@ -1,4 +1,3 @@
-infra/output/
 app/*.tar.gz
 app/observer/MANIFEST.txt
 app/observer/config/observer/**/*.jsonl
@@ -41,9 +40,10 @@ app/observer/secrets/
 **/.env.*
 **/secrets/
 
-# Exception: env.template should be committed (contains template structure only)
+# Exception: env.template and config schema should be committed
 !**/env.template
 !**/.env.template
+!config/.env.example
 
 *.pem
 *.key
@@ -95,7 +95,9 @@ mcp-cli/
 mcp-cli/node_modules/
 mcp-cli/dist/
 
-# .claude
+# .ai
+.ai/
+**/copilot-instructions.md
 .claude/
 tmpclaude-*
 

@@ -4,7 +4,7 @@ on:
   # 이미지 빌드는 master로 PR이 머지될 때만 실행 (직접 push 시에는 실행 안 함)x
   push:
     branches:
-      - master
+      - observer
   pull_request:
     branches:
       - master

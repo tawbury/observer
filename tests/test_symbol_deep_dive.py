@@ -7,7 +7,7 @@ import json
 import asyncio
 from pathlib import Path
 from datetime import datetime, date
-from app.observer.src.universe.universe_manager import UniverseManager
+from universe.universe_manager import UniverseManager
 
 
 async def test_when_cache_is_written():
@@ -26,7 +26,8 @@ async def test_when_cache_is_written():
     print("   Expected: Cache file should be written")
     
     # Create temp universe dir for this test
-    test_universe_dir = Path(__file__).parent / "app" / "observer" / "config" / "universe_test"
+    _root = Path(__file__).resolve().parents[1]
+    test_universe_dir = _root / "config" / "universe_test"
     test_universe_dir.mkdir(exist_ok=True)
     
     um1 = UniverseManager(MockProviderEngineAPISuccess(), universe_dir=str(test_universe_dir))
@@ -47,7 +48,7 @@ async def test_when_cache_is_written():
     um2 = UniverseManager(MockProviderEngineAPIFail())
     candidates = await um2._load_candidates()
     print(f"   ✅ Loaded {len(candidates)} symbols from fallback")
-    print(f"   Cache file location: D:\\development\\prj_obs\\app\\observer\\config\\symbols\\kr_all_symbols.txt")
+    print(f"   Cache file location: <project_root>/config/symbols/kr_all_symbols.txt")
     
     print()
 
@@ -65,7 +66,8 @@ async def test_symbol_file_vs_universe_snapshots():
     print("   Updated: Only when API fetch succeeds (via _cache_symbols_to_file)")
     print("   Used by: _load_candidates() as Priority #3 fallback")
     
-    symbol_cache = Path(__file__).parent / "app" / "observer" / "config" / "symbols" / "kr_all_symbols.txt"
+    _root = Path(__file__).resolve().parents[1]
+    symbol_cache = _root / "config" / "symbols" / "kr_all_symbols.txt"
     if symbol_cache.exists():
         with open(symbol_cache) as f:
             count = len([l for l in f if l.strip()])
@@ -76,7 +78,7 @@ async def test_symbol_file_vs_universe_snapshots():
     print("   Created: By create_daily_snapshot() using candidates + price filter")
     print("   Used by: get_current_universe() to get filtered list for day")
     
-    universe_dir = Path(__file__).parent / "app" / "observer" / "config" / "universe"
+    universe_dir = _root / "config" / "universe"
     if universe_dir.exists():
         snapshots = list(universe_dir.glob("*_kr_stocks.json"))
         print(f"   Available snapshots: {len(snapshots)}")
@@ -168,7 +170,7 @@ async def find_symbol_file_generation_triggers():
     print("""
     Looking for places in code where kr_all_symbols.txt is written...
     
-    Found in: app/observer/src/universe/universe_manager.py
+    Found in: src/universe/universe_manager.py
     
     Location 1: _cache_symbols_to_file()
     - Line 259-270
@@ -178,7 +180,7 @@ async def find_symbol_file_generation_triggers():
     Usage: await self._cache_symbols_to_file(api_symbols)
     
     Location 2: Manual creation (what you did)
-    - Created file manually at app/observer/config/symbols/kr_all_symbols.txt
+    - Created file manually at config/symbols/kr_all_symbols.txt
     - 2894 symbols, newline-separated
     
     === NO OTHER LOCATIONS ===

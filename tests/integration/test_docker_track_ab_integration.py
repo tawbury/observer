@@ -4,7 +4,7 @@ Phase 3.2-3.3: Docker 컨테이너 내 Track A/B 실행 및 파일 동기화 검
 
 목표:
 - 컨테이너 내 /app/config/observer/scalp/YYYYMMDD.jsonl 생성 확인
-- 호스트 app/observer/config/observer/scalp/YYYYMMDD.jsonl 동기화 확인
+- 호스트 config/observer/scalp/YYYYMMDD.jsonl 동기화 확인
 - 양방향 파일 접근 가능 여부 확인
 
 실행:
@@ -12,7 +12,7 @@ Phase 3.2-3.3: Docker 컨테이너 내 Track A/B 실행 및 파일 동기화 검
   
 사전 요구사항:
   1. Docker Desktop 실행
-  2. docker-compose up -d (infra/docker/compose/)
+  2. docker-compose up -d (backups/.../docker-compose/ if using legacy compose)
 """
 
 import subprocess
@@ -92,7 +92,7 @@ def test_docker_prerequisites():
     else:
         result.fail("Docker prerequisites", message)
         print("\n  To start Docker containers:")
-        print("    cd infra/docker/compose")
+        print("    cd backups/pre-k8s-refactor-20260202/docker-compose (legacy)")
         print("    docker-compose up -d")
         return result, False
 
@@ -107,7 +107,7 @@ def test_container_paths_verification():
 import sys
 sys.path.insert(0, "/app/src")
 sys.path.insert(0, "/app")
-from paths import project_root, config_dir, observer_asset_dir, observer_log_dir
+from observer.paths import project_root, config_dir, observer_asset_dir, observer_log_dir
 import json
 paths_info = {
     "project_root": str(project_root()),
@@ -158,7 +158,7 @@ def test_track_a_config_in_container():
     
     today = datetime.now().strftime("%Y%m%d")
     container_swing_path = f"/app/config/observer/swing/{today}.jsonl"
-    host_swing_path = PROJECT_ROOT / "app" / "observer" / "config" / "observer" / "swing" / f"{today}.jsonl"
+    host_swing_path = PROJECT_ROOT / "config" / "observer" / "swing" / f"{today}.jsonl"
     
     # Create test record in container
     test_record = {
@@ -212,7 +212,7 @@ def test_track_b_config_in_container():
     
     today = datetime.now().strftime("%Y%m%d")
     container_scalp_path = f"/app/config/observer/scalp/{today}.jsonl"
-    host_scalp_path = PROJECT_ROOT / "app" / "observer" / "config" / "observer" / "scalp" / f"{today}.jsonl"
+    host_scalp_path = PROJECT_ROOT / "config" / "observer" / "scalp" / f"{today}.jsonl"
     
     # Create test record in container
     test_record = {
@@ -268,7 +268,7 @@ def test_host_to_container_sync():
     timestamp = datetime.now().strftime("%H%M%S")
     
     # Write from host
-    host_test_file = PROJECT_ROOT / "app" / "observer" / "config" / "observer" / "scalp" / f"host_test_{timestamp}.txt"
+    host_test_file = PROJECT_ROOT / "config" / "observer" / "scalp" / f"host_test_{timestamp}.txt"
     test_content = f"Test from host at {timestamp}"
     
     try:
@@ -329,8 +329,8 @@ print("OK")
         return result
     
     # Verify on host
-    # Note: logs are mounted from app/observer/logs
-    host_log_path = PROJECT_ROOT / "app" / "observer" / "logs" / "scalp" / f"{today}_docker_test.log"
+    # Note: logs are mounted from project root logs/
+    host_log_path = PROJECT_ROOT / "logs" / "scalp" / f"{today}_docker_test.log"
     
     # Also check project root logs (depends on docker-compose configuration)
     alt_host_log_path = PROJECT_ROOT / "logs" / "scalp" / f"{today}_docker_test.log"

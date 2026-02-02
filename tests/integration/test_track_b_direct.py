@@ -14,13 +14,12 @@ from zoneinfo import ZoneInfo
 
 # Setup paths (run from tests/integration/)
 project_root = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(project_root / "app" / "observer"))
-sys.path.insert(0, str(project_root / "app" / "observer" / "src"))
+sys.path.insert(0, str(project_root / "src"))
 
 # Load .env
 try:
     from dotenv import load_dotenv
-    env_file = project_root / "app" / "observer" / ".env"
+    env_file = project_root / ".env"
     if env_file.exists():
         load_dotenv(env_file)
         print(f"[INFO] Loaded .env from {env_file}")
@@ -30,7 +29,7 @@ except Exception:
 # Set environment for local testing
 import os
 os.environ["OBSERVER_STANDALONE"] = "0"
-os.environ["OBSERVER_CONFIG_DIR"] = str(project_root / "app" / "observer" / "config")
+os.environ["OBSERVER_CONFIG_DIR"] = str(project_root / "config")
 
 # Configure logging
 logging.basicConfig(
@@ -79,7 +78,7 @@ async def test_track_b():
     print(f"[OK] TrackBCollector created")
     
     # Check scalp directory
-    from paths import observer_asset_dir
+    from observer.paths import observer_asset_dir
     scalp_dir = observer_asset_dir() / "scalp"
     print(f"\n[DIR] Scalp directory: {scalp_dir}")
     

@@ -44,4 +44,4 @@ print(f'📏 File size: {log_file.stat().st_size} bytes')
 # Verify local mount
 print(f'\n🔍 Verifying Docker volume mount...')
 print(f'Container path: {log_file}')
-print(f'Expected local path: d:/development/prj_obs/app/observer/config/observer/scalp/{date_str}.jsonl')
+print(f'Expected local path: <project_root>/config/observer/scalp/{date_str}.jsonl')

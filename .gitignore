@@ -1,17 +1,8 @@
-infra/output/
-app/*.tar.gz
-app/observer/MANIFEST.txt
-app/observer/config/observer/**/*.jsonl
-app/observer/config/observer/scalp/**/*.jsonl
-app/observer/config/observer/swing/**/*.jsonl
-app/observer/config/observer/system/**/*.jsonl
-app/observer/config/system/**/*.jsonl
-app/observer/config/**/**/*.jsonl
-app/observer/logs/
-app/observer/config/universe/*.json
-app/observer/config/symbols/kr_all_symbols.*
-app/observer/data/
-ops/run_records/*.log
+# Runtime logs (root)
+logs/
+
+# Root build log (move output to logs/build.log)
+/build.log
 
 # Python virtual environments
 .venv/
@@ -36,14 +27,12 @@ __pycache__/
 .env.*
 secrets.*
 secrets/
-app/observer/secrets/
 **/.env
 **/.env.*
 **/secrets/
 
-# Exception: env.template should be committed (contains template structure only)
-!**/env.template
-!**/.env.template
+# Exception: config schema should be committed
+!config/.env.example
 
 *.pem
 *.key
@@ -62,16 +51,15 @@ crash.log
 terraform.tfvars
 *.tfvars
 
-# Docker
+# Docker (keep .dockerignore in repo)
 *.pid
 docker-compose.override.yml
-.dockerignore
 
 # Development tools
 .vscode/
 .history/
 .coverage
-htmlcov/
+htmlcov
 .pytest_cache/
 
 # OS
@@ -87,43 +75,41 @@ Desktop.ini
 *.temp
 ~$*
 
-# Security
-secrets.*
+# Backup / archives (do NOT ignore src/backup/ — source package)
+backups/
+*.backup
+.github/workflows/*.backup
+# Allow source code under src/backup/
+!src/backup/
+
+# Runtime config/data (project root structure)
+config/observer/**/*.jsonl
+config/observer/scalp/**/*.jsonl
+config/observer/swing/**/*.jsonl
+config/observer/system/**/*.jsonl
+config/system/**/*.jsonl
+config/**/*.jsonl
+config/universe/*.json
+config/symbols/kr_all_symbols.*
+data/
+ops/run_records/*.log
+
+# Deployment artifacts (manage separately)
+*.tar
+*.tar.gz
+*.tar.bak
+observer-image.tar
+observer-compose-*.tar.gz
+obs_deploy_package.tar.gz
+BUILD_TAG.txt
 
 # MCP
 mcp-cli/
 mcp-cli/node_modules/
 mcp-cli/dist/
 
-# .claude
+# IDE / AI
+.ai/
+**/copilot-instructions.md
 .claude/
 tmpclaude-*
-
-# backup files
-*.bak
-*.backup
-backup/
-backups/
-app/observer/config/backups/archives/
-app/observer/config/backups/manifests/
-.github/workflows/*.backup
-!app/observer/backup/backup_manager.py
-
-# Universe cache files (auto-generated from API)
-app/observer/config/symbols/kr_all_symbols.txt
-app/observer/config/symbols/kr_all_symbols.csv
-
-# Runtime data
-app/observer/data/
-app/observer/logs/
-app/observer/config/universe/*.json
-
-# Deployment artifacts (manage separately with Git LFS or direct SCP transfer)
-# Docker images and bundles
-app/observer/*.tar
-app/observer/*.tar.gz
-app/observer/*.tar.bak
-observer-image.tar
-observer-compose-*.tar.gz
-obs_deploy_package.tar.gz
-BUILD_TAG.txt

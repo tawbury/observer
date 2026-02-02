@@ -7,7 +7,7 @@ import json
 import asyncio
 from pathlib import Path
 from datetime import datetime, date
-from app.observer.src.universe.universe_manager import UniverseManager
+from universe.universe_manager import UniverseManager
 
 
 class ImprovedUniverseManager(UniverseManager):
@@ -118,7 +118,8 @@ async def test_improved_logic():
             raise Exception("KIS API unavailable")
     
     # Create temp test directory
-    test_dir = Path(__file__).parent / "app" / "observer" / "config" / "test_improved"
+    _root = Path(__file__).resolve().parents[1]
+    test_dir = _root / "config" / "test_improved"
     test_symbols_dir = test_dir / "symbols"
     test_symbols_dir.mkdir(parents=True, exist_ok=True)
     
@@ -211,7 +212,8 @@ async def test_what_user_provided():
     print("USER-PROVIDED SYMBOL FILE VERIFICATION")
     print("=" * 80)
     
-    symbol_file = Path(__file__).parent / "app" / "observer" / "config" / "symbols" / "kr_all_symbols.txt"
+    _root = Path(__file__).resolve().parents[1]
+    symbol_file = _root / "config" / "symbols" / "kr_all_symbols.txt"
     
     print(f"\nFile: {symbol_file}")
     print(f"Exists: {symbol_file.exists()}")

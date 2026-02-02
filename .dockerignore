@@ -1,0 +1,38 @@
+# Git and IDE
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+htmlcov
+
+# Docs and tests (not needed in image)
+docs
+tests
+backups
+
+# Config and secrets (injected at runtime)
+.env
+.env.*
+!config/.env.example
+secrets
+
+# Logs and data (runtime)
+*.log
+src/observer/logs
+src/observer/data
+src/observer/config
+config/observer
+config/**/*.jsonl
+config/universe/*.json
+config/symbols/kr_all_symbols.*
+
+# Legacy (removed after Phase 2)
+app
+
+# Misc
+*.md
+!src/observer/README*.md

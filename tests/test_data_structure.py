@@ -13,8 +13,8 @@ def test_data_directory_structure():
     project_root = Path(__file__).parent.parent
     
     # 필수 디렉토리 경로 (소스: config, 저장소: data)
-    scalp_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'scalp'
-    swing_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'swing'
+    scalp_source_dir = project_root / 'config' / 'observer' / 'scalp'
+    swing_source_dir = project_root / 'config' / 'observer' / 'swing'
     
     # 소스 디렉토리 존재 확인
     assert scalp_source_dir.exists(), f"Scalp 소스 디렉토리 없음: {scalp_source_dir}"
@@ -27,7 +27,7 @@ def test_data_directory_structure():
 def test_scalp_data_files():
     """Scalp 소스 데이터 파일 검증"""
     project_root = Path(__file__).parent.parent
-    scalp_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'scalp'
+    scalp_source_dir = project_root / 'config' / 'observer' / 'scalp'
     
     if scalp_source_dir.exists():
         jsonl_files = list(scalp_source_dir.glob("*.jsonl"))
@@ -45,7 +45,7 @@ def test_scalp_data_files():
 def test_swing_data_files():
     """Swing 소스 데이터 파일 검증"""
     project_root = Path(__file__).parent.parent
-    swing_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'swing'
+    swing_source_dir = project_root / 'config' / 'observer' / 'swing'
     
     if swing_source_dir.exists():
         jsonl_files = list(swing_source_dir.glob("*.jsonl"))
@@ -65,15 +65,15 @@ def test_migration_script_paths():
     from pathlib import Path
     
     # 마이그레이션 스크립트의 경로 계산 시뮬레이션
-    # migrate_jsonl_to_db.py가 위치한 경로: app/observer/src/db/migrate_jsonl_to_db.py
-    script_path = Path(__file__).parent.parent / 'app' / 'observer' / 'src' / 'db' / 'migrate_jsonl_to_db.py'
+    # migrate_jsonl_to_db.py가 위치한 경로: src/db/migrate_jsonl_to_db.py
+    script_path = Path(__file__).parent.parent / 'src' / 'db' / 'migrate_jsonl_to_db.py'
     
     if script_path.exists():
-        # script_path에서 project_root까지: parent x 5
-        # migrate_jsonl_to_db.py -> db/ -> src/ -> observer/ -> app/ -> prj_obs/
-        project_root = script_path.parent.parent.parent.parent.parent
-        scalp_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'scalp'
-        swing_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'swing'
+        # script_path에서 project_root까지: parent x 3
+        # migrate_jsonl_to_db.py -> db/ -> src/ -> prj_obs/
+        project_root = script_path.parent.parent.parent
+        scalp_source_dir = project_root / 'config' / 'observer' / 'scalp'
+        swing_source_dir = project_root / 'config' / 'observer' / 'swing'
         
         print(f"\nScript Path: {script_path}")
         print(f"Project Root: {project_root}")
@@ -92,8 +92,8 @@ def test_data_vs_test_data_separation():
     project_root = Path(__file__).parent.parent
     
     # 소스 데이터 디렉토리 (config)
-    scalp_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'scalp'
-    swing_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'swing'
+    scalp_source_dir = project_root / 'config' / 'observer' / 'scalp'
+    swing_source_dir = project_root / 'config' / 'observer' / 'swing'
     
     # 테스트 데이터 디렉토리
     test_data_dir = project_root / 'tests' / 'test_data'

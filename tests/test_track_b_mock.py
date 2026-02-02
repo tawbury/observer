@@ -23,7 +23,7 @@ import sys
 import argparse
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "app" / "observer" / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from trigger.trigger_engine import TriggerEngine, TriggerConfig, PriceSnapshot
 from slot.slot_manager import SlotManager, SlotCandidate

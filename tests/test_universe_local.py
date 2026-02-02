@@ -10,7 +10,7 @@ from datetime import datetime, date
 
 # 경로 설정
 project_root = Path(__file__).resolve().parent
-sys.path.insert(0, str(project_root / "app" / "observer" / "src"))
+sys.path.insert(0, str(project_root / "src"))
 
 # ============================================================================
 # 테스트 1: 심볼 파일 확인
@@ -20,7 +20,7 @@ def test_symbol_file():
     print("테스트 1: 심볼 파일 확인")
     print("="*70)
     
-    symbol_file = project_root / "app" / "observer" / "config" / "symbols" / "kr_all_symbols.txt"
+    symbol_file = project_root / "config" / "symbols" / "kr_all_symbols.txt"
     
     print(f"\n📁 파일 경로: {symbol_file}")
     print(f"   존재 여부: {symbol_file.exists()}")
@@ -56,7 +56,7 @@ def test_universe_manager_paths():
     print("="*70)
     
     # UniverseManager 경로 계산 로직 재현
-    universe_manager_file = project_root / "app" / "observer" / "src" / "universe" / "universe_manager.py"
+    universe_manager_file = project_root / "src" / "universe" / "universe_manager.py"
     
     print(f"\n📍 UniverseManager 파일: {universe_manager_file}")
     print(f"   존재 여부: {universe_manager_file.exists()}")
@@ -92,7 +92,7 @@ def test_universe_snapshot_dir():
     print("테스트 3: 유니버스 스냅샷 디렉토리")
     print("="*70)
     
-    universe_dir = project_root / "app" / "observer" / "config" / "universe"
+    universe_dir = project_root / "config" / "universe"
     
     print(f"\n📁 스냅샷 디렉토리: {universe_dir}")
     print(f"   존재 여부: {universe_dir.exists()}")
@@ -118,7 +118,7 @@ def test_create_universe_snapshot():
     print("="*70)
     
     # 심볼 파일 로드
-    symbol_file = project_root / "app" / "observer" / "config" / "symbols" / "kr_all_symbols.txt"
+    symbol_file = project_root / "config" / "symbols" / "kr_all_symbols.txt"
     
     if not symbol_file.exists():
         print(f"   ❌ 심볼 파일이 없습니다: {symbol_file}")
@@ -131,7 +131,7 @@ def test_create_universe_snapshot():
     
     # 스냅샷 생성
     today = datetime.now().strftime('%Y%m%d')
-    universe_dir = project_root / "app" / "observer" / "config" / "universe"
+    universe_dir = project_root / "config" / "universe"
     universe_dir.mkdir(parents=True, exist_ok=True)
     
     snapshot = {
@@ -178,7 +178,7 @@ def test_track_a_collector_simulation():
     
     # 오늘 날짜의 스냅샷 찾기
     today = datetime.now().strftime('%Y%m%d')
-    universe_dir = project_root / "app" / "observer" / "config" / "universe"
+    universe_dir = project_root / "config" / "universe"
     snapshot_path = universe_dir / f"{today}_kr_stocks.json"
     
     print(f"\n   찾는 파일: {snapshot_path}")

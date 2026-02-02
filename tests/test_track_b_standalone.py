@@ -8,8 +8,8 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Ensure app/observer/src is on path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app" / "observer" / "src"))
+_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_root / "src"))
 
 from collector.track_b_collector import TrackBCollector, TrackBConfig
 

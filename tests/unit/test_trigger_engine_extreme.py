@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 _project_root = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_project_root / "app" / "observer" / "src"))
+sys.path.insert(0, str(_project_root / "src"))
 
 print('=== 트리거 엔진 극한 테스트 ===')
 

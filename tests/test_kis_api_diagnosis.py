@@ -16,7 +16,7 @@ async def diagnose_current_logic():
     print("=" * 80)
     
     print("""
-    📍 현재 구현 위치: app/observer/src/provider/kis/kis_rest_provider.py
+    📍 현재 구현 위치: src/provider/kis/kis_rest_provider.py
     📍 함수: fetch_stock_list(market: str = "ALL") → List[str]
     
     🔍 현재 로직 분석:
@@ -301,7 +301,7 @@ async def plan_implementation():
       3. 페이징 지원 (선택)
       4. 향상된 로깅
     
-    파일: app/observer/src/provider/kis/kis_rest_provider.py
+    파일: src/provider/kis/kis_rest_provider.py
     예상 추가 라인: 150-200줄
     
     [Phase 3] UniverseManager 개선

@@ -18,8 +18,10 @@ import re
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 
-# Project paths
+# Project paths (App repo: src/, docker/, backups/ for legacy compose)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+BACKUP_ROOT = PROJECT_ROOT / "backups" / "pre-k8s-refactor-20260202"
+SRC_ROOT = PROJECT_ROOT / "src"
 
 
 class TestResult:
@@ -38,6 +40,9 @@ class TestResult:
         self.errors.append((name, reason))
         print(f"  [FAIL] {name} - {reason}")
 
+    def skip(self, name: str, reason: str):
+        print(f"  [SKIP] {name} - {reason}")
+
 
 def test_docker_compose_volumes():
     """docker-compose.yml 볼륨 설정 검증"""
@@ -45,20 +50,20 @@ def test_docker_compose_volumes():
     result = TestResult()
     
     compose_files = [
-        ("docker-compose.yml", PROJECT_ROOT / "infra" / "docker" / "compose" / "docker-compose.yml"),
-        ("docker-compose.prod.yml", PROJECT_ROOT / "infra" / "_shared" / "compose" / "docker-compose.prod.yml"),
+        ("docker-compose.yml", BACKUP_ROOT / "docker-compose" / "docker-compose.yml"),
+        ("docker-compose.prod.yml", BACKUP_ROOT / "compose" / "docker-compose.prod.yml"),
     ]
     
     expected_volumes = {
-        "data": ("/app/data", "app/observer/data"),
-        "logs": ("/app/logs", "app/observer/logs"),
-        "config": ("/app/config", "app/observer/config"),
-        "secrets": ("/app/secrets", "app/observer/secrets"),
+        "data": ("/app/data", "data"),
+        "logs": ("/app/logs", "logs"),
+        "config": ("/app/config", "config"),
+        "secrets": ("/app/secrets", "secrets"),
     }
     
     for name, compose_path in compose_files:
         if not compose_path.exists():
-            result.fail(f"{name}", "File not found")
+            result.skip(f"{name}", "File not found (compose in backups/)")
             continue
         
         print(f"\n  Checking {name}:")
@@ -100,10 +105,10 @@ def test_docker_compose_environment():
     print("\n[2] Docker Compose Environment Variables")
     result = TestResult()
     
-    compose_path = PROJECT_ROOT / "infra" / "docker" / "compose" / "docker-compose.yml"
+    compose_path = BACKUP_ROOT / "docker-compose" / "docker-compose.yml"
     
     if not compose_path.exists():
-        result.fail("docker-compose.yml", "File not found")
+        result.skip("docker-compose.yml", "File not found (compose in backups/)")
         return result
     
     with open(compose_path, "r", encoding="utf-8") as f:
@@ -149,7 +154,7 @@ def test_dockerfile_configuration():
     print("\n[3] Dockerfile Configuration")
     result = TestResult()
     
-    dockerfile_path = PROJECT_ROOT / "infra" / "docker" / "docker" / "Dockerfile"
+    dockerfile_path = PROJECT_ROOT / "docker" / "Dockerfile"
     
     if not dockerfile_path.exists():
         result.fail("Dockerfile", "File not found")
@@ -201,12 +206,12 @@ def test_host_directory_structure():
     result = TestResult()
     
     required_dirs = [
-        PROJECT_ROOT / "app" / "observer" / "config",
-        PROJECT_ROOT / "app" / "observer" / "config" / "observer",
-        PROJECT_ROOT / "app" / "observer" / "config" / "observer" / "scalp",
-        PROJECT_ROOT / "app" / "observer" / "config" / "observer" / "swing",
-        PROJECT_ROOT / "app" / "observer" / "data",
-        PROJECT_ROOT / "app" / "observer" / "secrets",
+        PROJECT_ROOT / "config",
+        PROJECT_ROOT / "config" / "observer",
+        PROJECT_ROOT / "config" / "observer" / "scalp",
+        PROJECT_ROOT / "config" / "observer" / "swing",
+        PROJECT_ROOT / "data",
+        PROJECT_ROOT / "secrets",
         PROJECT_ROOT / "logs",
     ]
     
@@ -232,10 +237,10 @@ def test_volume_path_mapping():
     # Expected mappings
     mappings = [
         ("Host", "Container", "Purpose"),
-        ("app/observer/config", "/app/config", "Config files"),
-        ("app/observer/logs", "/app/logs", "Log files"),
-        ("app/observer/data", "/app/data", "Data files"),
-        ("app/observer/secrets", "/app/secrets", "Secrets"),
+        ("config", "/app/config", "Config files"),
+        ("logs", "/app/logs", "Log files"),
+        ("data", "/app/data", "Data files"),
+        ("secrets", "/app/secrets", "Secrets"),
     ]
     
     print("\n  Volume Mapping Table:")
@@ -260,7 +265,7 @@ def test_paths_py_docker_mode():
     print("\n[6] paths.py Docker Mode Configuration")
     result = TestResult()
     
-    paths_file = PROJECT_ROOT / "app" / "observer" / "paths.py"
+    paths_file = PROJECT_ROOT / "src" / "observer" / "paths.py"
     
     if not paths_file.exists():
         result.fail("paths.py", "File not found")

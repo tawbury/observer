@@ -19,7 +19,7 @@ import json
 
 # Add src to path (run from project root or tests/)
 _project_root = Path(__file__).resolve().parents[1]
-src_path = _project_root / "app" / "observer" / "src"
+src_path = _project_root / "src"
 sys.path.insert(0, str(src_path))
 
 from trigger.trigger_engine import TriggerEngine, TriggerConfig, PriceSnapshot
@@ -53,7 +53,7 @@ def generate_track_a_data(symbols: List[str], duration_minutes: int = 10) -> Lis
     }
     
     # Create swing directory
-    swing_dir = _project_root / "app" / "observer" / "config" / "observer" / "swing"
+    swing_dir = _project_root / "config" / "observer" / "swing"
     swing_dir.mkdir(parents=True, exist_ok=True)
     
     # Use today's date for filename
@@ -182,7 +182,7 @@ def run_track_b_test(snapshots: List[PriceSnapshot]) -> Dict[str, Any]:
                     log.warning(f"   ⚠️ Overflow: {candidate.symbol}")
     
     # Generate scalp log in correct path
-    scalp_dir = _project_root / "app" / "observer" / "config" / "observer" / "scalp"
+    scalp_dir = _project_root / "config" / "observer" / "scalp"
     scalp_dir.mkdir(parents=True, exist_ok=True)
     
     # Use today's date for filename
@@ -273,7 +273,7 @@ def main():
     
     try:
         # Load symbols from actual file
-        symbol_file = Path("app/observer/config/symbols/kr_all_symbols.txt")
+        symbol_file = Path("config/symbols/kr_all_symbols.txt")
         symbols = load_symbols_from_file(symbol_file)
         
         log.info(f"📊 Testing with {len(symbols)} symbols")
@@ -289,7 +289,7 @@ def main():
         print("📊 FINAL TEST SUMMARY")
         print("="*70)
         print(f"Status: {'✅ SUCCESS' if results['total_candidates'] > 0 else '⚠️ NO TRIGGERS'}")
-        print(f"Track A Swing Log: app/observer/config/observer/swing/{date.today().strftime('%Y%m%d')}.jsonl")
+        print(f"Track A Swing Log: config/observer/swing/{date.today().strftime('%Y%m%d')}.jsonl")
         print(f"Track B Scalp Log: {results['scalp_log_file']}")
         print("="*70 + "\n")
         

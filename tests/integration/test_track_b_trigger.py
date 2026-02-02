@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, time
 from zoneinfo import ZoneInfo
 
 _project_root = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_project_root / "app" / "observer" / "src"))
+sys.path.insert(0, str(_project_root / "src"))
 
 print('=== Track B 트리거 감지 테스트 ===')
 
@@ -145,7 +145,7 @@ try:
     print('\n=== 스켈프 데이터 생성 테스트 ===')
     
     # 스켈프 데이터 디렉토리 생성
-    scalp_dir = _project_root / "app" / "observer" / "config" / "observer" / "scalp"
+    scalp_dir = _project_root / "config" / "observer" / "scalp"
     scalp_dir.mkdir(parents=True, exist_ok=True)
     
     # 스켈프 데이터 생성

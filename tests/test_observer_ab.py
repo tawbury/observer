@@ -14,11 +14,10 @@ os.environ.setdefault("OBSERVER_STANDALONE", "0")  # 로컬 모드
 os.environ.setdefault("TRACK_A_ENABLED", "true")   # Track A 활성화 (모의 데이터)
 os.environ.setdefault("TRACK_B_ENABLED", "true")   # Track B 활성화 (모의 데이터)
 
-# Add src to Python path
-sys.path.insert(0, str(Path(__file__).parent / "app" / "observer" / "src"))
-sys.path.insert(0, str(Path(__file__).parent / "app" / "observer"))
+_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_root / "src"))
 
-from paths import observer_asset_dir
+from observer.paths import observer_asset_dir
 
 def create_mock_track_a_data():
     """모의 Track A 데이터 생성"""
@@ -141,8 +140,8 @@ def verify_paths():
     
     print("="*70)
     print("✅ 실제 observer.py 경로 테스트 완료")
-    print("✅ Track A: app/observer/config/observer/swing/")
-    print("✅ Track B: app/observer/config/observer/scalp/")
+    print("✅ Track A: config/observer/swing/")
+    print("✅ Track B: config/observer/scalp/")
     print("="*70)
 
 if __name__ == "__main__":

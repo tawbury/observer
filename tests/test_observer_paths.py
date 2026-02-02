@@ -7,13 +7,11 @@ import sys
 import os
 from pathlib import Path
 
-# Add src to Python path (observer.py와 동일하게)
-sys.path.insert(0, str(Path(__file__).parent / "app" / "observer" / "src"))
+# Add src to Python path (observer 패키지 및 paths 모듈)
+_root = Path(__file__).resolve().parents[1]  # repo root
+sys.path.insert(0, str(_root / "src"))
 
-# Add app/observer to path for paths.py
-sys.path.insert(0, str(Path(__file__).parent / "app" / "observer"))
-
-from paths import observer_asset_dir, project_root, config_dir
+from observer.paths import observer_asset_dir, project_root, config_dir
 
 def test_paths():
     print("="*60)

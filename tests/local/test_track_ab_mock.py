@@ -28,8 +28,7 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
 # Setup paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "app" / "observer" / "src"))
-sys.path.insert(0, str(PROJECT_ROOT / "app" / "observer"))
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 # Configure logging
 logging.basicConfig(

@@ -8,7 +8,7 @@ from pathlib import Path
 
 # Set up Python path
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root / 'app' / 'observer' / 'src'))
+sys.path.insert(0, str(project_root / 'src'))
 
 from db.migrate_jsonl_to_db import JSONLToDBMigrator
 
@@ -16,8 +16,8 @@ from db.migrate_jsonl_to_db import JSONLToDBMigrator
 async def main():
     """Main migration test function"""
     # 경로 설정
-    scalp_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'scalp'
-    swing_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'swing'
+    scalp_source_dir = project_root / 'config' / 'observer' / 'scalp'
+    swing_source_dir = project_root / 'config' / 'observer' / 'swing'
     test_data_dir = project_root / 'tests' / 'test_data'
     
     # Docker 환경인지 로컬인지 판단

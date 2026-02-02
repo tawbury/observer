@@ -1,4 +1,4 @@
-name: Build and push GHCR image (template)
+name: Build and push GHCR image
 
 on:
   # 이미지 빌드는 master로 PR이 머지될 때만 실행 (직접 push 시에는 실행 안 함)

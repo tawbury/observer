@@ -55,6 +55,11 @@ class RealtimeDBWriter:
             )
             self._connected = True
             log.info("DB connection pool initialized (host=%s, db=%s)", db_host, db_name)
+            try:
+                from .ensure_schema import ensure_schema
+                await ensure_schema(self._pool)
+            except Exception as e:
+                log.warning("ensure_schema failed (tables may need manual init): %s", e)
             return True
         except Exception as e:
             log.error(f"DB connection failed: {e}")
@@ -262,6 +267,11 @@ class BatchedRealtimeDBWriter:
             self._connected = True
             log.info("Batched DB writer pool initialized (batch_size=%d, flush_ms=%.0f)",
                      self._batch_size, self._flush_interval_ms)
+            try:
+                from .ensure_schema import ensure_schema
+                await ensure_schema(self._pool)
+            except Exception as e:
+                log.warning("ensure_schema failed (tables may need manual init): %s", e)
             return True
         except Exception as e:
             log.error(f"Batched DB connection failed: {e}")

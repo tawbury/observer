@@ -5,6 +5,8 @@
 **용도**: QTS 및 신규 앱이 따라야 할 공통 App Docker 템플릿 명세. 이 문서만으로 리팩토링·검증 가능해야 함.
 
 ---
+### 본 템플릿은 Python 애플리케이션을 기준으로 작성되었다.
+(Node.js 등 타 언어 앱은 본 문서를 구조/책임 기준으로만 참고하고, Dockerfile 세부 내용은 언어에 맞게 조정한다.)
 
 ## 1. App 디렉터리 표준 구조 명세
 
@@ -89,6 +91,7 @@
 - **선택**이지만, HTTP/API를 제공하는 앱은 **권장**한다.
 - 사용 시: `HEALTHCHECK --interval=... --timeout=... --start-period=... --retries=... CMD ["python", "-c", "..."]` 등 **exec 형**만 사용한다. 셸 의존 금지.
 - 사용하지 않는 앱(배치만 등)은 HEALTHCHECK를 두지 않아도 된다. 명세에서는 **HTTP 서비스 앱은 HEALTHCHECK를 두는 것**을 기준으로 한다.
+- HTTP 포트를 열지 않는 순수 배치/크론 앱은 HEALTHCHECK를 두지 않아도 된다.
 
 ### 2.6 EXPOSE
 

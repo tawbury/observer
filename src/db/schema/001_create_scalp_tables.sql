@@ -33,7 +33,7 @@ CREATE INDEX IF NOT EXISTS idx_scalp_ticks_session ON scalp_ticks(session_id);
 -- =====================================================
 -- 2. scalp_1m_bars 테이블 (1분 봉 데이터)
 -- =====================================================
-CREATE TABLE scalp_ticks (
+CREATE TABLE scalp_1m_bars (
     symbol          VARCHAR(20) NOT NULL,
     bar_time        TIMESTAMPTZ NOT NULL,
     open            NUMERIC(15,4),

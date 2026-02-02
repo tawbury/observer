@@ -41,8 +41,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # 머지된 PR이거나 수동 실행(workflow_dispatch)일 때만 실행
-          # ref: ${{ (github.event_name == 'pull_request' && github.event.pull_request.merge_commit_sha) || github.ref }}
           # PR 머지: 머지 커밋 / push·수동: 해당 커밋
           ref: ${{ (github.event_name == 'pull_request' && github.event.pull_request.merge_commit_sha) || github.sha }}
 

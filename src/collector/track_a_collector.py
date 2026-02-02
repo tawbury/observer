@@ -140,7 +140,7 @@ class TrackACollector(TimeAwareMixin):
         if not symbols:
             raise RuntimeError("Universe symbols unavailable for Track A")
 
-        # Prepare JSONL path under config/swing/YYYYMMDD.jsonl
+        # Prepare JSONL path under data/assets/swing/YYYYMMDD.jsonl
         ymd = datetime.now().strftime("%Y%m%d")
         log_dir = observer_asset_dir() / self.cfg.daily_log_subdir
         log_dir.mkdir(parents=True, exist_ok=True)

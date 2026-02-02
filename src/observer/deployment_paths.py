@@ -3,13 +3,20 @@ deployment_paths.py
 
 Observer deployment-specific path resolver for /app structure.
 
-This module provides path resolution specifically for Observer deployment
-in containerized environments with /app structure.
+Delegates canonical paths to observer.paths so a single source of truth
+is used (no relative paths that could resolve under wrong cwd).
 """
 
 import os
 from pathlib import Path
 from typing import Optional
+
+from observer.paths import (
+    project_root,
+    config_dir,
+    observer_asset_dir as _observer_asset_dir,
+    observer_log_dir as _observer_log_dir,
+)
 
 # ============================================================
 # Deployment-specific Constants
@@ -21,52 +28,24 @@ LOG_ROOT = DEPLOYMENT_ROOT / "logs"
 CONFIG_ROOT = DEPLOYMENT_ROOT / "config"
 
 # ============================================================
-# Observer Asset Paths
+# Observer Asset Paths (delegate to observer.paths)
 # ============================================================
 
 def observer_asset_dir() -> Path:
-    """
-    Get Observer asset directory for deployment.
-    
-    Structure (simplified):
-        config/scalp/   - Track B real-time data
-        config/swing/   - Track A interval data
-        config/system/  - Gap/overflow logs
-    
-    In deployment structure:
-    - Observer data is stored in /app/config (no /observer subdirectory)
-    - This is mounted as volume in Docker
-    
-    In local development:
-    - Observer data is stored in config/ at project root
-    """
-    if os.environ.get("OBSERVER_DATA_DIR"):
-        return Path(os.environ["OBSERVER_DATA_DIR"])
-    
-    # Check if running in deployment environment
-    if os.environ.get("OBSERVER_STANDALONE") == "1" or Path("/app").exists():
-        return CONFIG_ROOT  # /app/config directly (no /observer subdirectory)
-    
-    # Local development - use config at project root
-    return Path("config")
+    """Observer asset directory (data/assets); uses observer.paths."""
+    return _observer_asset_dir()
 
 def observer_asset_file(filename: str) -> Path:
     """Get full path to Observer asset file."""
     return observer_asset_dir() / filename
 
 def observer_log_dir() -> Path:
-    """Get Observer log directory."""
-    if os.environ.get("OBSERVER_LOG_DIR"):
-        return Path(os.environ["OBSERVER_LOG_DIR"])
-    
-    return LOG_ROOT
+    """Observer log directory (project_root/logs); uses observer.paths."""
+    return _observer_log_dir()
 
 def observer_config_dir() -> Path:
-    """Get Observer configuration directory."""
-    if os.environ.get("OBSERVER_CONFIG_DIR"):
-        return Path(os.environ["OBSERVER_CONFIG_DIR"])
-    
-    return CONFIG_ROOT
+    """Observer configuration directory; uses observer.paths."""
+    return config_dir()
 
 # ============================================================
 # Runtime Paths

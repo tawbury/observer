@@ -25,6 +25,7 @@ if str(_src_root) not in sys.path:
 from observer.observer import Observer
 from observer.event_bus import EventBus, JsonlFileSink
 from observer.api_server import start_api_server_background, get_status_tracker
+from observer.paths import log_dir, system_log_dir, observer_data_dir
 from universe.universe_scheduler import UniverseScheduler, SchedulerConfig
 from provider import KISAuth, ProviderEngine
 from collector.track_a_collector import TrackACollector, TrackAConfig
@@ -99,19 +100,17 @@ def run_observer_with_api():
     configure_environment()
     env_paths_attempted, env_path_loaded = _resolve_env_file_paths()
 
-    # Ensure log directory exists
-    log_dir = Path(os.environ.get("OBSERVER_LOG_DIR", "/app/logs"))
-    log_dir.mkdir(parents=True, exist_ok=True)
-    system_log_dir = log_dir / "system"
-    system_log_dir.mkdir(parents=True, exist_ok=True)
+    # Ensure log directory exists (canonical: project_root/logs, legacy app/observer ignored)
+    _log_dir = log_dir()
+    _system_log_dir = system_log_dir()
 
     # Setup logging with both console and file outputs
     # HourlyRotatingFileHandler로 정각 기준 시간별 로테이션
     from shared.hourly_handler import HourlyRotatingFileHandler
-    
+
     # Configure logging with hourly rotation (정각 기준)
     # 파일명 형식: YYYYMMDD_HH.log
-    file_handler = HourlyRotatingFileHandler(system_log_dir)
+    file_handler = HourlyRotatingFileHandler(_system_log_dir)
     file_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s"))
     file_handler.setLevel(logging.INFO)
     
@@ -179,8 +178,7 @@ def run_observer_with_api():
         )
 
     # Setup event bus with file sink
-    observer_data_dir = Path(os.environ.get("OBSERVER_DATA_DIR", "/app/data/observer"))
-    observer_data_dir.mkdir(parents=True, exist_ok=True)
+    observer_data_dir = observer_data_dir()
     jsonl_path = observer_data_dir / "observer.jsonl"
     
     log.info("Event archive will be saved to: %s", jsonl_path)
@@ -297,7 +295,7 @@ def run_observer_with_api():
 
         log.info("Observer system fully operational")
         log.info("Event archive: %s", observer_data_dir)
-        log.info("Logs: %s", log_dir)
+        log.info("Logs: %s", _log_dir)
         log.info("Starting FastAPI server on 0.0.0.0:8000")
 
         # Start Track A Collector in background thread

@@ -21,6 +21,8 @@ from datetime import datetime, time, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
+from observer.paths import project_root, config_dir, observer_asset_dir, log_dir
+
 try:
     from zoneinfo import ZoneInfo
 except Exception:  # pragma: no cover
@@ -59,16 +61,18 @@ class BackupConfig:
     tz_name: str = "Asia/Seoul"
     backup_time: time = time(21, 0)  # 21:00 KST
     backup_schedule_check_interval_seconds: int = 300  # Check every 5 minutes
-    source_dirs: List[str] = None  # Directories to backup
-    backup_root_dir: str = "app/obs_deploy/app/config/backups"
+    source_dirs: Optional[List[str]] = None  # Directories to backup (absolute paths)
+    backup_root_dir: Optional[str] = None  # Default: project_root/backups
     retention_days: int = 30
-    
+
     def __post_init__(self):
-        if self.source_dirs is None:
-            # Default: backup logs and config directories (relative to project root)
+        if self.backup_root_dir is None or "obs_deploy" in (self.backup_root_dir or ""):
+            self.backup_root_dir = str(project_root() / "backups")
+        if self.source_dirs is None or any("obs_deploy" in d for d in (self.source_dirs or [])):
             self.source_dirs = [
-                "app/obs_deploy/app/config",
-                "app/obs_deploy/app/logs"
+                str(config_dir()),
+                str(observer_asset_dir()),
+                str(log_dir()),
             ]
 
 

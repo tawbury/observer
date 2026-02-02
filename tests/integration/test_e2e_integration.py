@@ -21,12 +21,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from zoneinfo import ZoneInfo
 
+# Add src for imports (backup, observer, etc.)
+_E2E_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_E2E_SRC = _E2E_PROJECT_ROOT / "src"
+if str(_E2E_SRC) not in sys.path:
+    sys.path.insert(0, str(_E2E_SRC))
 
 log = logging.getLogger("E2E_Test")
 
@@ -157,17 +163,15 @@ class E2EIntegrationTest:
             log.info(f"    - Test symbols: {len(self.cfg.test_symbols)}")
             log.info(f"    - Timeout: {self.cfg.timeout_seconds}s")
             
-            # Step 2: Directory structure
+            # Step 2: Directory structure (project root: src/, config/, logs/)
             required_dirs = [
-                "app/obs_deploy/app/src",
-                "config/observer",
+                "src",
+                "config",
                 "logs",
-                "backups"
             ]
-            
             missing_dirs = []
             for dir_path in required_dirs:
-                full_path = Path(f"d:/development/prj_obs/{dir_path}")
+                full_path = _E2E_PROJECT_ROOT / dir_path
                 if not full_path.exists():
                     missing_dirs.append(dir_path)
             
@@ -183,7 +187,6 @@ class E2EIntegrationTest:
                 available_modules += 1
             except ImportError as e:
                 log.warning(f"  ⚠️  BackupManager not available: {e}")
-            
             try:
                 from observer.log_rotation_manager import LogRotationManager
                 available_modules += 1
@@ -316,17 +319,11 @@ class E2EIntegrationTest:
             
             # Validate log path generation
             try:
-                from observer.log_rotation_manager import LogRotationManager, RotationConfig
-                
-                config = RotationConfig(
-                    window_ms=600_000,  # 10 minutes
-                    enable_rotation=True,
-                    base_filename="swing"
-                )
-                
-                manager = LogRotationManager(config)
-                log_path = manager.get_log_path()
-                
+                from observer.log_rotation_manager import LogRotationManager
+                from observer.paths import observer_log_dir
+                base_dir = observer_log_dir()
+                manager = LogRotationManager(base_dir)
+                log_path = manager.get_log_path("swing")
                 log.info(f"  ✓ Log path generated: {log_path}")
             except ImportError:
                 log.warning("  ⚠️  LogRotationManager not available (optional)")
@@ -398,17 +395,11 @@ class E2EIntegrationTest:
             
             # Validate log rotation for scalp data
             try:
-                from observer.log_rotation_manager import LogRotationManager, RotationConfig
-                
-                config = RotationConfig(
-                    window_ms=60_000,  # 1 minute
-                    enable_rotation=True,
-                    base_filename="scalp"
-                )
-                
-                manager = LogRotationManager(config)
-                log_path = manager.get_log_path()
-                
+                from observer.log_rotation_manager import LogRotationManager
+                from observer.paths import observer_log_dir
+                base_dir = observer_log_dir()
+                manager = LogRotationManager(base_dir)
+                log_path = manager.get_log_path("scalp")
                 log.info(f"  ✓ Scalp log path: {log_path} (1-min rotation)")
             except ImportError:
                 log.warning("  ⚠️  LogRotationManager not available (optional)")
@@ -578,26 +569,12 @@ class E2EIntegrationTest:
             log.info(f"\n▶️  Test 7: {test_name}")
             
             try:
-                from observer.log_rotation_manager import LogRotationManager, RotationConfig
-                
-                # Test each rotation config
-                configs = [
-                    ("swing", 600_000),   # 10 minutes
-                    ("scalp", 60_000),    # 1 minute
-                    ("system", 3600_000)  # 60 minutes
-                ]
-                
-                for track, window_ms in configs:
-                    config = RotationConfig(
-                        window_ms=window_ms,
-                        enable_rotation=True,
-                        base_filename=track
-                    )
-                    
-                    manager = LogRotationManager(config)
-                    log_path = manager.get_log_path()
-                    
-                    minutes = window_ms // 60_000
+                from observer.log_rotation_manager import LogRotationManager
+                from observer.paths import observer_log_dir
+                base_dir = observer_log_dir()
+                manager = LogRotationManager(base_dir)
+                for track, minutes in [("swing", 10), ("scalp", 1), ("system", 60)]:
+                    log_path = manager.get_log_path(track)
                     log.info(f"  ✓ {track.capitalize()} log: {log_path}")
                     log.info(f"    - Rotation window: {minutes} min")
                     log.info(f"    - Format: YYYYMMDD_HHMM")
@@ -800,7 +777,7 @@ async def main():
     summary = await tester.run_all_tests()
     
     # Save results
-    results_file = Path("d:/development/prj_obs/docs") / "PHASE_12_E2E_TEST_RESULTS.json"
+    results_file = _E2E_PROJECT_ROOT / "docs" / "PHASE_12_E2E_TEST_RESULTS.json"
     results_file.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     
     log.info(f"\n📄 Results saved to: {results_file}")

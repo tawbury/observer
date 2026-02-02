@@ -2,7 +2,10 @@ import asyncio
 import json
 import os
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Iterable, List, Optional, Dict, Any
+
+from observer.paths import config_dir
 
 
 class UniverseManager:
@@ -33,11 +36,10 @@ class UniverseManager:
         self.market = market
         self.min_price = int(min_price)
         self.min_count = int(min_count)
-        # Default snapshot dir inside obs_deploy config
-        # From app/obs_deploy/app/src/universe -> app/obs_deploy/config
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "config"))
-        self.universe_dir = universe_dir or os.path.join(base_dir, "universe")
-        os.makedirs(self.universe_dir, exist_ok=True)
+        # Default snapshot dir: project config/universe (canonical path)
+        base = config_dir()
+        self.universe_dir = universe_dir or str(base / "universe")
+        Path(self.universe_dir).mkdir(parents=True, exist_ok=True)
         self._candidate_symbols = list(candidate_symbols) if candidate_symbols else None
 
     # ----------------------- Public APIs -----------------------
@@ -248,16 +250,13 @@ class UniverseManager:
             print(f"[INFO] Using constructor-provided symbols ({len(self._candidate_symbols)})")
             return list(dict.fromkeys(self._candidate_symbols))
         
-        # Priority 3: File-based candidates
-        # __file__ = app/obs_deploy/app/src/universe/universe_manager.py
-        # -> app/obs_deploy/app/src -> .. -> app/obs_deploy/app -> config
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "config"))
-        symbols_dir = os.path.join(base_dir, "symbols")
-        txt_path = os.path.join(symbols_dir, "kr_all_symbols.txt")
-        csv_path = os.path.join(symbols_dir, "kr_all_symbols.csv")
+        # Priority 3: File-based candidates (config/symbols)
+        symbols_dir = config_dir() / "symbols"
+        txt_path = symbols_dir / "kr_all_symbols.txt"
+        csv_path = symbols_dir / "kr_all_symbols.csv"
         result: List[str] = []
 
-        if os.path.exists(txt_path):
+        if txt_path.exists():
             print(f"[INFO] Loading cached symbols from: {txt_path}")
             with open(txt_path, "r", encoding="utf-8") as f:
                 for line in f:
@@ -268,7 +267,7 @@ class UniverseManager:
             if result:
                 return list(dict.fromkeys(result))
         
-        if os.path.exists(csv_path):
+        if csv_path.exists():
             print(f"[INFO] Loading cached symbols from: {csv_path}")
             with open(csv_path, "r", encoding="utf-8") as f:
                 header = f.readline()
@@ -303,13 +302,9 @@ class UniverseManager:
     async def _cache_symbols_to_file(self, symbols: List[str]) -> None:
         """Cache fetched symbols to file for future fallback use."""
         try:
-            # __file__ = app/obs_deploy/app/src/universe/universe_manager.py
-            # -> app/obs_deploy/app/src -> .. -> app/obs_deploy/app -> config
-            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "config"))
-            symbols_dir = os.path.join(base_dir, "symbols")
-            os.makedirs(symbols_dir, exist_ok=True)
-            
-            cache_path = os.path.join(symbols_dir, "kr_all_symbols.txt")
+            symbols_dir = config_dir() / "symbols"
+            symbols_dir.mkdir(parents=True, exist_ok=True)
+            cache_path = symbols_dir / "kr_all_symbols.txt"
             with open(cache_path, "w", encoding="utf-8") as f:
                 for sym in symbols:
                     f.write(f"{sym}\n")

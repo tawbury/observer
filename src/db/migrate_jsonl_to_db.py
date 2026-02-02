@@ -343,11 +343,11 @@ async def main():
     db_name = os.getenv('DB_NAME', 'observer')
     db_port = int(os.getenv('DB_PORT', 5432))
     
-    # 데이터 소스 경로 (config 폴더에서 소스 JSONL 읽음)
-    project_root = Path(__file__).parent.parent.parent.parent.parent
-    scalp_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'scalp'
-    swing_source_dir = project_root / 'app' / 'observer' / 'config' / 'observer' / 'swing'
-    test_data_dir = project_root / 'tests' / 'test_data'
+    # 데이터 소스 경로 (data/assets에서 소스 JSONL 읽음)
+    from observer.paths import project_root, observer_asset_dir
+    scalp_source_dir = observer_asset_dir() / "scalp"
+    swing_source_dir = observer_asset_dir() / "swing"
+    test_data_dir = project_root() / "tests" / "test_data"
     
     logger.info("=" * 70)
     logger.info("Phase 13 Task 13.2: JSONL → PostgreSQL 마이그레이션")

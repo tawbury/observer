@@ -262,7 +262,8 @@ def perform_readiness_checks() -> Dict[str, bool]:
 
     # Check if log directory exists and is writable
     try:
-        checks["log_dir_writable"] = os.path.exists(observer_log_dir) and os.access(observer_log_dir, os.W_OK)
+        log_dir_path = observer_log_dir()
+        checks["log_dir_writable"] = os.path.exists(log_dir_path) and os.access(log_dir_path, os.W_OK)
     except Exception:
         checks["log_dir_writable"] = False
 

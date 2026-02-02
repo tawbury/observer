@@ -4,18 +4,16 @@
 
 ```
 prj_obs/
-├── app/observer/config/observer/       # 📥 소스 데이터 (읽기)
+├── data/assets/                        # 📥 소스 JSONL (읽기)
 │   ├── scalp/                          # Scalp 소스 (WebSocket 틱/1분봉)
 │   │   ├── scalp_ticks_*.jsonl
 │   │   └── scalp_1m_bars_*.jsonl
 │   └── swing/                          # Swing 소스 (REST 10분봉)
 │       └── swing_bars_*.jsonl
 │
-├── app/observer/data/observer/         # 📤 처리된 데이터 (선택 사항)
-│   ├── scalp/                          # 처리된 Scalp 데이터
-│   └── swing/                          # 처리된 Swing 데이터
+├── data/                               # 기타 런타임 데이터 (선택)
 │
-├── app/observer/src/db/
+├── src/db/
 │   ├── schema/                         # SQL 스키마 파일 (12 테이블)
 │   │   ├── 001_create_scalp_tables.sql
 │   │   ├── 002_create_swing_tables.sql
@@ -133,7 +131,7 @@ JSONL 파일을 PostgreSQL로 마이그레이션:
 ## ⚠️ 주의사항
 
 ### 데이터 경로 규칙
-- **소스 데이터**: `app/observer/config/observer/scalp/`, `app/observer/config/observer/swing/` (읽기)
+- **소스 데이터**: `data/assets/scalp/`, `data/assets/swing/` (읽기)
 - **테스트 데이터**: `tests/test_data/` (개발/테스트)
 - **처리된 데이터**: `app/observer/data/observer/scalp/`, `app/observer/data/observer/swing/` (선택 사항)
 

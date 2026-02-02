@@ -5,7 +5,7 @@ Key Responsibilities (Track A 독립형):
 - Track A 데이터 없이도 자체 부트스트랩 심볼로 즉시 구독
 - 41개 슬롯(WebSocket) 동적 관리 (SlotManager)
 - 실시간 2Hz 체결 데이터 수집 및 스캘프 로그 저장
-- config/scalp/YYYYMMDD.jsonl 로깅
+- data/assets/scalp/YYYYMMDD_HH.jsonl 로깅
 """
 from __future__ import annotations
 
@@ -351,7 +351,7 @@ class TrackBCollector(TimeAwareMixin):
         """
         Log real-time scalp data to JSONL file and DB.
         
-        File: config/scalp/YYYYMMDD_HH.jsonl (시간별 로테이션)
+        File: data/assets/scalp/YYYYMMDD_HH.jsonl (시간별 로테이션)
         DB: scalp_ticks 테이블
         
         Enhanced record format includes execution time, bid/ask, and volume details
@@ -365,7 +365,7 @@ class TrackBCollector(TimeAwareMixin):
             now = self._now()
             hour_str = now.strftime("%Y%m%d_%H")
             
-            # Scalp log path: config/scalp/YYYYMMDD_HH.jsonl (시간별 로테이션)
+            # Scalp log path: data/assets/scalp/YYYYMMDD_HH.jsonl (시간별 로테이션)
             base_dir = observer_asset_dir()
             log_dir = base_dir / self.cfg.daily_log_subdir
             log_dir.mkdir(parents=True, exist_ok=True)

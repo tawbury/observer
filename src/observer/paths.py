@@ -16,9 +16,9 @@ Design principles:
 - Project-level, not package-level
 
 Path Management Strategy:
-- Observer-generated JSON / JSONL files are treated as CONFIG ASSETS.
-- data/ directory is reserved for ephemeral runtime-only artifacts.
-- Observer assets MUST be resolved via observer_asset_dir().
+- Observer-generated JSON / JSONL files live under data/assets (scalp, swing, system).
+- config/ is for operational config only; logs/ for all log files.
+- Observer assets MUST be resolved via observer_asset_dir(); logs via observer_log_dir().
 - Supports standalone Docker deployment with /app as project root.
 """
 
@@ -54,6 +54,9 @@ def _resolve_project_root(start: Optional[Path] = None) -> Path:
     current = start.resolve() if start else Path(__file__).resolve()
 
     for parent in [current] + list(current.parents):
+        # Skip app/observer so we resolve to repo root, not a nested app folder
+        if parent.name == "observer" and parent.parent.name == "app":
+            continue
         if (parent / ".git").exists():
             return parent
         if (parent / "pyproject.toml").exists():
@@ -102,8 +105,8 @@ def data_dir() -> Path:
     Canonical data root directory.
 
     Policy:
-    - This directory is reserved for ephemeral / runtime-only artifacts.
-    - Long-lived JSON / JSONL assets MUST NOT be placed here.
+    - data/assets/ holds observer-generated JSON/JSONL (scalp, swing, system).
+    - Other subdirs under data/ are for ephemeral runtime artifacts.
     """
     return project_root() / "data"
 
@@ -168,18 +171,19 @@ def ops_backup_dir() -> Path:
 
 def observer_asset_dir() -> Path:
     """
-    Canonical Observer ASSET directory.
+    Canonical Observer ASSET directory for JSON/JSONL artifacts.
 
-    All observer-generated JSON / JSONL artifacts
-    MUST be placed here.
+    All observer-generated JSON/JSONL files MUST be placed here
+    (not under config/). Log files go to observer_log_dir().
 
-    Structure (simplified):
-        config/scalp/*.jsonl   - Track B real-time data
-        config/swing/*.jsonl   - Track A interval data
-        config/system/*.jsonl  - Gap/overflow logs
+    Structure:
+        data/assets/scalp/*.jsonl   - Track B real-time data
+        data/assets/swing/*.jsonl   - Track A interval data
+        data/assets/system/*.jsonl  - Gap/overflow logs
     """
-    # Return config_dir() directly (no /observer subdirectory)
-    return config_dir()
+    path = data_dir() / "assets"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def observer_asset_file(filename: str) -> Path:
@@ -285,21 +289,31 @@ def google_credentials_path() -> Path:
 # Docker-compatible paths (Environment variable overrides)
 # ============================================================
 
+def _is_legacy_app_observer_path(env_path: str) -> bool:
+    """True if path contains app/observer (legacy); such paths are ignored."""
+    if not env_path:
+        return False
+    parts = Path(env_path).resolve().parts
+    return "app" in parts or "observer" in parts
+
+
 def log_dir() -> Path:
     """
     Canonical log root directory.
 
-    Environment variable: OBSERVER_LOG_DIR
+    Environment variable: OBSERVER_LOG_DIR (legacy app/observer paths ignored)
     Default: {project_root}/logs
 
     Policy:
     - All log files MUST be placed under this directory.
     - Auto-creates directory if not exists.
     """
-    if env_path := os.environ.get("OBSERVER_LOG_DIR"):
+    env_path = os.environ.get("OBSERVER_LOG_DIR")
+    if env_path and not _is_legacy_app_observer_path(env_path):
         path = Path(env_path)
     else:
         path = project_root() / "logs"
+    path = path.resolve()
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -308,17 +322,15 @@ def system_log_dir() -> Path:
     """
     System log directory for gap detector and slot overflow.
 
-    Environment variable: OBSERVER_SYSTEM_LOG_DIR
+    Environment variable: OBSERVER_SYSTEM_LOG_DIR (legacy app/observer paths ignored)
     Default: {log_dir}/system (e.g. project_root/logs/system)
-
-    Used by:
-    - GapDetector (gap_YYYYMMDD.jsonl)
-    - SlotManager (overflow_YYYYMMDD.jsonl)
     """
-    if env_path := os.environ.get("OBSERVER_SYSTEM_LOG_DIR"):
+    env_path = os.environ.get("OBSERVER_SYSTEM_LOG_DIR")
+    if env_path and not _is_legacy_app_observer_path(env_path):
         path = Path(env_path)
     else:
         path = log_dir() / "system"
+    path = path.resolve()
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -327,17 +339,15 @@ def maintenance_log_dir() -> Path:
     """
     Maintenance log directory.
 
-    Environment variable: OBSERVER_MAINTENANCE_LOG_DIR
+    Environment variable: OBSERVER_MAINTENANCE_LOG_DIR (legacy app/observer paths ignored)
     Default: {log_dir}/maintenance
-
-    Used by:
-    - Cleanup operations
-    - Backup operations
     """
-    if env_path := os.environ.get("OBSERVER_MAINTENANCE_LOG_DIR"):
+    env_path = os.environ.get("OBSERVER_MAINTENANCE_LOG_DIR")
+    if env_path and not _is_legacy_app_observer_path(env_path):
         path = Path(env_path)
     else:
         path = log_dir() / "maintenance"
+    path = path.resolve()
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -346,20 +356,25 @@ def kis_token_cache_dir() -> Path:
     """
     KIS API token cache directory.
 
-    Environment variable: KIS_TOKEN_CACHE_DIR
-    Default (Docker): {project_root}/secrets/.kis_cache
-    Default (Local): ~/.kis_cache
+    Environment variables:
+    - KIS_TOKEN_CACHE_DIR: override cache directory (absolute recommended)
+    - OBSERVER_PROJECT_ROOT: override project root for secrets/.kis_cache
 
-    Replaces Path.home() / ".kis_cache" for Docker compatibility.
+    Default: {project_root}/secrets/.kis_cache (Docker and local)
+    Token file: secrets/.kis_cache/token_real.json (or token_virtual.json)
+    Returns an absolute path so cache is always under a canonical location.
     """
-    if env_path := os.environ.get("KIS_TOKEN_CACHE_DIR"):
+    env_path = os.environ.get("KIS_TOKEN_CACHE_DIR")
+    if env_path and not _is_legacy_app_observer_path(env_path):
         path = Path(env_path)
-    elif os.environ.get("OBSERVER_STANDALONE") == "1":
-        # Docker mode: use secrets directory
-        path = project_root() / "secrets" / ".kis_cache"
     else:
-        # Local development: use home directory
-        path = Path.home() / ".kis_cache"
+        root = (
+            Path(os.environ["OBSERVER_PROJECT_ROOT"])
+            if os.environ.get("OBSERVER_PROJECT_ROOT")
+            else project_root()
+        )
+        path = root / "secrets" / ".kis_cache"
+    path = path.resolve()
     path.mkdir(parents=True, exist_ok=True)
     return path
 

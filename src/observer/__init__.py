@@ -180,12 +180,11 @@ async def run_observer_with_api(
             os.environ.get("OBSERVER_ENV_FILE", "(not set)"),
         )
 
-    # Ensure log and data dirs exist
-    log_dir = Path(os.environ.get("OBSERVER_LOG_DIR", "/app/logs"))
-    log_dir.mkdir(parents=True, exist_ok=True)
-    observer_data_dir = Path(os.environ.get("OBSERVER_DATA_DIR", "/app/data/observer"))
-    observer_data_dir.mkdir(parents=True, exist_ok=True)
-    jsonl_path = observer_data_dir / "observer.jsonl"
+    # Ensure log and data dirs exist (canonical paths; legacy app/observer ignored)
+    from observer.paths import log_dir as get_log_dir, observer_data_dir as get_observer_data_dir
+    _log_dir = get_log_dir()
+    _observer_data_dir = get_observer_data_dir()
+    jsonl_path = _observer_data_dir / "observer.jsonl"
     log.info("Event archive (EventBus → JsonlFileSink): %s", jsonl_path)
 
     event_bus = EventBus([JsonlFileSink(str(jsonl_path))])

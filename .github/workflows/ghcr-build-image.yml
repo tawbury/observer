@@ -1,4 +1,4 @@
-name: Build and push GHCR image (template)
+name: Build and push GHCR image
 
 on:
   # 이미지 빌드는 master로 PR이 머지될 때만 실행 (직접 push 시에는 실행 안 함)
@@ -13,7 +13,7 @@ on:
         required: false
         default: ""
       image_name:
-        description: "Optional override for image name (default: <owner>/observer)"
+        description: "Optional override for image name (default: <owner>/<repository>))"
         required: false
         default: ""
 
@@ -21,7 +21,7 @@ env:
   # Default registry and image name; change in your app repo if needed.
   # For user: https://github.com/tawbury -> ghcr.io/tawbury/observer
   REGISTRY: ghcr.io
-  DEFAULT_IMAGE_NAME: ${{ github.repository_owner }}/observer
+  DEFAULT_IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -79,8 +79,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: infra/docker/Dockerfile
+          context: app/observer
+          file: app/observer/Dockerfile
           platforms: linux/arm64
           push: true
           tags: |

@@ -293,8 +293,13 @@ class TrackBCollector(TimeAwareMixin):
                 callback_count[0] += 1
                 symbol = data.get('symbol', 'UNKNOWN')
                 
-                # Log every 50th callback to avoid spam
-                if callback_count[0] % 50 == 1:
+                # Data validation: ensure required fields exist
+                if not data or 'symbol' not in data:
+                    log.warning("Invalid price update data (missing symbol): %s", repr(data)[:200])
+                    return
+                
+                # Log every 100th callback to avoid spam (diagnostic)
+                if callback_count[0] % 100 == 1:
                     log.info(f"📊 Price update callback #{callback_count[0]}: {symbol}")
                 
                 self._log_scalp_data(data)
@@ -351,7 +356,11 @@ class TrackBCollector(TimeAwareMixin):
         
         Enhanced record format includes execution time, bid/ask, and volume details
         for scalp strategy analysis.
+        
+        Handles both H0STCNT0 format (volume=dict, bid_ask=dict) and JSON body format
+        (volume=int, bid_price/ask_price at top level).
         """
+        log_file: Optional[Path] = None
         try:
             now = self._now()
             hour_str = now.strftime("%Y%m%d_%H")
@@ -363,23 +372,42 @@ class TrackBCollector(TimeAwareMixin):
             
             log_file = log_dir / f"{hour_str}.jsonl"
             
+            # Format compatibility: volume may be dict (H0STCNT0) or int (JSON body)
+            vol = data.get("volume")
+            if isinstance(vol, dict):
+                vol_accumulated = vol.get("accumulated", 0)
+                vol_trade_value = vol.get("trade_value")
+            else:
+                vol_accumulated = int(vol or 0) if vol is not None else 0
+                vol_trade_value = None
+            
+            # Format compatibility: bid_ask may be absent (JSON body has top-level bid_price/ask_price)
+            bid_ask = data.get("bid_ask") or {}
+            if not bid_ask and ("bid_price" in data or "ask_price" in data):
+                bid_ask = {"bid_price": data.get("bid_price"), "ask_price": data.get("ask_price")}
+            
+            # Safe price extraction (price may be None)
+            price_data = data.get("price") or {}
+            if not isinstance(price_data, dict):
+                price_data = {}
+            
             # Prepare enhanced record
             record = {
                 "timestamp": now.isoformat(),
                 "symbol": data.get("symbol", ""),
                 "execution_time": data.get("execution_time"),  # HHMMSS from WebSocket
                 "price": {
-                    "current": data.get("price", {}).get("close", 0),
-                    "open": data.get("price", {}).get("open"),
-                    "high": data.get("price", {}).get("high"),
-                    "low": data.get("price", {}).get("low"),
-                    "change_rate": data.get("price", {}).get("change_rate"),
+                    "current": price_data.get("close", 0),
+                    "open": price_data.get("open"),
+                    "high": price_data.get("high"),
+                    "low": price_data.get("low"),
+                    "change_rate": price_data.get("change_rate"),
                 },
                 "volume": {
-                    "accumulated": data.get("volume", {}).get("accumulated", 0),
-                    "trade_value": data.get("volume", {}).get("trade_value"),
+                    "accumulated": vol_accumulated,
+                    "trade_value": vol_trade_value,
                 },
-                "bid_ask": data.get("bid_ask", {}),  # {bid_price, ask_price}
+                "bid_ask": bid_ask,
                 "source": "websocket",
                 "session_id": self.cfg.session_id
             }
@@ -406,8 +434,16 @@ class TrackBCollector(TimeAwareMixin):
             price = record["price"].get("current", 0)
             log.info(f"[저장] {symbol} @ {price:,}원 → {log_file}")
         
+        except PermissionError as e:
+            log.error("Permission denied writing scalp data: %s - %s", log_file or "N/A", e)
+        except OSError as e:
+            log.error("OS error writing scalp data: %s - %s", log_file or "N/A", e)
         except Exception as e:
-            log.error(f"Error logging scalp data: {e}", exc_info=True)
+            log.error(
+                "Error logging scalp data: %s (type=%s) - data sample: %s",
+                e, type(e).__name__, repr(data)[:300],
+                exc_info=True
+            )
     
     def get_stats(self) -> Dict[str, Any]:
         """Get collector statistics"""

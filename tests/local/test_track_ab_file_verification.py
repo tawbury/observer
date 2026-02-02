@@ -3,8 +3,8 @@
 Phase 2: Track A/B 파일 생성 검증 테스트
 
 목표:
-- app/observer/config/observer/swing/YYYYMMDD.jsonl 생성 확인
-- app/observer/config/observer/scalp/YYYYMMDD.jsonl 생성 확인
+- config/observer/swing/YYYYMMDD.jsonl 생성 확인
+- config/observer/scalp/YYYYMMDD.jsonl 생성 확인
 - logs/swing/YYYYMMDD.log 생성 확인
 - logs/scalp/YYYYMMDD.log 생성 확인
 
@@ -23,9 +23,8 @@ from typing import Dict, Any, List, Optional
 
 # Setup paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-APP_ROOT = PROJECT_ROOT / "app" / "observer"
-sys.path.insert(0, str(APP_ROOT / "src"))
-sys.path.insert(0, str(APP_ROOT))
+SRC_ROOT = PROJECT_ROOT / "src"
+sys.path.insert(0, str(SRC_ROOT))
 
 # Configure logging
 logging.basicConfig(
@@ -34,8 +33,8 @@ logging.basicConfig(
 )
 log = logging.getLogger("FileVerification")
 
-# Import paths module
-from paths import (
+# Import paths module (observer package)
+from observer.paths import (
     project_root,
     config_dir,
     observer_asset_dir,

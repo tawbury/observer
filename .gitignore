@@ -1,3 +1,6 @@
+# Runtime logs (root)
+logs/
+
 app/*.tar.gz
 app/observer/MANIFEST.txt
 app/observer/config/observer/**/*.jsonl

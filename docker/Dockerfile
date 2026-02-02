@@ -1,8 +1,8 @@
-# Observer app image. Build context: repo root. Copies app/observer into /app.
+# Observer app image. Build context: repo root. Copies src/ into /app/src.
 FROM python:3.11-slim AS builder
 
 WORKDIR /build
-COPY app/observer/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 FROM python:3.11-slim
@@ -12,7 +12,7 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-COPY app/observer /app/
+COPY src /app/src
 
 RUN mkdir -p /app/data/scalp /app/data/swing \
     && mkdir -p /app/logs/scalp /app/logs/swing /app/logs/system /app/logs/maintenance \
@@ -20,7 +20,7 @@ RUN mkdir -p /app/data/scalp /app/data/swing \
     && mkdir -p /app/secrets/.kis_cache
 
 ENV OBSERVER_STANDALONE=1
-ENV PYTHONPATH=/app/src:/app
+ENV PYTHONPATH=/app/src
 ENV TZ=Asia/Seoul
 ENV OBSERVER_DATA_DIR=/app/data
 ENV OBSERVER_LOG_DIR=/app/logs

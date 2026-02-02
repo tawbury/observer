@@ -6,7 +6,7 @@ import json
 import asyncio
 from pathlib import Path
 from datetime import datetime
-from app.observer.src.universe.universe_manager import UniverseManager
+from universe.universe_manager import UniverseManager
 
 
 async def test_cache_symbols_to_file():
@@ -35,7 +35,8 @@ async def test_cache_symbols_to_file():
     symbols_dir = os.path.join(base_dir, "symbols")
     cache_path = os.path.join(symbols_dir, "kr_all_symbols.txt")
     
-    actual_path = Path(__file__).parent / "app" / "observer" / "config" / "symbols" / "kr_all_symbols.txt"
+    _root = Path(__file__).resolve().parents[1]
+    actual_path = _root / "config" / "symbols" / "kr_all_symbols.txt"
     print(f"Expected path: {actual_path}")
     
     if actual_path.exists():
@@ -71,8 +72,9 @@ async def test_load_candidates():
     # Test with file-based fallback
     print("\n2. Load candidates (with existing kr_all_symbols.txt)")
     
+    _root = Path(__file__).resolve().parents[1]
     # First ensure the file exists
-    actual_path = Path(__file__).parent / "app" / "observer" / "config" / "symbols" / "kr_all_symbols.txt"
+    actual_path = _root / "config" / "symbols" / "kr_all_symbols.txt"
     if actual_path.exists():
         um2 = UniverseManager(MockProviderEngine())
         candidates = await um2._load_candidates()
@@ -124,7 +126,8 @@ async def test_snapshot_generation_logic():
     
     # Test file reading
     print("\n3. Test snapshot loading:")
-    sample_snapshot_path = Path(__file__).parent / "app" / "observer" / "config" / "universe" / f"{target_date.strftime('%Y%m%d')}_kr_stocks.json"
+    _root = Path(__file__).resolve().parents[1]
+    sample_snapshot_path = _root / "config" / "universe" / f"{target_date.strftime('%Y%m%d')}_kr_stocks.json"
     
     if sample_snapshot_path.exists():
         with open(sample_snapshot_path, "r", encoding="utf-8") as f:
@@ -151,7 +154,8 @@ async def test_symbol_file_paths():
     print(f"   Exists: {os.path.exists(um.universe_dir)}")
     
     # Show symbol cache path logic
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "app", "observer", "config"))
+    _root = Path(__file__).resolve().parents[1]
+    base_dir = str(_root / "config")
     symbols_dir = os.path.join(base_dir, "symbols")
     txt_path = os.path.join(symbols_dir, "kr_all_symbols.txt")
     

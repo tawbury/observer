@@ -13,11 +13,11 @@ os.environ.setdefault("TRACK_A_ENABLED", "false")  # Track A 비활성화 (API �
 os.environ.setdefault("TRACK_B_ENABLED", "false")  # Track B 비활성화 (API 없음)
 
 # Add src to Python path (observer.py와 동일하게)
-sys.path.insert(0, str(Path(__file__).parent / "app" / "observer" / "src"))
-sys.path.insert(0, str(Path(__file__).parent / "app" / "observer"))
+_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_root / "src"))
 
-# paths 모듈 import
-from paths import observer_asset_dir, config_dir
+# paths 모듈 import (observer 패키지 내)
+from observer.paths import observer_asset_dir, config_dir
 
 def test_observer_paths():
     print("="*70)

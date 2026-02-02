@@ -6,7 +6,7 @@ import json
 import asyncio
 from pathlib import Path
 from datetime import datetime, date
-from app.observer.src.universe.universe_manager import UniverseManager
+from universe.universe_manager import UniverseManager
 
 
 async def test_complete_flow():
@@ -16,7 +16,7 @@ async def test_complete_flow():
     print("=" * 80)
     
     # Setup test environment
-    test_root = Path(__file__).parent / "app" / "observer" / "config"
+    test_root = Path(__file__).parent.parent / "config"
     symbols_dir = test_root / "symbols"
     universe_dir = test_root / "universe"
     
@@ -143,7 +143,8 @@ async def test_scenario_missing_symbol_file():
     print("=" * 80)
     
     # Create isolated test directory
-    test_dir = Path(__file__).parent / "app" / "observer" / "config" / "test_missing"
+    _root = Path(__file__).resolve().parents[1]
+    test_dir = _root / "config" / "test_missing"
     test_dir.mkdir(parents=True, exist_ok=True)
     
     symbols_dir = test_dir / "symbols"
@@ -294,7 +295,7 @@ async def final_summary():
     ──────────
     The cr_all_symbols.txt file you provided is perfect.
     System will use it correctly as long as:
-    1. File is at app/observer/config/symbols/kr_all_symbols.txt
+    1. File is at config/symbols/kr_all_symbols.txt
     2. File contains newline-separated symbol codes
     3. UniverseManager can read it during _load_candidates()
     

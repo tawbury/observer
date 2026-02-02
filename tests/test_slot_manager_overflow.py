@@ -2,18 +2,18 @@
 Test SlotManager overflow file creation
 
 This test verifies that SlotManager creates overflow ledger files
-in the correct location: app/observer/config/system/overflow_YYYYMMDD.jsonl
+in the correct location: <system_log_dir>/overflow_YYYYMMDD.jsonl
 """
 import sys
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-# Add app/observer/src to path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app" / "observer" / "src"))
+_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_root / "src"))
 
 from slot.slot_manager import SlotManager, SlotCandidate
-from paths import system_log_dir
+from observer.paths import system_log_dir
 
 
 def test_overflow_file_creation():

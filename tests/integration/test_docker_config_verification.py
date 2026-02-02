@@ -18,9 +18,10 @@ import re
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 
-# Project paths (App repo: docker/ and backups/ for legacy compose)
+# Project paths (App repo: src/, docker/, backups/ for legacy compose)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 BACKUP_ROOT = PROJECT_ROOT / "backups" / "pre-k8s-refactor-20260202"
+SRC_ROOT = PROJECT_ROOT / "src"
 
 
 class TestResult:
@@ -54,10 +55,10 @@ def test_docker_compose_volumes():
     ]
     
     expected_volumes = {
-        "data": ("/app/data", "app/observer/data"),
-        "logs": ("/app/logs", "app/observer/logs"),
-        "config": ("/app/config", "app/observer/config"),
-        "secrets": ("/app/secrets", "app/observer/secrets"),
+        "data": ("/app/data", "data"),
+        "logs": ("/app/logs", "logs"),
+        "config": ("/app/config", "config"),
+        "secrets": ("/app/secrets", "secrets"),
     }
     
     for name, compose_path in compose_files:
@@ -205,12 +206,12 @@ def test_host_directory_structure():
     result = TestResult()
     
     required_dirs = [
-        PROJECT_ROOT / "app" / "observer" / "config",
-        PROJECT_ROOT / "app" / "observer" / "config" / "observer",
-        PROJECT_ROOT / "app" / "observer" / "config" / "observer" / "scalp",
-        PROJECT_ROOT / "app" / "observer" / "config" / "observer" / "swing",
-        PROJECT_ROOT / "app" / "observer" / "data",
-        PROJECT_ROOT / "app" / "observer" / "secrets",
+        PROJECT_ROOT / "config",
+        PROJECT_ROOT / "config" / "observer",
+        PROJECT_ROOT / "config" / "observer" / "scalp",
+        PROJECT_ROOT / "config" / "observer" / "swing",
+        PROJECT_ROOT / "data",
+        PROJECT_ROOT / "secrets",
         PROJECT_ROOT / "logs",
     ]
     
@@ -236,10 +237,10 @@ def test_volume_path_mapping():
     # Expected mappings
     mappings = [
         ("Host", "Container", "Purpose"),
-        ("app/observer/config", "/app/config", "Config files"),
-        ("app/observer/logs", "/app/logs", "Log files"),
-        ("app/observer/data", "/app/data", "Data files"),
-        ("app/observer/secrets", "/app/secrets", "Secrets"),
+        ("config", "/app/config", "Config files"),
+        ("logs", "/app/logs", "Log files"),
+        ("data", "/app/data", "Data files"),
+        ("secrets", "/app/secrets", "Secrets"),
     ]
     
     print("\n  Volume Mapping Table:")
@@ -264,7 +265,7 @@ def test_paths_py_docker_mode():
     print("\n[6] paths.py Docker Mode Configuration")
     result = TestResult()
     
-    paths_file = PROJECT_ROOT / "app" / "observer" / "paths.py"
+    paths_file = PROJECT_ROOT / "src" / "observer" / "paths.py"
     
     if not paths_file.exists():
         result.fail("paths.py", "File not found")

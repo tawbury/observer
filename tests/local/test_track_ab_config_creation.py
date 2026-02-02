@@ -24,11 +24,10 @@ from typing import Dict, Any
 
 # Setup paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "app" / "observer" / "src"))
-sys.path.insert(0, str(PROJECT_ROOT / "app" / "observer"))
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-# Import after path setup
-from paths import (
+# Import after path setup (observer package)
+from observer.paths import (
     project_root,
     config_dir,
     observer_asset_dir,
@@ -84,11 +83,11 @@ def test_project_root():
     else:
         result.fail(".git 폴더 존재", f".git 없음: {root}")
     
-    # app/observer 폴더가 있는지
-    if (root / "app" / "observer").exists():
-        result.success("app/observer 폴더 존재")
+    # src/observer 폴더가 있는지
+    if (root / "src" / "observer").exists():
+        result.success("src/observer 폴더 존재")
     else:
-        result.fail("app/observer 폴더 존재", f"폴더 없음: {root / 'app' / 'observer'}")
+        result.fail("src/observer 폴더 존재", f"폴더 없음: {root / 'src' / 'observer'}")
     
     print(f"  → project_root(): {root}")
     return result
@@ -108,7 +107,7 @@ def test_config_dir():
         result.fail("config_dir() 경로 존재", f"경로 없음: {cfg_dir}")
     
     # 로컬 환경에서 예상 경로인지
-    expected_local = project_root() / "app" / "observer" / "config"
+    expected_local = project_root() / "config"
     if cfg_dir == expected_local:
         result.success("로컬 환경 경로 일치")
     else:
@@ -386,7 +385,7 @@ def test_environment_variable_override():
             
             # paths 모듈 리로드 없이 직접 테스트
             # (실제로는 환경 변수가 함수 호출 시점에 읽힘)
-            from paths import config_dir as get_config_dir
+            from observer.paths import config_dir as get_config_dir
             
             # 새로운 config_dir 호출
             new_cfg = get_config_dir()
@@ -411,7 +410,7 @@ def test_environment_variable_override():
         try:
             os.environ["OBSERVER_LOG_DIR"] = str(test_log_dir)
             
-            from paths import log_dir as get_log_dir
+            from observer.paths import log_dir as get_log_dir
             new_log = get_log_dir()
             
             if new_log == test_log_dir:

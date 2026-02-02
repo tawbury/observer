@@ -30,7 +30,8 @@ def test_volume_mount():
     
     # 2. Check local path
     print("\n2️⃣ Local Host Path Check")
-    local_path = Path("d:/development/prj_obs/app/observer/config/observer/scalp/")
+    project_root = Path(__file__).resolve().parent.parent.parent
+    local_path = project_root / "config" / "observer" / "scalp"
     print(f"Path: {local_path}")
     print(f"Exists: {local_path.exists()}")
     
@@ -113,8 +114,8 @@ def test_volume_mount():
     if compose_path.exists():
         with open(compose_path, 'r', encoding='utf-8') as f:
             content = f.read()
-            if '../../../app/observer/config:/app/config' in content:
-                print("✅ Volume mount configured: ../../../app/observer/config:/app/config")
+            if 'config:/app/config' in content or '/app/config' in content:
+                print("✅ Volume mount configured: config:/app/config")
             else:
                 print("❌ Volume mount NOT configured properly")
     

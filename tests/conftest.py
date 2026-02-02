@@ -1,4 +1,4 @@
-"""Pytest conftest: add app/observer and app/observer/src to path for test discovery."""
+"""Pytest conftest: add src to path for test discovery."""
 import asyncio
 import os
 import sys
@@ -9,9 +9,8 @@ import pytest
 import asyncpg
 
 _root = Path(__file__).resolve().parents[1]
-_src = _root / "app" / "observer" / "src"
-_observer = _root / "app" / "observer"
-for p in (_src, _observer):
+_src = _root / "src"
+for p in (_src,):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
@@ -109,7 +108,7 @@ async def db_schema_initialized(db_connection: asyncpg.Connection) -> bool:
     """테스트 DB에 스키마가 초기화되어 있는지 확인하고 필요시 초기화"""
     
     # 스키마 SQL 파일 경로
-    schema_dir = _root / "app" / "observer" / "src" / "db" / "schema"
+    schema_dir = _root / "src" / "db" / "schema"
     
     if not schema_dir.exists():
         pytest.skip(f"스키마 디렉토리 없음: {schema_dir}")

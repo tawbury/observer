@@ -3,9 +3,9 @@
 Phase 3.1: Docker 볼륨 매핑 검증 테스트
 
 목표:
-- 호스트 app/observer/config/observer/scalp/ <-> 컨테이너 /app/config/observer/scalp/
-- 호스트 app/observer/config/observer/swing/ <-> 컨테이너 /app/config/observer/swing/
-- 호스트 app/observer/logs/ <-> 컨테이너 /app/logs/
+- 호스트 config/observer/scalp/ (또는 project_root/config/...) <-> 컨테이너 /app/config/observer/scalp/
+- 호스트 config/observer/swing/ <-> 컨테이너 /app/config/observer/swing/
+- 호스트 logs/ <-> 컨테이너 /app/logs/
 
 실행:
   python tests/integration/test_docker_volume_mapping.py
@@ -109,10 +109,10 @@ def test_volume_mount_configuration():
     ]
     
     expected_mounts = [
-        ("config", "../../../app/observer/config:/app/config"),
-        ("logs", "../../../app/observer/logs:/app/logs"),
-        ("data", "../../../app/observer/data:/app/data"),
-        ("secrets", "../../../app/observer/secrets:/app/secrets"),
+        ("config", "config:/app/config"),
+        ("logs", "logs:/app/logs"),
+        ("data", "data:/app/data"),
+        ("secrets", "secrets:/app/secrets"),
     ]
     
     for compose_file in compose_files:
@@ -162,12 +162,12 @@ def test_host_path_access():
     result = TestResult()
     
     paths_to_check = [
-        PROJECT_ROOT / "app" / "observer" / "config",
-        PROJECT_ROOT / "app" / "observer" / "config" / "observer",
-        PROJECT_ROOT / "app" / "observer" / "config" / "observer" / "scalp",
-        PROJECT_ROOT / "app" / "observer" / "config" / "observer" / "swing",
+        PROJECT_ROOT / "config",
+        PROJECT_ROOT / "config" / "observer",
+        PROJECT_ROOT / "config" / "observer" / "scalp",
+        PROJECT_ROOT / "config" / "observer" / "swing",
         PROJECT_ROOT / "logs",
-        PROJECT_ROOT / "app" / "observer" / "data",
+        PROJECT_ROOT / "data",
     ]
     
     for path in paths_to_check:
@@ -193,7 +193,7 @@ def test_bidirectional_sync():
     test_filename = f"volume_test_{timestamp}.txt"
     
     # Test paths
-    host_config_dir = PROJECT_ROOT / "app" / "observer" / "config" / "observer" / "scalp"
+    host_config_dir = PROJECT_ROOT / "config" / "observer" / "scalp"
     container_config_path = "/app/config/observer/scalp"
     
     # Ensure host directory exists
@@ -262,7 +262,7 @@ def test_jsonl_file_sync():
     today = datetime.now().strftime("%Y%m%d")
     
     # Check scalp JSONL
-    host_scalp_jsonl = PROJECT_ROOT / "app" / "observer" / "config" / "observer" / "scalp" / f"{today}.jsonl"
+    host_scalp_jsonl = PROJECT_ROOT / "config" / "observer" / "scalp" / f"{today}.jsonl"
     container_scalp_path = f"/app/config/observer/scalp/{today}.jsonl"
     
     if host_scalp_jsonl.exists():
@@ -282,7 +282,7 @@ def test_jsonl_file_sync():
         result.skip("scalp JSONL sync", "No scalp JSONL file on host today")
     
     # Check swing JSONL
-    host_swing_jsonl = PROJECT_ROOT / "app" / "observer" / "config" / "observer" / "swing" / f"{today}.jsonl"
+    host_swing_jsonl = PROJECT_ROOT / "config" / "observer" / "swing" / f"{today}.jsonl"
     container_swing_path = f"/app/config/observer/swing/{today}.jsonl"
     
     if host_swing_jsonl.exists():
@@ -346,7 +346,7 @@ def test_paths_py_in_container():
 import sys
 sys.path.insert(0, "/app/src")
 sys.path.insert(0, "/app")
-from paths import project_root, config_dir, observer_asset_dir, observer_log_dir
+from observer.paths import project_root, config_dir, observer_asset_dir, observer_log_dir
 print(f"project_root: {project_root()}")
 print(f"config_dir: {config_dir()}")
 print(f"observer_asset_dir: {observer_asset_dir()}")

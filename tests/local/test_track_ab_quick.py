@@ -16,9 +16,8 @@ from datetime import datetime
 
 # Setup paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-APP_ROOT = PROJECT_ROOT / "app" / "observer"
-sys.path.insert(0, str(APP_ROOT / "src"))
-sys.path.insert(0, str(APP_ROOT))
+SRC_ROOT = PROJECT_ROOT / "src"
+sys.path.insert(0, str(SRC_ROOT))
 
 # Configure logging
 logging.basicConfig(
@@ -29,12 +28,12 @@ log = logging.getLogger("QuickTest")
 
 # Load .env
 from dotenv import load_dotenv
-env_path = APP_ROOT / ".env"
+env_path = PROJECT_ROOT / ".env"
 if env_path.exists():
     load_dotenv(env_path)
     log.info(f"Loaded .env from {env_path}")
 
-from paths import observer_asset_dir, observer_log_dir
+from observer.paths import observer_asset_dir, observer_log_dir
 
 
 async def test_track_a_quick():

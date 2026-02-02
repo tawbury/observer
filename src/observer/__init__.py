@@ -199,9 +199,11 @@ async def run_observer_with_api(
     status_tracker.mark_observer_started()
     status_tracker.mark_eventbus_connected(True)
 
-    # KIS credentials: drive Universe + Track A/B when set
-    kis_app_key = os.environ.get("KIS_APP_KEY")
-    kis_app_secret = os.environ.get("KIS_APP_SECRET")
+    # KIS credentials: drive Universe + Track A/B when set.
+    # Supports both .env file and direct env injection (Kubernetes Secret/ConfigMap).
+    # .env load is optional; os.environ is the source of truth.
+    kis_app_key = os.environ.get("KIS_APP_KEY") or os.environ.get("REAL_APP_KEY")
+    kis_app_secret = os.environ.get("KIS_APP_SECRET") or os.environ.get("REAL_APP_SECRET")
     kis_is_virtual = os.environ.get("KIS_IS_VIRTUAL", "false").lower() in ("true", "1", "yes")
     track_a_enabled = os.environ.get("TRACK_A_ENABLED", "true").lower() in ("true", "1", "yes")
     track_b_enabled = os.environ.get("TRACK_B_ENABLED", "false").lower() in ("true", "1", "yes")
@@ -211,7 +213,11 @@ async def run_observer_with_api(
     track_b_collector = None
 
     if kis_app_key and kis_app_secret:
-        log.info("KIS credentials found - Universe Scheduler and Track A/B will be enabled per env")
+        cred_source = "env vars (K8s/direct)" if not env_path_loaded else "env file and/or env vars"
+        log.info(
+            "KIS credentials found from %s - Universe Scheduler and Track A/B will be enabled",
+            cred_source,
+        )
         try:
             from provider import KISAuth, ProviderEngine
             from universe.universe_scheduler import UniverseScheduler, SchedulerConfig
@@ -294,10 +300,10 @@ async def run_observer_with_api(
     else:
         log.warning(
             "KIS_APP_KEY/SECRET not set - Universe and Track A/B collectors disabled. "
-            "Env file paths attempted (absolute): %s; loaded from: %s; OBSERVER_ENV_FILE=%s",
+            "Set via .env file or os.environ (e.g. K8s Secret). "
+            "Env file attempted: %s; loaded: %s",
             [str(p.resolve()) for p in env_paths_attempted],
             str(env_path_loaded.resolve()) if env_path_loaded else "none",
-            os.environ.get("OBSERVER_ENV_FILE", "(not set)"),
         )
 
     # API server in background thread (non-blocking)

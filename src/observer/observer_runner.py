@@ -137,14 +137,16 @@ def run_observer_with_api():
             os.environ.get("OBSERVER_ENV_FILE", "(not set)"),
         )
 
-    # Setup KIS credentials for Universe Scheduler
-    kis_app_key = os.environ.get("KIS_APP_KEY")
-    kis_app_secret = os.environ.get("KIS_APP_SECRET")
+    # KIS credentials: supports both .env file and direct env injection (Kubernetes Secret/ConfigMap).
+    # .env load is optional; os.environ is the source of truth.
+    kis_app_key = os.environ.get("KIS_APP_KEY") or os.environ.get("REAL_APP_KEY")
+    kis_app_secret = os.environ.get("KIS_APP_SECRET") or os.environ.get("REAL_APP_SECRET")
     kis_is_virtual = os.environ.get("KIS_IS_VIRTUAL", "false").lower() in ("true", "1", "yes")
     
     universe_scheduler = None
     if kis_app_key and kis_app_secret:
-        log.info("KIS credentials found - Universe Scheduler will be enabled")
+        cred_source = "env vars (K8s/direct)" if not env_path_loaded else "env file and/or env vars"
+        log.info("KIS credentials found from %s - Universe Scheduler will be enabled", cred_source)
         try:
             kis_auth = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
             provider_engine = ProviderEngine(kis_auth, is_virtual=kis_is_virtual)
@@ -171,10 +173,10 @@ def run_observer_with_api():
     else:
         log.warning(
             "KIS_APP_KEY/SECRET not set - Universe Scheduler disabled. "
-            "Env file paths attempted (absolute): %s; loaded from: %s; OBSERVER_ENV_FILE=%s",
+            "Set via .env file or os.environ (e.g. K8s Secret). "
+            "Env file attempted: %s; loaded: %s",
             [str(p.resolve()) for p in env_paths_attempted],
             str(env_path_loaded.resolve()) if env_path_loaded else "none",
-            os.environ.get("OBSERVER_ENV_FILE", "(not set)"),
         )
 
     # Setup event bus with file sink

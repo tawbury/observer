@@ -44,8 +44,8 @@ jobs:
       - name: Compute timestamp tag
         id: meta
         run: |
-          # Timestamp-based tag: build-YYYYMMDD-HHMMSS
-          TS="$(date +%Y%m%d-%H%M%S)"
+          # Timestamp-based tag: build-YYYYMMDD-HHMMSS (KST)
+          TS="$(TZ=Asia/Seoul date +%Y%m%d-%H%M%S)"
           if [ -n "${{ github.event.inputs.manual_tag }}" ]; then
             TAG="${{ github.event.inputs.manual_tag }}"
           else

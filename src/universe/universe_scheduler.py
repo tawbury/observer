@@ -26,6 +26,17 @@ class SchedulerConfig:
     market: str = "kr_stocks"
     anomaly_ratio: float = 0.30  # 30% deviation from previous count triggers alert
 
+    # Optional legacy fields for backward compatibility with older runner logic
+    hour: Optional[int] = None
+    minute: Optional[int] = None
+
+    def __post_init__(self):
+        """Map legacy hour/minute to PM slot if provided directly (for testing/quick-runs)."""
+        if self.hour is not None:
+            self.pm_hour = self.hour
+        if self.minute is not None:
+            self.pm_minute = self.minute
+
 
 class UniverseScheduler:
     def __init__(

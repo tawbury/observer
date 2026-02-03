@@ -34,14 +34,33 @@ class UniverseManager:
         self.min_price = int(min_price)
         self.min_count = int(min_count)
         
-        # Environment-based unified path management (Read-Only ready)
-        env_root = os.getenv("OBSERVER_DATA_DIR", "/opt/platform/runtime/observer/data")
+        # [Requirement] Environment-based unified path management (k3s compliant)
+        env_root = os.getenv("OBSERVER_DATA_DIR")
+        if not env_root:
+            logger.warning("[INIT] OBSERVER_DATA_DIR not set. Using default /data path.")
+            env_root = "/data"
+            
         self.base_path = Path(data_dir) if data_dir else Path(env_root)
-        
         self.universe_dir = self.base_path / "universe"
-        self.universe_dir.mkdir(parents=True, exist_ok=True)
+        
+        # [Requirement] Hard-fail on directory creation issues with specific message
+        try:
+            self.universe_dir.mkdir(parents=True, exist_ok=True)
+            # Explicit check for write permissions
+            test_file = self.universe_dir / ".write_test"
+            test_file.touch()
+            test_file.unlink()
+        except (PermissionError, OSError) as e:
+            logger.critical(f"[FATAL] 권한 부족: 관리자에게 {self.base_path} 폴더의 쓰기 권한 부여 요청 필요. Error: {e}")
+            import sys
+            sys.exit(1)
+        except Exception as e:
+            logger.critical(f"[FATAL] Failed to initialize universe directory: {e}")
+            import sys
+            sys.exit(1)
         
         # Initialize SymbolGenerator
+        # This will also perform its own path check
         self.symbol_gen = SymbolGenerator(self.engine, base_dir=str(self.base_path))
         
         logger.info(f"UniverseManager initialized at {self.universe_dir}")

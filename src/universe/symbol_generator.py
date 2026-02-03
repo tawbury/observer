@@ -23,18 +23,30 @@ class SymbolGenerator:
     
     def __init__(self, provider_engine, base_dir: Optional[str] = None):
         self.engine = provider_engine
-        # Use OBSERVER_DATA_DIR environment variable as root
-        env_root = os.getenv("OBSERVER_DATA_DIR", "/opt/platform/runtime/observer/data")
+        # [Requirement] Force path through OBSERVER_DATA_DIR for k3s compatibility
+        env_root = os.getenv("OBSERVER_DATA_DIR")
+        if not env_root:
+            logger.warning("[INIT] OBSERVER_DATA_DIR not set. Using default /data path.")
+            env_root = "/data"
+            
         self.base_path = Path(base_dir) if base_dir else Path(env_root)
         self.symbols_dir = self.base_path / "symbols"
+        self.universe_dir = self.base_path / "universe"  # Mandatory output directory
         self.backup_dir = self.base_path / "backup"
         
-        # Hard-fail on directory creation issues to prevent operating in an unstable environment
+        # [Requirement] Hard-fail on directory creation issues with specific message
         try:
             self.symbols_dir.mkdir(parents=True, exist_ok=True)
+            self.universe_dir.mkdir(parents=True, exist_ok=True)
             self.backup_dir.mkdir(parents=True, exist_ok=True)
-        except PermissionError as e:
-            logger.critical(f"[FATAL] Permission denied during directory creation: {e}")
+            
+            # Check write permission explicitly by creating a temporary file
+            test_file = self.symbols_dir / ".write_test"
+            test_file.touch()
+            test_file.unlink()
+            
+        except (PermissionError, OSError) as e:
+            logger.critical(f"[FATAL] 권한 부족: 관리자에게 {self.base_path} 폴더의 쓰기 권한 부여 요청 필요. Error: {e}")
             sys.exit(1)
         except Exception as e:
             logger.critical(f"[FATAL] Failed to initialize directories: {e}")
@@ -96,9 +108,11 @@ class SymbolGenerator:
 
     async def _collect_symbols_3step(self) -> Set[str]:
         """
-        3-Step Collection Strategy.
+        3-Step Collection Strategy (API -> Master File -> Local Backup).
+        All steps are strictly managed and logged.
         """
         tag = self._get_current_tag()
+        
         # Step 1: KIS API
         try:
             logger.info(f"[{tag}] Step 1: Attempting KIS API collection...")
@@ -106,41 +120,49 @@ class SymbolGenerator:
             if symbols and len(symbols) > 500:
                 logger.info(f"[{tag}] Step 1 Success: {len(symbols)} symbols fetched via API")
                 return set(symbols)
+            else:
+                logger.warning(f"[{tag}] Step 1 Failed: API returned insufficient symbols (Count: {len(symbols) if symbols else 0})")
         except Exception as e:
-            logger.warning(f"[{tag}] Step 1 Failed (API): {e}")
+            logger.error(f"[{tag}] Step 1 Failed (API 404/Connection): {e}")
 
         # Step 2: KIS Master File
         logger.info(f"[{tag}] Step 2: Attempting KIS Master File download...")
         if hasattr(self.engine, "_fetch_stock_list_from_file"):
             try:
                 symbols = await self.engine._fetch_stock_list_from_file()
-                if symbols:
+                if symbols and len(symbols) > 500:
                     logger.info(f"[{tag}] Step 2 Success: {len(symbols)} symbols from master file")
                     return set(symbols)
+                else:
+                    logger.warning(f"[{tag}] Step 2 Failed: Master file contains invalid data or insufficient symbols.")
             except Exception as e:
-                logger.warning(f"[{tag}] Step 2 Failed (Master File): {e}")
+                logger.error(f"[{tag}] Step 2 Failed (Master File 404/Fetch): {e}")
         else:
             logger.info(f"[{tag}] Step 2 Skipped: Engine method '_fetch_stock_list_from_file' not implemented.")
 
-        # Step 3: Local Backup
+        # Step 3: Local Backup (JSON Only)
         try:
-            logger.info(f"[{tag}] Step 3: Attempting local backup data...")
-            backup_files = list(self.backup_dir.glob("*.txt")) + list(self.backup_dir.glob("*.csv"))
+            logger.info(f"[{tag}] Step 3: Attempting local backup collection (JSON only) from {self.backup_dir}...")
+            # [Requirement] strictly JSON files in backup
+            backup_files = list(self.backup_dir.glob("symbols_*.json"))
             if backup_files:
                 backup_files.sort(key=os.path.getmtime, reverse=True)
                 latest_backup = backup_files[0]
-                logger.info(f"[{tag}] Loading from local backup: {latest_backup}")
+                logger.info(f"[{tag}] Loading from stable local backup: {latest_backup}")
                 
                 with open(latest_backup, "r", encoding="utf-8") as f:
-                    symbols = [line.strip() for line in f if line.strip()]
+                    data = json.load(f)
+                    symbols = data.get("symbols", [])
                 
                 if symbols:
-                    logger.info(f"[{tag}] Step 3 Success: {len(symbols)} symbols from backup")
+                    logger.info(f"[{tag}] Step 3 Success: {len(symbols)} symbols from backup snapshot")
                     return set(symbols)
             else:
-                logger.warning(f"[{tag}] Step 3 Failed: No backup files found in {self.backup_dir}")
+                logger.warning(f"[{tag}] Step 3 Failed: No valid JSON backup files found in {self.backup_dir}")
         except Exception as e:
-            logger.error(f"[{tag}] Step 3 Failed (Local Backup): {e}")
+            logger.error(f"[{tag}] Step 3 Failed (Local Backup Recovery): {e}")
+
+        return set()
 
         return set()
 

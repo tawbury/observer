@@ -181,61 +181,54 @@ class KISRestProvider:
         await self.auth.ensure_token()
         
         url = f"{self.auth.base_url}/uapi/domestic-stock/v1/quotations/inquire-price"
-        
-        # Query parameters
         params = {
-            "FID_COND_MRKT_DIV_CODE": "J",  # 시장 구분 (J: 주식)
-            "FID_INPUT_ISCD": symbol,       # 종목 코드
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_INPUT_ISCD": symbol,
         }
         
-        # Headers with TR_ID for current price
-        headers = self.auth.get_headers(tr_id="FHKST01010100")
+        # Session is managed by KISAuth singleton
+        session = await self.auth.get_session()
         
         # Retry loop
         for attempt in range(self.max_retries):
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, headers=headers, params=params) as response:
-                        data = await response.json()
+                # HEADERS MUST BE GENERATED INSIDE THE LOOP
+                # This ensures that if a 401 refresh happens, the next retry uses the NEW token.
+                headers = self.auth.get_headers(tr_id="FHKST01010100")
+                
+                async with session.get(url, headers=headers, params=params) as response:
+                    data = await response.json()
+                    
+                    # Check for API errors
+                    if data.get("rt_cd") != "0":
+                        error_msg = data.get("msg1", "Unknown error")
+                        rt_cd = data.get("rt_cd")
                         
-                        # Check for API errors
-                        if data.get("rt_cd") != "0":
-                            error_msg = data.get("msg1", "Unknown error")
-                            rt_cd = data.get("rt_cd")
-                            
-                            # Handle 401 Unauthorized
-                            if response.status == 401:
-                                logger.warning("Token expired, refreshing...")
-                                await self.auth._refresh_token()
-                                continue  # Retry with new token
-                            
-                            # Handle rate limit errors (rt_cd: 1 and "초당 거래건수" message)
-                            if rt_cd == "1" or response.status == 429 or "초당" in error_msg or "초과" in error_msg:
-                                wait_time = min(2 ** (attempt + 1), 16)  # Exponential backoff, max 16s
-                                logger.warning(
-                                    f"Rate limit exceeded (rt_cd: {rt_cd}, msg: {error_msg}), "
-                                    f"waiting {wait_time}s... (attempt {attempt + 1}/{self.max_retries})"
-                                )
-                                await asyncio.sleep(wait_time)
-                                continue
-                            
-                            raise RuntimeError(f"API error: {error_msg} (rt_cd: {rt_cd})")
+                        # Handle 401 Unauthorized
+                        if response.status == 401:
+                            logger.warning(f"401 Unauthorized for {symbol}, triggering emergency refresh...")
+                            await self.auth.emergency_refresh()
+                            continue  # Loop will restart, headers will be re-generated with NEW token
                         
-                        # Normalize data
-                        return self._normalize_current_price(data, symbol)
+                        # Handle rate limit errors
+                        if rt_cd == "1" or response.status == 429 or "초당" in error_msg or "초과" in error_msg:
+                            wait_time = min(2 ** (attempt + 1), 16)
+                            logger.warning(f"Rate limit hit for {symbol}, waiting {wait_time}s...")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        
+                        raise RuntimeError(f"API error: {error_msg} (rt_cd: {rt_cd})")
+                    
+                    return self._normalize_current_price(data, symbol)
             
             except aiohttp.ClientError as e:
-                logger.error(f"Network error (attempt {attempt + 1}/{self.max_retries}): {e}")
+                logger.error(f"Network error for {symbol} (attempt {attempt + 1}): {e}")
                 if attempt < self.max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
                 else:
-                    raise RuntimeError(f"Failed after {self.max_retries} attempts") from e
-            
-            except Exception as e:
-                logger.error(f"Unexpected error: {e}")
-                raise
+                    raise
         
-        raise RuntimeError("Max retries exceeded")
+        raise RuntimeError(f"Max retries reached for {symbol}")
     
     def _normalize_current_price(self, data: Dict, symbol: str) -> Dict:
         """
@@ -327,7 +320,6 @@ class KISRestProvider:
             start_date = start_dt.strftime("%Y%m%d")
         
         url = f"{self.auth.base_url}/uapi/domestic-stock/v1/quotations/inquire-daily-price"
-        
         params = {
             "FID_COND_MRKT_DIV_CODE": "J",
             "FID_INPUT_ISCD": symbol,
@@ -335,46 +327,45 @@ class KISRestProvider:
             "FID_ORG_ADJ_PRC": "0",         # 0: 수정주가 미반영
         }
         
-        headers = self.auth.get_headers(tr_id="FHKST01010400")
+        # Session is managed by KISAuth singleton
+        session = await self.auth.get_session()
         
         for attempt in range(self.max_retries):
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, headers=headers, params=params) as response:
-                        data = await response.json()
+                # HEADERS MUST BE GENERATED INSIDE THE LOOP
+                headers = self.auth.get_headers(tr_id="FHKST01010400")
+                
+                async with session.get(url, headers=headers, params=params) as response:
+                    data = await response.json()
+                    
+                    if data.get("rt_cd") != "0":
+                        error_msg = data.get("msg1", "Unknown error")
+                        rt_cd = data.get("rt_cd")
                         
-                        if data.get("rt_cd") != "0":
-                            error_msg = data.get("msg1", "Unknown error")
-                            rt_cd = data.get("rt_cd")
-                            
-                            if response.status == 401:
-                                logger.warning("Token expired, refreshing...")
-                                await self.auth._refresh_token()
-                                continue
-                            
-                            # Handle rate limit errors (rt_cd: 1 and "초당 거래건수" message)
-                            if rt_cd == "1" or response.status == 429 or "초당" in error_msg or "초과" in error_msg:
-                                wait_time = min(2 ** (attempt + 1), 16)  # Exponential backoff, max 16s
-                                logger.warning(
-                                    f"Rate limit exceeded (rt_cd: {rt_cd}, msg: {error_msg}), "
-                                    f"waiting {wait_time}s... (attempt {attempt + 1}/{self.max_retries})"
-                                )
-                                await asyncio.sleep(wait_time)
-                                continue
-                            
-                            raise RuntimeError(f"API error: {error_msg} (rt_cd: {rt_cd})")
+                        if response.status == 401:
+                            logger.warning(f"401 Unauthorized for {symbol}, triggering emergency refresh...")
+                            await self.auth.emergency_refresh()
+                            continue
                         
-                        # Normalize daily data
-                        return self._normalize_daily_prices(data, symbol)
+                        # Handle rate limit errors
+                        if rt_cd == "1" or response.status == 429 or "초당" in error_msg or "초과" in error_msg:
+                            wait_time = min(2 ** (attempt + 1), 16)
+                            logger.warning(f"Rate limit hit for {symbol}, waiting {wait_time}s...")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        
+                        raise RuntimeError(f"API error: {error_msg} (rt_cd: {rt_cd})")
+                    
+                    return self._normalize_daily_prices(data, symbol)
             
             except aiohttp.ClientError as e:
-                logger.error(f"Network error (attempt {attempt + 1}/{self.max_retries}): {e}")
+                logger.error(f"Network error for {symbol} (attempt {attempt + 1}): {e}")
                 if attempt < self.max_retries - 1:
                     await asyncio.sleep(2 ** attempt)
                 else:
-                    raise RuntimeError(f"Failed after {self.max_retries} attempts") from e
+                    raise
         
-        raise RuntimeError("Max retries exceeded")
+        raise RuntimeError(f"Max retries reached for {symbol}")
     
     def _normalize_daily_prices(self, data: Dict, symbol: str) -> List[Dict]:
         """

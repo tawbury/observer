@@ -90,13 +90,18 @@ class UniverseManager:
                     # If data is empty or first item has 0 price, it might be suspended/delisted
                     close = self._extract_prev_close(data)
                     
-                    if close is not None and close >= self.min_price:
-                        # Optional: check current price only for potential strategy-specific filtering
-                        # current_data = await self.engine.fetch_current_price(sym)
-                        # ...
-                        selected.append(sym)
-                except Exception:
-                    pass
+                    if close is not None:
+                        if close >= self.min_price:
+                            selected.append(sym)
+                        else:
+                            # Optional: log symbols filtered by price for transparency
+                            pass
+                    else:
+                        # Log as warning since this might be a data issue or suspension
+                        print(f"[WARNING] Symbol {sym}: Could not extract previous close prices (Suspended?)")
+                except Exception as e:
+                    # Log the actual error instead of silent pass
+                    print(f"[ERROR] Symbol {sym} collection failed: {str(e)}")
                 finally:
                     processed_count += 1
                     if processed_count % 100 == 0:

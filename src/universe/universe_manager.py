@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Iterable, List, Optional, Dict, Any
 
-from observer.paths import config_dir
+from observer.paths import snapshot_dir
 
 
 class UniverseManager:
@@ -36,9 +36,8 @@ class UniverseManager:
         self.market = market
         self.min_price = int(min_price)
         self.min_count = int(min_count)
-        # Default snapshot dir: project config/universe (canonical path)
-        base = config_dir()
-        self.universe_dir = universe_dir or str(base / "universe")
+        # Default snapshot dir: data/universe (centralized in paths.py)
+        self.universe_dir = universe_dir or str(snapshot_dir())
         Path(self.universe_dir).mkdir(parents=True, exist_ok=True)
         self._candidate_symbols = list(candidate_symbols) if candidate_symbols else None
 

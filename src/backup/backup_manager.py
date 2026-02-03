@@ -21,7 +21,7 @@ from datetime import datetime, time, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from observer.paths import project_root, config_dir, observer_asset_dir, log_dir
+from observer.paths import project_root, config_dir, observer_asset_dir, log_dir, data_dir
 
 try:
     from zoneinfo import ZoneInfo
@@ -66,14 +66,15 @@ class BackupConfig:
     retention_days: int = 30
 
     def __post_init__(self):
-        if self.backup_root_dir is None or "obs_deploy" in (self.backup_root_dir or ""):
-            self.backup_root_dir = str(project_root() / "backups")
-        if self.source_dirs is None or any("obs_deploy" in d for d in (self.source_dirs or [])):
+        if self.backup_root_dir is None:
+            self.backup_root_dir = str(data_dir() / "backups")
+        if self.source_dirs is None:
             self.source_dirs = [
                 str(config_dir()),
                 str(observer_asset_dir()),
                 str(log_dir()),
             ]
+
 
 
 class BackupManager:

@@ -104,11 +104,21 @@ def data_dir() -> Path:
     """
     Canonical data root directory.
 
+    Environment variable: OBSERVER_DATA_DIR (legacy app/observer paths ignored)
+    Default: {project_root}/data
+
     Policy:
     - data/assets/ holds observer-generated JSON/JSONL (scalp, swing, system).
     - Other subdirs under data/ are for ephemeral runtime artifacts.
     """
-    return project_root() / "data"
+    env_path = os.environ.get("OBSERVER_DATA_DIR")
+    if env_path and not _is_legacy_app_observer_path(env_path):
+        path = Path(env_path)
+    else:
+        path = project_root() / "data"
+    path = path.resolve()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def config_dir() -> Path:
@@ -352,28 +362,40 @@ def maintenance_log_dir() -> Path:
     return path
 
 
+def snapshot_dir() -> Path:
+    """
+    Canonical Universe/Symbol snapshot directory.
+
+    Environment variable: OBSERVER_SNAPSHOT_DIR
+    Default: {data_dir}/universe
+    """
+    env_path = os.environ.get("OBSERVER_SNAPSHOT_DIR")
+    if env_path and not _is_legacy_app_observer_path(env_path):
+        path = Path(env_path)
+    else:
+        path = data_dir() / "universe"
+    path = path.resolve()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def kis_token_cache_dir() -> Path:
     """
     KIS API token cache directory.
 
     Environment variables:
     - KIS_TOKEN_CACHE_DIR: override cache directory (absolute recommended)
-    - OBSERVER_PROJECT_ROOT: override project root for secrets/.kis_cache
 
-    Default: {project_root}/secrets/.kis_cache (Docker and local)
-    Token file: secrets/.kis_cache/token_real.json (or token_virtual.json)
+    Default: {data_dir}/cache (Docker and local)
+    Token file: {data_dir}/cache/token_real.json (or token_virtual.json)
     Returns an absolute path so cache is always under a canonical location.
     """
     env_path = os.environ.get("KIS_TOKEN_CACHE_DIR")
     if env_path and not _is_legacy_app_observer_path(env_path):
         path = Path(env_path)
     else:
-        root = (
-            Path(os.environ["OBSERVER_PROJECT_ROOT"])
-            if os.environ.get("OBSERVER_PROJECT_ROOT")
-            else project_root()
-        )
-        path = root / "secrets" / ".kis_cache"
+        # Move from secrets/ (Read-only) to data/cache (Writable)
+        path = data_dir() / "cache"
     path = path.resolve()
     path.mkdir(parents=True, exist_ok=True)
     return path

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import sys
 import logging
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -60,6 +61,8 @@ class UniverseManager:
         self.symbol_gen = SymbolGenerator(self.engine, base_dir=str(self.base_path))
         
         logger.info(f"UniverseManager initialized at {self.universe_dir}")
+        print(f"[UniverseManager] initialized. universe_dir={self.universe_dir}")
+        sys.stdout.flush()
 
     # ----------------------- Public APIs -----------------------
     def get_current_universe(self) -> List[str]:
@@ -145,6 +148,8 @@ class UniverseManager:
             json.dump(snapshot, f, ensure_ascii=False, indent=2)
             
         logger.info(f"Daily snapshot created: {path} ({len(selected)} symbols)")
+        print(f"[UniverseManager] Daily snapshot created: {path} (count={len(selected)})")
+        sys.stdout.flush()
         return str(path)
 
     # ----------------------- Internals -----------------------
@@ -160,6 +165,8 @@ class UniverseManager:
         # A. Attempt today's generation
         try:
             logger.info(f"[{tag}] Generating/Loading today's symbol candidates...")
+            print(f"[{tag}] Starting symbol candidate generation through SymbolGenerator...")
+            sys.stdout.flush()
             await self.symbol_gen.generate_daily_symbols()
         except Exception as e:
             logger.warning(f"[{tag}] [RECOVERY] Today's symbol generation failed: {e}. Attempting history search...")
@@ -177,7 +184,10 @@ class UniverseManager:
                     if file_date != today_str:
                         logger.warning(f"[{tag}] ⚠️ [RECOVERY] Today's data missing. Using past data from {file_date}")
                     
-                    return data.get("symbols", [])
+                    symbols = data.get("symbols", [])
+                    print(f"[{tag}] Loaded {len(symbols)} robust candidates from {latest_file}")
+                    sys.stdout.flush()
+                    return symbols
             except Exception as e:
                 logger.error(f"[{tag}] [RECOVERY] Failed to read latest symbol file {latest_file}: {e}")
         

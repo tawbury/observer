@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sys
 from dataclasses import dataclass
 from datetime import datetime, date, time, timedelta, timezone
 from typing import Optional, Callable, List, Dict, Any
@@ -134,6 +135,9 @@ class UniverseScheduler:
             "min_count": self.cfg.min_count,
         }
         
+        print(f"[{tag}] Starting Universe generation process for {today.isoformat()}...")
+        sys.stdout.flush()
+        
         try:
             log.info("[%s] Starting scheduled universe snapshot for %s", tag, today.isoformat())
             path = await self._manager.create_daily_snapshot(today)
@@ -160,6 +164,8 @@ class UniverseScheduler:
                 path,
                 len(prev_symbols) if prev_symbols else 0,
             )
+            print(f"[{tag}] Universe process completed successfully. Current count: {len(current_symbols)}")
+            sys.stdout.flush()
             
             # Anomaly detection (Log alert if size deviation is too high)
             self._check_anomaly(len(current_symbols), len(prev_symbols) if prev_symbols else None)
@@ -236,10 +242,23 @@ async def _run_cli(run_once: bool = False) -> None:
 
 def main():
     import argparse
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+    import sys
+    
+    # Force basicConfig to ensure it's not overridden by other modules
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+        force=True
+    )
+    
     parser = argparse.ArgumentParser(description="Universe Scheduler")
     parser.add_argument("--run-once", action="store_true", help="Run once immediately and exit")
     args = parser.parse_args()
+    
+    print(f"[UniverseScheduler] Starting main. run_once={args_run_once := args.run_once}")
+    sys.stdout.flush()
+    
     asyncio.run(_run_cli(run_once=args.run_once))
 
 

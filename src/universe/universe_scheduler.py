@@ -57,6 +57,17 @@ class UniverseScheduler:
     # ---------------------------------------------------------
     async def run_forever(self) -> None:
         """Run the scheduler loop indefinitely."""
+        # [INIT-CHECK] Immediate check on startup to prevent data gaps
+        try:
+            today = date.today()
+            if not self._manager.load_universe(today):
+                log.info("[INIT-CHECK] Today's snapshot missing. Starting immediate generation...")
+                await self._run_once_internal()
+            else:
+                log.info("[INIT-CHECK] Today's snapshot exists. Waiting for next schedule.")
+        except Exception as e:
+            log.error("[INIT-CHECK] [ERROR] Startup generation check failed: %s", e)
+
         while True:
             next_run = self._next_run_dt()
             now = datetime.now(self._tz)

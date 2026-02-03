@@ -1,82 +1,107 @@
 import asyncio
 import json
 import os
+import sys
+import logging
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Iterable, List, Optional, Dict, Any
+import glob
 
-from observer.paths import config_dir
+from .symbol_generator import SymbolGenerator
+
+logger = logging.getLogger("UniverseManager")
 
 
 class UniverseManager:
     """
     Universe manager responsible for:
-    - Building a daily universe snapshot from previous trading day's close
-    - Loading cached universe snapshots
-    - Returning current day's universe list
-
-    Notes:
-    - Candidate symbol source is pluggable via `candidate_symbols` or by placing
-      a file under `config/symbols/kr_all_symbols.(txt|csv)`.
-    - Price filter uses previous trading day's close via ProviderEngine.fetch_daily_prices().
-    - This implementation uses weekday-based previous trading day (Mon -> Fri). Holiday
-      handling can be added later with an exchange calendar.
+    - Building a daily universe snapshot using filtered symbols.
+    - Loading cached universe snapshots.
+    - Integrating with SymbolGenerator for high-availability symbol sourcing.
+    - Implementing robust recovery for missing/corrupted data.
     """
 
     def __init__(
         self,
         provider_engine,
-        universe_dir: Optional[str] = None,
         market: str = "kr_stocks",
         min_price: int = 4000,
         min_count: int = 100,
-        candidate_symbols: Optional[Iterable[str]] = None,
+        data_dir: Optional[str] = None,
     ) -> None:
         self.engine = provider_engine
         self.market = market
         self.min_price = int(min_price)
         self.min_count = int(min_count)
-        # Default snapshot dir: project config/universe (canonical path)
-        base = config_dir()
-        self.universe_dir = universe_dir or str(base / "universe")
-        Path(self.universe_dir).mkdir(parents=True, exist_ok=True)
-        self._candidate_symbols = list(candidate_symbols) if candidate_symbols else None
+        
+        # [Requirement] Environment-based unified path management
+        from observer.paths import observer_data_dir
+        self.base_path = Path(data_dir) if data_dir else observer_data_dir()
+        self.universe_dir = self.base_path / "universe"
+        
+        # [Requirement] Hard-fail on directory creation issues with specific message
+        try:
+            self.universe_dir.mkdir(parents=True, exist_ok=True)
+            # Explicit check for write permissions
+            test_file = self.universe_dir / ".write_test"
+            test_file.touch()
+            test_file.unlink()
+        except (PermissionError, OSError) as e:
+            logger.critical(f"[FATAL] 권한 부족: 관리자에게 {self.base_path} 폴더의 쓰기 권한 부여 요청 필요. Error: {e}")
+            import sys
+            sys.exit(1)
+        except Exception as e:
+            logger.critical(f"[FATAL] Failed to initialize universe directory: {e}")
+            import sys
+            sys.exit(1)
+        
+        # Initialize SymbolGenerator
+        # This will also perform its own path check
+        self.symbol_gen = SymbolGenerator(self.engine, base_dir=str(self.base_path))
+        
+        logger.info(f"UniverseManager initialized at {self.universe_dir}")
+        print(f"[UniverseManager] initialized. universe_dir={self.universe_dir}")
+        sys.stdout.flush()
 
     # ----------------------- Public APIs -----------------------
     def get_current_universe(self) -> List[str]:
-        """Load today's universe list; falls back to last available snapshot, then file/candidates."""
+        """Load today's universe list; falls back to last available snapshot."""
         today = date.today()
         symbols = self._try_load_universe_list(today)
-        if symbols is not None:
+        if symbols:
             return symbols
-        # Fallback to most recent snapshot if today's not found
-        latest = self._find_latest_snapshot()
-        if latest:
-            return self._load_universe_list_from_path(latest)
-        # No snapshot: sync file-only candidates or built-in 20 symbols (no API)
-        return self._load_candidates_from_file_sync()
+            
+        # Fallback: Find the latest valid snapshot
+        latest_snapshot = self._find_latest_snapshot()
+        if latest_snapshot:
+            logger.warning(f"Today's universe not found. Falling back to latest snapshot: {latest_snapshot}")
+            return self._load_universe_list_from_path(latest_snapshot)
+            
+        return []
 
     def load_universe(self, day: str | date | datetime) -> List[str]:
-        """Load universe list for the given day (YYYY-MM-DD|date|datetime)."""
+        """Load universe list for the given day."""
         dt = self._as_date(day)
         symbols = self._try_load_universe_list(dt)
         return symbols or []
 
     async def create_daily_snapshot(self, day: str | date | datetime) -> str:
         """
-        Create daily universe snapshot JSON for `day` using previous trading day's close.
+        Create daily universe snapshot using latest symbols from SymbolGenerator.
         Returns the written file path.
         """
         target_date = self._as_date(day)
         prev_trading = self._previous_trading_day(target_date)
 
-        candidates = await self._load_candidates()
+        # 1. Load latest symbols via SymbolGenerator (Robust recovery inside)
+        candidates = await self._load_robust_candidates()
         if not candidates:
-            raise ValueError("No candidate symbols available to build universe.")
+            raise ValueError("No candidate symbols available from any source.")
 
-        # Fetch previous close concurrently with bounded concurrency
+        # 2. Filter symbols by price
         selected: List[str] = []
-        sem = asyncio.Semaphore(10)  # Increased concurrency for faster processing
+        sem = asyncio.Semaphore(15) # Optimized concurrency
         processed_count = 0
         total_candidates = len(candidates)
 
@@ -84,252 +109,179 @@ class UniverseManager:
             nonlocal processed_count
             async with sem:
                 try:
-                    # Check historical data for price filter (and suspension check)
-                    # We use days=2 to get the most recent valid trading day
+                    # Filter uses previous trading day's close
                     data = await self.engine.fetch_daily_prices(sym, days=2)
-                    
-                    # If data is empty or first item has 0 price, it might be suspended/delisted
                     close = self._extract_prev_close(data)
                     
                     if close is not None and close >= self.min_price:
-                        # Optional: check current price only for potential strategy-specific filtering
-                        # current_data = await self.engine.fetch_current_price(sym)
-                        # ...
                         selected.append(sym)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Symbol {sym} filter failed: {e}")
                 finally:
                     processed_count += 1
                     if processed_count % 100 == 0:
-                        print(f"[PROGRESS] Universe build: {processed_count}/{total_candidates} processed...")
+                        logger.info(f"Universe build: {processed_count}/{total_candidates} processed...")
 
         await asyncio.gather(*(fetch_and_filter(s) for s in candidates))
 
+        # Check size constraint
         if len(selected) < self.min_count:
-            raise ValueError(
-                f"Universe size too small: {len(selected)} < {self.min_count}. Provide more candidates or lower threshold."
-            )
+            logger.warning(f"Universe size ({len(selected)}) below min_count ({self.min_count}).")
 
+        # 3. Save snapshot
         snapshot = {
-            "date": target_date.isoformat(),
-            "market": self.market,
-            "filter_criteria": {
-                "min_price": self.min_price,
-                "prev_trading_day": prev_trading.isoformat(),
+            "metadata": {
+                "date": target_date.isoformat(),
+                "market": self.market,
+                "filter_criteria": {
+                    "min_price": self.min_price,
+                    "prev_trading_day": prev_trading.isoformat(),
+                },
+                "generated_at": datetime.now().isoformat(),
+                "count": len(selected),
             },
             "symbols": sorted(selected),
-            "count": len(selected),
         }
 
         path = self._snapshot_path(target_date)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(snapshot, f, ensure_ascii=False, indent=2)
-        return path
+            
+        logger.info(f"Daily snapshot created: {path} ({len(selected)} symbols)")
+        print(f"[UniverseManager] Daily snapshot created: {path} (count={len(selected)})")
+        sys.stdout.flush()
+        return str(path)
 
     # ----------------------- Internals -----------------------
-    def _snapshot_path(self, day: date) -> str:
+    def _get_tag(self) -> str:
+        """Helper to get current time tag."""
+        now = datetime.now()
+        if now.hour < 12: return "AM"
+        return "PM"
+
+    async def _load_robust_candidates(self) -> List[str]:
+        """Load symbols from today's collection or fallback to most recent valid file."""
+        tag = self._get_tag()
+        # A. Attempt today's generation
+        try:
+            logger.info(f"[{tag}] Generating/Loading today's symbol candidates...")
+            print(f"[{tag}] Starting symbol candidate generation through SymbolGenerator...")
+            sys.stdout.flush()
+            await self.symbol_gen.generate_daily_symbols()
+        except Exception as e:
+            logger.warning(f"[{tag}] [RECOVERY] Today's symbol generation failed: {e}. Attempting history search...")
+
+        # B. Robust fallback: find most recent valid file (AM or PM)
+        latest_file = self.symbol_gen.get_latest_symbol_file()
+        if latest_file:
+            logger.info(f"[{tag}] Using symbol source: {latest_file}")
+            try:
+                with open(latest_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    
+                    file_date = data.get("metadata", {}).get("date")
+                    today_str = date.today().strftime("%Y%m%d")
+                    if file_date != today_str:
+                        logger.warning(f"[{tag}] ⚠️ [RECOVERY] Today's data missing. Using past data from {file_date}")
+                    
+                    symbols = data.get("symbols", [])
+                    print(f"[{tag}] Loaded {len(symbols)} robust candidates from {latest_file}")
+                    sys.stdout.flush()
+                    return symbols
+            except Exception as e:
+                logger.error(f"[{tag}] [RECOVERY] Failed to read latest symbol file {latest_file}: {e}")
+        
+        logger.error(f"[{tag}] ❌ [CRITICAL] No valid symbol file found in historical storage.")
+        return []
+
+    def _snapshot_path(self, day: date) -> Path:
         ymd = day.strftime("%Y%m%d")
         filename = f"{ymd}_{self.market}.json"
-        return os.path.join(self.universe_dir, filename)
+        return self.universe_dir / filename
 
     def _try_load_universe_list(self, day: date) -> Optional[List[str]]:
         path = self._snapshot_path(day)
-        if os.path.exists(path):
+        if path.exists():
             return self._load_universe_list_from_path(path)
         return None
 
-    def _load_universe_list_from_path(self, path: str) -> List[str]:
-        with open(path, "r", encoding="utf-8") as f:
-            payload = json.load(f)
-        return payload.get("symbols", [])
+    def _load_universe_list_from_path(self, path: Path | str) -> List[str]:
+        tag = self._get_tag()
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+            return payload.get("symbols", [])
+        except Exception as e:
+            logger.error(f"[{tag}] [ERROR] Failed to load universe list from {path}: {e}")
+            return []
 
-    def _find_latest_snapshot(self) -> Optional[str]:
-        if not os.path.isdir(self.universe_dir):
-            return None
-        files = [
-            os.path.join(self.universe_dir, f)
-            for f in os.listdir(self.universe_dir)
-            if f.endswith("_" + self.market + ".json")
-        ]
+    def _find_latest_snapshot(self) -> Optional[Path]:
+        files = list(self.universe_dir.glob(f"*_{self.market}.json"))
         if not files:
             return None
-        files.sort(reverse=True)  # filename starts with YYYYMMDD
+        files.sort(reverse=True)
         return files[0]
 
-    def _load_candidates_from_file_sync(self) -> List[str]:
-        """
-        Load candidate symbols from file only (sync, no API).
-        Used when no today snapshot and no latest snapshot exist.
-        Priority: config/symbols/kr_all_symbols.txt -> .csv -> built-in 20 symbols.
-        """
-        base_dir = os.environ.get("OBSERVER_CONFIG_DIR")
-        if not base_dir:
-            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "config"))
-        symbols_dir = os.path.join(base_dir, "symbols")
-        txt_path = os.path.join(symbols_dir, "kr_all_symbols.txt")
-        csv_path = os.path.join(symbols_dir, "kr_all_symbols.csv")
-        result: List[str] = []
-
-        if os.path.exists(txt_path):
-            with open(txt_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    s = line.strip()
-                    if s:
-                        result.append(s)
-            if result:
-                return list(dict.fromkeys(result))
-
-        if os.path.exists(csv_path):
-            with open(csv_path, "r", encoding="utf-8") as f:
-                header = f.readline()
-                cols = [c.strip().lower() for c in header.split(",")]
-                sym_idx = None
-                for i, c in enumerate(cols):
-                    if c in ("symbol", "code", "sym"):
-                        sym_idx = i
-                        break
-                if sym_idx is None:
-                    sym_idx = 0
-                for line in f:
-                    parts = [p.strip() for p in line.split(",")]
-                    if parts and parts[0]:
-                        result.append(parts[sym_idx])
-            if result:
-                return list(dict.fromkeys(result))
-
-        # Built-in minimal fallback (20 symbols)
-        return [
-            "005930", "000660", "005380", "373220", "207940",
-            "035420", "035720", "051910", "005490", "068270",
-            "028260", "006400", "105560", "055550", "012330",
-            "096770", "034730", "003550", "259960", "066570",
-        ]
-
     def _as_date(self, day: str | date | datetime) -> date:
-        if isinstance(day, datetime):
-            return day.date()
-        if isinstance(day, date):
-            return day
-        # Expect YYYY-MM-DD
-        return datetime.fromisoformat(day).date()
+        if isinstance(day, datetime): return day.date()
+        if isinstance(day, date): return day
+        try:
+            return datetime.fromisoformat(day).date()
+        except ValueError:
+            # Handle YYYYMMDD compact format
+            if len(str(day)) == 8:
+                return datetime.strptime(str(day), "%Y%m%d").date()
+            raise
 
     def _previous_trading_day(self, target: date) -> date:
-        # Weekday-based previous trading day (Mon->Fri), holidays not handled yet
-        wd = target.weekday()  # 0=Mon ... 6=Sun
-        if wd == 0:
-            return target - timedelta(days=3)
-        if wd in (6,):
-            # Sunday -> previous Friday
-            return target - timedelta(days=2)
-        return target - timedelta(days=1)
-
-    async def _load_candidates(self) -> List[str]:
         """
-        Load candidate symbols from multiple sources in priority order:
-        1. API fetch from provider (most up-to-date)
-        2. Cached file (kr_all_symbols.txt/csv) - updated from last API fetch
-        3. Constructor-provided candidate_symbols
-        4. Built-in fallback list (minimal)
+        Calculate target trading day based on execution time.
+        - Before 09:00 AM: Market hasn't opened. Target 'Day before yesterday' or latest.
+        - After 04:00 PM (16:00): Market closed today. Target 'Today'.
+        - Otherwise (Daytime): Target 'Yesterday'.
         """
-        # Priority 1: Try API fetch
-        try:
-            print("[INFO] Fetching stock list from KIS API...")
-            api_symbols = await self.engine.fetch_stock_list(market="ALL")
-            if api_symbols and len(api_symbols) > 100:
-                print(f"[SUCCESS] Fetched {len(api_symbols)} symbols from API")
-                # Cache to file for future use
-                await self._cache_symbols_to_file(api_symbols)
-                return list(dict.fromkeys(api_symbols))
-            else:
-                print(f"[WARNING] API returned insufficient symbols ({len(api_symbols)}), trying file...")
-        except Exception as e:
-            print(f"[WARNING] API fetch failed: {e}, falling back to file...")
+        now = datetime.now()
+        current_date = now.date()
         
-        # Priority 2: Constructor-provided symbols
-        if self._candidate_symbols is not None:
-            print(f"[INFO] Using constructor-provided symbols ({len(self._candidate_symbols)})")
-            return list(dict.fromkeys(self._candidate_symbols))
-        
-        # Priority 3: File-based candidates (config/symbols)
-        symbols_dir = config_dir() / "symbols"
-        txt_path = symbols_dir / "kr_all_symbols.txt"
-        csv_path = symbols_dir / "kr_all_symbols.csv"
-        result: List[str] = []
+        # Adjust target based on current time
+        effective_target = target
+        if target == current_date:
+            if now.hour < 9:
+                # Before market open, target the day before yesterday's data
+                effective_target = target - timedelta(days=1)
+            elif now.hour >= 16:
+                # After market close, today's data is the target
+                return target
 
-        if txt_path.exists():
-            print(f"[INFO] Loading cached symbols from: {txt_path}")
-            with open(txt_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    s = line.strip()
-                    if s:
-                        result.append(s)
-            print(f"[INFO] Loaded {len(result)} symbols from file")
-            if result:
-                return list(dict.fromkeys(result))
-        
-        if csv_path.exists():
-            print(f"[INFO] Loading cached symbols from: {csv_path}")
-            with open(csv_path, "r", encoding="utf-8") as f:
-                header = f.readline()
-                cols = [c.strip().lower() for c in header.split(",")]
-                sym_idx = None
-                for i, c in enumerate(cols):
-                    if c in ("symbol", "code", "sym"):
-                        sym_idx = i
-                        break
-                if sym_idx is None:
-                    sym_idx = 0
-                for line in f:
-                    parts = [p.strip() for p in line.split(",")]
-                    if parts and parts[0]:
-                        result.append(parts[sym_idx])
-            if result:
-                return list(dict.fromkeys(result))
-        
-        # Priority 4: Built-in minimal fallback
-        print("[WARNING] No API/file source available, using built-in fallback (20 symbols)")
-        result = [
-            "005930", "000660", "005380", "373220", "207940",
-            "035420", "035720", "051910", "005490", "068270",
-            "028260", "006400", "105560", "055550", "012330",
-            "096770", "034730", "003550", "259960", "066570",
-        ]
-        result = list(dict.fromkeys(result))
-        # 트리거 발동 시 캐시 파일 생성 (서버 등에서 API 미동작 시에도 kr_all_symbols.txt 생성)
-        await self._cache_symbols_to_file(result)
-        return result
-    
-    async def _cache_symbols_to_file(self, symbols: List[str]) -> None:
-        """Cache fetched symbols to file for future fallback use."""
-        try:
-            symbols_dir = config_dir() / "symbols"
-            symbols_dir.mkdir(parents=True, exist_ok=True)
-            cache_path = symbols_dir / "kr_all_symbols.txt"
-            with open(cache_path, "w", encoding="utf-8") as f:
-                for sym in symbols:
-                    f.write(f"{sym}\n")
-            print(f"[INFO] Cached {len(symbols)} symbols to {cache_path}")
-        except Exception as e:
-            print(f"[WARNING] Failed to cache symbols to file: {e}")
+        # Standard previous weekday logic
+        td = effective_target - timedelta(days=1)
+        while td.weekday() >= 5: # Skip Sat(5), Sun(6)
+            td -= timedelta(days=1)
+        return td
 
-    def _extract_prev_close(self, payload: Any) -> Optional[int]:
-        """Extract close price from ProviderEngine.fetch_daily_prices() result.
-
-        Provider returns a list of normalized daily contracts, each like:
-        {
-          "instruments": [{"symbol": ..., "price": {"close": int}, ...}], ...
-        }
-        Choose the first entry's close as most recent (API order dependent).
-        """
+    def _extract_prev_close(self, payload: Any, symbol: Optional[str] = None) -> Optional[int]:
+        """Defensive extraction of close price with detailed error logging."""
+        tag = self._get_tag()
         if not isinstance(payload, list) or not payload:
             return None
-        first = payload[0]
         try:
-            instruments = first.get("instruments")
+            first_entry = payload[0]
+            instruments = first_entry.get("instruments", [])
             if not instruments:
                 return None
-            price = instruments[0].get("price", {})
-            close = price.get("close")
-            return int(close) if close is not None else None
-        except Exception:
+            
+            price_data = instruments[0].get("price", {})
+            close = price_data.get("close")
+            
+            if close is None:
+                logger.debug(f"[{tag}] [DATA_GAP] Symbol {symbol}: 'close' field missing in price data.")
+                return None
+                
+            return int(close)
+            
+        except (KeyError, IndexError, TypeError, ValueError) as e:
+            logger.warning(f"[{tag}] [PARSING_ERROR] Symbol {symbol}: Unexpected data structure. Error: {type(e).__name__} - {e}")
+            return None
+        except Exception as e:
+            logger.error(f"[{tag}] [UNEXPECTED_ERROR] Symbol {symbol}: {e}")
             return None

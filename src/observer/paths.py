@@ -40,17 +40,13 @@ def _resolve_project_root(start: Optional[Path] = None) -> Path:
     Resolve Observer project root directory.
 
     Resolution rules (first match wins):
-    1. Observer standalone mode (Docker container) - return /app
-    2. Directory containing '.git' (local development)
-    3. Directory containing 'pyproject.toml' (local development)
-    4. Directory containing both 'src' and 'tests' (local development)
+    1. Directory containing '.git' (local development)
+    2. Directory containing 'pyproject.toml' (local development)
+    3. Directory containing both 'src' and 'tests' (local development)
+    4. Current working directory (fallback for production/standalone)
     """
 
-    # 1️⃣ Observer standalone mode (Docker container) - 명확한 /app 반환
-    if os.environ.get("OBSERVER_STANDALONE") == "1":
-        return Path("/app")
-
-    # 2️⃣ Normal Observer project resolution (local development)
+    # 1️⃣ Normal Observer project resolution (local development)
     current = start.resolve() if start else Path(__file__).resolve()
 
     for parent in [current] + list(current.parents):
@@ -64,7 +60,8 @@ def _resolve_project_root(start: Optional[Path] = None) -> Path:
         if (parent / "src").exists() and (parent / "tests").exists():
             return parent
 
-    raise RuntimeError("Observer project root could not be resolved")
+    # 2️⃣ Fallback: Return current working directory (safe for container environments)
+    return Path.cwd()
 
 
 # ============================================================
@@ -104,37 +101,43 @@ def data_dir() -> Path:
     """
     Canonical data root directory.
 
-    Policy:
-    - data/assets/ holds observer-generated JSON/JSONL (scalp, swing, system).
-    - Other subdirs under data/ are for ephemeral runtime artifacts.
+    Environment variable: OBSERVER_DATA_DIR
+    Default: {project_root}/data
     """
-    return project_root() / "data"
+    env_path = os.environ.get("OBSERVER_DATA_DIR")
+    if env_path:
+        path = Path(env_path)
+    else:
+        path = project_root() / "data"
+
+    path = path.resolve()
+    # In read-only filesystem, mkdir might fail if the path is not a volume mount.
+    # We attempt it but catch exceptions if it's already present or read-only.
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.debug(f"Could not create data_dir {path} (might be read-only): {e}")
+    return path
 
 
 def config_dir() -> Path:
     """
     Canonical config root directory.
 
-    Policy:
-    - Long-lived operational assets live here.
-    - Supports both local and Docker deployment modes
-
     Resolution order:
-    1. OBSERVER_CONFIG_DIR environment variable (explicit override)
-    2. Docker standalone mode (/app/config)
-    3. Local development mode (project_root/config)
+    1. OBSERVER_CONFIG_DIR environment variable
+    2. {project_root}/config
     """
-    # 1. Explicit environment variable override
     if os.environ.get("OBSERVER_CONFIG_DIR"):
         path = Path(os.environ["OBSERVER_CONFIG_DIR"])
-    # 2. Docker standalone mode - 이미 project_root()가 /app을 반환
-    elif os.environ.get("OBSERVER_STANDALONE") == "1":
-        path = project_root() / "config"
-    # 3. Local development mode - project_root/config
     else:
         path = project_root() / "config"
     
-    path.mkdir(parents=True, exist_ok=True)
+    path = path.resolve()
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.debug(f"Could not create config_dir {path}: {e}")
     return path
 
 
@@ -289,32 +292,26 @@ def google_credentials_path() -> Path:
 # Docker-compatible paths (Environment variable overrides)
 # ============================================================
 
-def _is_legacy_app_observer_path(env_path: str) -> bool:
-    """True if path contains app/observer (legacy); such paths are ignored."""
-    if not env_path:
-        return False
-    parts = Path(env_path).resolve().parts
-    return "app" in parts or "observer" in parts
 
 
 def log_dir() -> Path:
     """
     Canonical log root directory.
 
-    Environment variable: OBSERVER_LOG_DIR (legacy app/observer paths ignored)
+    Environment variable: OBSERVER_LOG_DIR
     Default: {project_root}/logs
-
-    Policy:
-    - All log files MUST be placed under this directory.
-    - Auto-creates directory if not exists.
     """
     env_path = os.environ.get("OBSERVER_LOG_DIR")
-    if env_path and not _is_legacy_app_observer_path(env_path):
+    if env_path:
         path = Path(env_path)
     else:
         path = project_root() / "logs"
+    
     path = path.resolve()
-    path.mkdir(parents=True, exist_ok=True)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.debug(f"Could not create log_dir {path}: {e}")
     return path
 
 
@@ -322,16 +319,19 @@ def system_log_dir() -> Path:
     """
     System log directory for gap detector and slot overflow.
 
-    Environment variable: OBSERVER_SYSTEM_LOG_DIR (legacy app/observer paths ignored)
-    Default: {log_dir}/system (e.g. project_root/logs/system)
+    Environment variable: OBSERVER_SYSTEM_LOG_DIR
+    Default: {log_dir}/system
     """
     env_path = os.environ.get("OBSERVER_SYSTEM_LOG_DIR")
-    if env_path and not _is_legacy_app_observer_path(env_path):
+    if env_path:
         path = Path(env_path)
     else:
         path = log_dir() / "system"
     path = path.resolve()
-    path.mkdir(parents=True, exist_ok=True)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.debug(f"Could not create system_log_dir {path}: {e}")
     return path
 
 
@@ -339,43 +339,56 @@ def maintenance_log_dir() -> Path:
     """
     Maintenance log directory.
 
-    Environment variable: OBSERVER_MAINTENANCE_LOG_DIR (legacy app/observer paths ignored)
+    Environment variable: OBSERVER_MAINTENANCE_LOG_DIR
     Default: {log_dir}/maintenance
     """
     env_path = os.environ.get("OBSERVER_MAINTENANCE_LOG_DIR")
-    if env_path and not _is_legacy_app_observer_path(env_path):
+    if env_path:
         path = Path(env_path)
     else:
         path = log_dir() / "maintenance"
     path = path.resolve()
-    path.mkdir(parents=True, exist_ok=True)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.debug(f"Could not create maintenance_log_dir {path}: {e}")
+    return path
+
+
+def snapshot_dir() -> Path:
+    """
+    Canonical Universe/Symbol snapshot directory.
+
+    Environment variable: OBSERVER_SNAPSHOT_DIR
+    Default: {data_dir}/universe
+    """
+    env_path = os.environ.get("OBSERVER_SNAPSHOT_DIR")
+    if env_path:
+        path = Path(env_path)
+    else:
+        path = data_dir() / "universe"
+    path = path.resolve()
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.debug(f"Could not create snapshot_dir {path}: {e}")
     return path
 
 
 def kis_token_cache_dir() -> Path:
     """
     KIS API token cache directory.
-
-    Environment variables:
-    - KIS_TOKEN_CACHE_DIR: override cache directory (absolute recommended)
-    - OBSERVER_PROJECT_ROOT: override project root for secrets/.kis_cache
-
-    Default: {project_root}/secrets/.kis_cache (Docker and local)
-    Token file: secrets/.kis_cache/token_real.json (or token_virtual.json)
-    Returns an absolute path so cache is always under a canonical location.
     """
     env_path = os.environ.get("KIS_TOKEN_CACHE_DIR")
-    if env_path and not _is_legacy_app_observer_path(env_path):
+    if env_path:
         path = Path(env_path)
     else:
-        root = (
-            Path(os.environ["OBSERVER_PROJECT_ROOT"])
-            if os.environ.get("OBSERVER_PROJECT_ROOT")
-            else project_root()
-        )
-        path = root / "secrets" / ".kis_cache"
+        path = data_dir() / "cache"
     path = path.resolve()
-    path.mkdir(parents=True, exist_ok=True)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.debug(f"Could not create kis_token_cache_dir {path}: {e}")
     return path
 
 

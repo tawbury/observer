@@ -84,9 +84,6 @@ from .deployment_mode import (
 def _configure_deployment_env() -> None:
     """Set default env for Docker/Kubernetes deployment (aligned with observer.py)."""
     os.environ.setdefault("OBSERVER_STANDALONE", "1")
-    os.environ.setdefault("PYTHONPATH", "/app/src:/app")
-    os.environ.setdefault("OBSERVER_DATA_DIR", "/app/data/observer")
-    os.environ.setdefault("OBSERVER_LOG_DIR", "/app/logs")
     os.environ.setdefault("OBSERVER_DEPLOYMENT_MODE", "docker")
     os.environ.setdefault("TRACK_A_ENABLED", "true")
     os.environ.setdefault("TRACK_B_ENABLED", "true")
@@ -113,20 +110,19 @@ def _resolve_env_file_paths() -> tuple[list[Path], Path | None]:
             except Exception:
                 pass
         return (paths_attempted, path_loaded)
-    # Docker: default paths when OBSERVER_STANDALONE=1 or /app exists
-    if os.environ.get("OBSERVER_STANDALONE") == "1" or Path("/app").exists():
-        for candidate in [Path("/app/secrets/.env"), Path("/app/.env")]:
-            paths_attempted.append(candidate)
-            if candidate.exists() and path_loaded is None:
-                try:
-                    from dotenv import load_dotenv
-                    load_dotenv(candidate, override=False)
-                    path_loaded = candidate
-                except ImportError:
-                    pass
-                except Exception:
-                    pass
-        return (paths_attempted, path_loaded)
+    # Standalone mode: check current working directory for .env
+    for candidate in [Path.cwd() / "secrets" / ".env", Path.cwd() / ".env"]:
+        paths_attempted.append(candidate)
+        if candidate.exists() and path_loaded is None:
+            try:
+                from dotenv import load_dotenv
+                load_dotenv(candidate, override=False)
+                path_loaded = candidate
+            except ImportError:
+                pass
+            except Exception:
+                pass
+    return (paths_attempted, path_loaded)
     # Local: project root .env (package __file__ -> parent.parent.parent = repo root)
     project_root = Path(__file__).resolve().parent.parent.parent
     for candidate in [project_root / ".env", project_root / "secrets" / ".env"]:
@@ -253,8 +249,9 @@ async def run_observer_with_api(
 
                 kis_auth_a = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
                 provider_engine_a = ProviderEngine(kis_auth_a, is_virtual=kis_is_virtual)
-                config_dir = Path(os.environ.get("OBSERVER_CONFIG_DIR", "/app/config"))
-                universe_dir = config_dir / "universe"
+                from observer.paths import config_dir as get_config_dir
+                _config_dir = get_config_dir()
+                universe_dir = _config_dir / "universe"
                 universe_dir.mkdir(parents=True, exist_ok=True)
                 track_a_config = TrackAConfig(
                     interval_minutes=5,

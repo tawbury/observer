@@ -1,7 +1,10 @@
 name: Build and push GHCR image
 
 on:
-  # 이미지 빌드는 master로 PR이 머지될 때만 실행 (직접 push 시에는 실행 안 함)
+  # 이미지 빌드는 master로 PR이 머지될 때만 실행 (직접 push 시에는 실행 안 함)x
+  push:
+    branches:
+      - observer
   pull_request:
     branches:
       - master
@@ -26,9 +29,10 @@ env:
 jobs:
   build-and-push:
     name: Build and push image to GHCR
+    environment: production 
     runs-on: ubuntu-latest
-    # 머지된 PR이거나 수동 실행(workflow_dispatch)일 때만 실행
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    # push to master, 머지된 PR, 또는 수동 실행(workflow_dispatch)일 때 실행
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
 
     permissions:
       contents: read
@@ -38,8 +42,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # PR 머지 시 머지 커밋 기준으로 빌드 (수동 실행 시에는 기본 ref 사용)
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.merge_commit_sha || github.ref }}
+          # PR 머지: 머지 커밋 / push·수동: 해당 커밋
+          ref: ${{ (github.event_name == 'pull_request' && github.event.pull_request.merge_commit_sha) || github.sha }}
 
       - name: Compute timestamp tag
         id: meta
@@ -94,7 +98,7 @@ jobs:
       - name: Update Deployment Repo
         run: |
           # 1. 배포 레포지토리 클론 (PAT_TOKEN 필요)
-          git clone https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/tawbury/deployment.git deploy-repo
+          git clone https://x-access-token:${{ secrets.oci_deploy_ghcr }}@github.com/tawbury/deployment.git deploy-repo
           
           # 2. 배포 레포의 YAML 파일에서 이미지 태그 수정
           # k8s/overlays/production/kustomization.yaml 파일의 이미지를 새 태그로 변경

@@ -147,49 +147,62 @@ class TrackACollector(TimeAwareMixin):
         log_path = log_dir / f"{ymd}.jsonl"
 
         sem = asyncio.Semaphore(self.cfg.semaphore_limit)
-        results: List[Dict[str, Any]] = []
 
-        async def fetch(symbol: str) -> None:
+        async def fetch(symbol: str) -> Optional[Dict[str, Any]]:
             async with sem:
                 try:
                     data = await self.engine.fetch_current_price(symbol)
-                    results.append({"symbol": symbol, "data": data})
+                    return {"symbol": symbol, "data": data}
                 except Exception as e:
                     # tolerate per-symbol failures
                     log.debug("Symbol %s fetch failed: %s", symbol, e)
+                    return None
 
-        await asyncio.gather(*(fetch(s) for s in symbols))
+        # Gather results and filter out None (failures)
+        raw_results = await asyncio.gather(*(fetch(s) for s in symbols))
+        results: List[Dict[str, Any]] = [r for r in raw_results if r is not None]
 
         # 1) 아카이브: 먼저 JSONL에 모두 기록 (저장 순서 보장)
         import json
         published = 0
         records_for_db: List[Dict[str, Any]] = []
-        with open(log_path, "a", encoding="utf-8") as f:
-            for item in results:
-                sym = item["symbol"]
-                payload = item["data"]
-                inst = (payload.get("instruments") or [{}])[0]
-                price = inst.get("price") or {}
-                record = {
-                    "ts": self._now().isoformat(),
-                    "session": self.cfg.session_id,
-                    "dataset": "track_a_swing",
-                    "market": self.cfg.market,
-                    "symbol": sym,
-                    "price": {
-                        "open": price.get("open"),
-                        "high": price.get("high"),
-                        "low": price.get("low"),
-                        "close": price.get("close"),
-                    },
-                    "volume": inst.get("volume"),
-                    "bid_price": inst.get("bid_price"),
-                    "ask_price": inst.get("ask_price"),
-                    "source": "kis",
-                }
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-                published += 1
-                records_for_db.append(record)
+        
+        try:
+            with open(log_path, "a", encoding="utf-8") as f:
+                for item in results:
+                    sym = item["symbol"]
+                    payload = item["data"]
+                    inst = (payload.get("instruments") or [{}])[0]
+                    price = inst.get("price") or {}
+                    record = {
+                        "ts": self._now().isoformat(),
+                        "session": self.cfg.session_id,
+                        "dataset": "track_a_swing",
+                        "market": self.cfg.market,
+                        "symbol": sym,
+                        "price": {
+                            "open": price.get("open"),
+                            "high": price.get("high"),
+                            "low": price.get("low"),
+                            "close": price.get("close"),
+                        },
+                        "volume": inst.get("volume"),
+                        "bid_price": inst.get("bid_price"),
+                        "ask_price": inst.get("ask_price"),
+                        "source": "kis",
+                    }
+                    f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                    published += 1
+                    records_for_db.append(record)
+            
+            if published > 0:
+                log.info(f"[저장] {published} items written to JSONL ({log_path})")
+                
+        except (IOError, OSError) as e:
+            log.error(f"[파일 시스템 오류] JSONL 쓰기 실패 (path: {log_path}): {e}")
+            if self._on_error:
+                self._on_error(f"File write failed: {log_path} | {e}")
+            # JSONL 쓰기 실패하더라도 일단 계속 진행 (메모리상의 records_for_db는 DB 저장이 가능할 수 있음)
 
         # 2) DB 쓰기는 선택적(best-effort). 실패해도 예외 전파하지 않고 로그만 남김
         db_saved = 0
@@ -202,8 +215,8 @@ class TrackACollector(TimeAwareMixin):
                 except Exception as e:
                     log.warning("DB 저장 실패 - JSONL 아카이브만 저장됨: %s", e)
 
-        if published > 0:
-            log.info(f"[저장] Swing list updated: {published} items → {log_path} (DB: {db_saved})")
+        if published > 0 or db_saved > 0:
+            log.info(f"[완료] Swing list updated: JSONL={published} | DB={db_saved}")
 
 
         return {

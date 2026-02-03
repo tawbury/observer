@@ -22,7 +22,7 @@ from observer.paths import (
 # Deployment-specific Constants
 # ============================================================
 
-DEPLOYMENT_ROOT = Path("/app")
+DEPLOYMENT_ROOT = project_root()
 DATA_ROOT = DEPLOYMENT_ROOT / "data"
 LOG_ROOT = DEPLOYMENT_ROOT / "logs"
 CONFIG_ROOT = DEPLOYMENT_ROOT / "config"

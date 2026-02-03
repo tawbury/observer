@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sys
 from dataclasses import dataclass
 from datetime import datetime, date, time, timedelta, timezone
 from typing import Optional, Callable, List, Dict, Any
@@ -17,12 +18,25 @@ log = logging.getLogger("UniverseScheduler")
 @dataclass
 class SchedulerConfig:
     tz_name: str = "Asia/Seoul"
-    hour: int = 16
-    minute: int = 5
+    am_hour: int = 5
+    am_minute: int = 0
+    pm_hour: int = 16
+    pm_minute: int = 5
     min_price: int = 4000
     min_count: int = 100
     market: str = "kr_stocks"
     anomaly_ratio: float = 0.30  # 30% deviation from previous count triggers alert
+
+    # Optional legacy fields for backward compatibility with older runner logic
+    hour: Optional[int] = None
+    minute: Optional[int] = None
+
+    def __post_init__(self):
+        """Map legacy hour/minute to PM slot if provided directly (for testing/quick-runs)."""
+        if self.hour is not None:
+            self.pm_hour = self.hour
+        if self.minute is not None:
+            self.pm_minute = self.minute
 
 
 class UniverseScheduler:
@@ -42,20 +56,47 @@ class UniverseScheduler:
             min_price=self.cfg.min_price,
             min_count=self.cfg.min_count,
         )
+        
+        # Check Environment Variable at init
+        self.data_dir = os.getenv("OBSERVER_DATA_DIR")
+        if not self.data_dir:
+            log.warning("[RECOVERY] OBSERVER_DATA_DIR not set. Using default path policies.")
+        else:
+            log.info("[INIT] OBSERVER_DATA_DIR detected: %s", self.data_dir)
 
     # ---------------------------------------------------------
     # Public
     # ---------------------------------------------------------
     async def run_forever(self) -> None:
         """Run the scheduler loop indefinitely."""
+        # [INIT-CHECK] Immediate check on startup to prevent data gaps
+        try:
+            today = date.today()
+            if not self._manager.load_universe(today):
+                log.info("[INIT-CHECK] Today's snapshot missing. Starting immediate generation...")
+                await self._run_once_internal()
+            else:
+                log.info("[INIT-CHECK] Today's snapshot exists. Waiting for next schedule.")
+        except Exception as e:
+            log.error("[INIT-CHECK] [ERROR] Startup generation check failed: %s", e)
+
         while True:
             next_run = self._next_run_dt()
             now = datetime.now(self._tz)
             wait_s = (next_run - now).total_seconds()
-            log.info("Next universe generation at %s (in %.0fs)", next_run.isoformat(), wait_s)
+            
+            tag = "AM" if next_run.hour < 12 else "PM"
+            log.info("[%s] Next universe generation at %s (in %.0fs)", tag, next_run.isoformat(), wait_s)
+            
             if wait_s > 0:
                 await asyncio.sleep(wait_s)
-            await self._run_once_internal()
+            
+            try:
+                await self._run_once_internal()
+            except Exception as e:
+                # Catch-all to prevent the loop from dying
+                log.error("[%s] [FATAL] Unexpected loop error: %s. Continuing to next schedule.", tag, e)
+                await asyncio.sleep(60) # Prevent tight error loops
 
     async def run_once(self) -> Dict[str, Any]:
         """Run the universe generation once immediately (for smoke tests)."""
@@ -65,85 +106,78 @@ class UniverseScheduler:
     # Internals
     # ---------------------------------------------------------
     def _next_run_dt(self) -> datetime:
+        """Find the closest next run time between AM and PM slots."""
         now = datetime.now(self._tz)
-        today_target = datetime.combine(now.date(), time(self.cfg.hour, self.cfg.minute), tzinfo=self._tz)
-        if now < today_target:
-            return today_target
-        return today_target + timedelta(days=1)
+        
+        # Candidate 1: Today AM
+        am_today = datetime.combine(now.date(), time(self.cfg.am_hour, self.cfg.am_minute), tzinfo=self._tz)
+        # Candidate 2: Today PM
+        pm_today = datetime.combine(now.date(), time(self.cfg.pm_hour, self.cfg.pm_minute), tzinfo=self._tz)
+        # Candidate 3: Tomorrow AM
+        am_tomorrow = am_today + timedelta(days=1)
+        
+        if now < am_today:
+            return am_today
+        if now < pm_today:
+            return pm_today
+        return am_tomorrow
 
     async def _run_once_internal(self) -> Dict[str, Any]:
+        tag = "AM" if datetime.now(self._tz).hour < 12 else "PM"
         today = date.today()
-        prev_day = self._previous_trading_day(today)
+        # UniverseManager internals will use its own time-aware previous day logic
+        
         meta: Dict[str, Any] = {
+            "session": tag,
             "date": today.isoformat(),
             "market": self.cfg.market,
             "min_price": self.cfg.min_price,
             "min_count": self.cfg.min_count,
         }
+        
+        print(f"[{tag}] Starting Universe generation process for {today.isoformat()}...")
+        sys.stdout.flush()
+        
         try:
-            log.info("Creating universe snapshot for %s", today.isoformat())
+            log.info("[%s] Starting scheduled universe snapshot for %s", tag, today.isoformat())
             path = await self._manager.create_daily_snapshot(today)
+            
             current_symbols = self._manager.load_universe(today)
-            prev_symbols = self._manager.load_universe(prev_day)
+            # Find the MOST RECENT snapshot for comparison (might be yesterday PM or today AM)
+            # UniverseManager._find_latest_snapshot implementation is robust
+            latest_path = self._manager._find_latest_snapshot()
+            prev_symbols = []
+            if latest_path and str(latest_path) != str(path):
+                prev_symbols = self._manager._load_universe_list_from_path(latest_path)
+
             meta.update({
                 "ok": True,
                 "snapshot_path": path,
                 "count": len(current_symbols),
                 "prev_count": len(prev_symbols) if prev_symbols else None,
             })
-            # Operational summary log for downstream consumers
+            
             log.info(
-                "Universe summary | date=%s | count=%d | snapshot=%s | prev_count=%s",
-                today.isoformat(),
+                "[%s] Universe summary | count=%d | snapshot=%s | prev_count=%s",
+                tag,
                 len(current_symbols),
                 path,
-                str(len(prev_symbols)) if prev_symbols else "None",
+                len(prev_symbols) if prev_symbols else 0,
             )
-            # Anomaly detection
+            print(f"[{tag}] Universe process completed successfully. Current count: {len(current_symbols)}")
+            sys.stdout.flush()
+            
+            # Anomaly detection (Log alert if size deviation is too high)
             self._check_anomaly(len(current_symbols), len(prev_symbols) if prev_symbols else None)
-            log.info("Universe snapshot created: %s (%d symbols)", path, len(current_symbols))
             return meta
+            
         except Exception as e:
-            log.error("Universe generation failed (%s). Falling back to previous snapshot.", e)
-            # Fallback: reuse previous snapshot symbols for today
-            try:
-                prev_symbols = self._manager.load_universe(prev_day)
-                if not prev_symbols:
-                    raise RuntimeError("No previous universe available for fallback")
-                # Write today's snapshot using previous symbols
-                path = self._write_fallback_snapshot(today, prev_day, prev_symbols)
-                meta.update({
-                    "ok": True,
-                    "snapshot_path": path,
-                    "count": len(prev_symbols),
-                    "fallback_from": prev_day.isoformat(),
-                    "note": "fallback to previous snapshot",
-                })
-                # Alert on fallback
-                self._emit_alert(
-                    "universe_fallback",
-                    {
-                        "error": str(e),
-                        "fallback_from": prev_day.isoformat(),
-                        "target_date": today.isoformat(),
-                        "count": len(prev_symbols),
-                    },
-                )
-                # Operational summary log (fallback case)
-                log.warning(
-                    "Universe summary (fallback) | date=%s | count=%d | snapshot=%s | from=%s",
-                    today.isoformat(),
-                    len(prev_symbols),
-                    path,
-                    prev_day.isoformat(),
-                )
-                log.warning("Fallback snapshot written: %s (from %s)", path, prev_day.isoformat())
-                return meta
-            except Exception as ee:
-                meta.update({"ok": False, "error": f"fallback failed: {ee}"})
-                self._emit_alert("universe_fatal", {"error": str(ee)})
-                return meta
-
+            log.error("[%s] [ERROR] Universe generation failed: %s", tag, e)
+            # The UniverseManager.get_current_universe() already provides a fallback.
+            # Here we just ensure we report the failure to the alert system.
+            self._emit_alert(f"universe_failed_{tag}", {"error": str(e), "tag": tag})
+            meta.update({"ok": False, "error": str(e)})
+            return meta
     def _check_anomaly(self, current: int, previous: Optional[int]) -> None:
         if previous is None:
             return
@@ -171,37 +205,6 @@ class UniverseScheduler:
                 pass
         # Default: log warning
         log.warning("ALERT[%s] %s", kind, payload)
-
-    def _write_fallback_snapshot(self, target_day: date, prev_day: date, symbols: List[str]) -> str:
-        # Build snapshot file path same as UniverseManager
-        # Uses UniverseManager internals (directory and market)
-        ymd = target_day.strftime("%Y%m%d")
-        filename = f"{ymd}_{self._manager.market}.json"
-        path = os.path.join(self._manager.universe_dir, filename)
-        payload = {
-            "date": target_day.isoformat(),
-            "market": self._manager.market,
-            "filter_criteria": {
-                "min_price": self._manager.min_price,
-                "prev_trading_day": prev_day.isoformat(),
-                "fallback": True,
-            },
-            "symbols": sorted(symbols),
-            "count": len(symbols),
-        }
-        os.makedirs(self._manager.universe_dir, exist_ok=True)
-        import json
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
-        return path
-
-    def _previous_trading_day(self, d: date) -> date:
-        wd = d.weekday()
-        if wd == 0:
-            return d - timedelta(days=3)
-        if wd == 6:
-            return d - timedelta(days=2)
-        return d - timedelta(days=1)
 
 
 # ---------------- CLI helper ----------------
@@ -239,10 +242,23 @@ async def _run_cli(run_once: bool = False) -> None:
 
 def main():
     import argparse
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+    import sys
+    
+    # Force basicConfig to ensure it's not overridden by other modules
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+        force=True
+    )
+    
     parser = argparse.ArgumentParser(description="Universe Scheduler")
     parser.add_argument("--run-once", action="store_true", help="Run once immediately and exit")
     args = parser.parse_args()
+    
+    print(f"[UniverseScheduler] Starting main. run_once={args_run_once := args.run_once}")
+    sys.stdout.flush()
+    
     asyncio.run(_run_cli(run_once=args.run_once))
 
 

@@ -142,16 +142,15 @@ class DockerDeploymentMode(IDeploymentMode):
         # Set Docker-specific environment variables
         os.environ.setdefault("OBSERVER_STANDALONE", "1")
         os.environ.setdefault("OBSERVER_DEPLOYMENT_MODE", "docker")
-        os.environ.setdefault("PYTHONPATH", "/app/src:/app")
-        os.environ.setdefault("OBSERVER_DATA_DIR", "/app/data/observer")
-        os.environ.setdefault("OBSERVER_LOG_DIR", "/app/logs")
-
-        # Create required directories
-        for env_var in ["OBSERVER_DATA_DIR", "OBSERVER_LOG_DIR"]:
-            path_str = os.environ.get(env_var)
-            if path_str:
-                Path(path_str).mkdir(parents=True, exist_ok=True)
-                self.logger.debug(f"Created {env_var}: {path_str}")
+        
+        # Determine paths via paths utility (which honors env vars and provides safe fallbacks)
+        from observer.paths import observer_data_dir, observer_log_dir
+        
+        data_dir = observer_data_dir()
+        log_dir = observer_log_dir()
+        
+        self.logger.info(f"Using data directory: {data_dir}")
+        self.logger.info(f"Using log directory: {log_dir}")
 
         self._initialized = True
         self.logger.info("Docker deployment mode initialized")
@@ -210,7 +209,6 @@ class KubernetesDeploymentMode(IDeploymentMode):
         # Set Kubernetes-specific environment variables
         os.environ.setdefault("OBSERVER_STANDALONE", "1")
         os.environ.setdefault("OBSERVER_DEPLOYMENT_MODE", "kubernetes")
-        os.environ.setdefault("PYTHONPATH", "/app/src:/app")
 
         # Check for Kubernetes ConfigMap/Secret mounts
         k8s_config_paths = [
@@ -353,7 +351,6 @@ class DevelopmentDeploymentMode(IDeploymentMode):
 
         os.environ.setdefault("OBSERVER_STANDALONE", "1")
         os.environ.setdefault("OBSERVER_DEPLOYMENT_MODE", "dev")
-        os.environ.setdefault("PYTHONPATH", "/app/src:/app")
 
         self._initialized = True
         self.logger.info("Development deployment mode initialized")

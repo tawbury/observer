@@ -34,13 +34,9 @@ class UniverseManager:
         self.min_price = int(min_price)
         self.min_count = int(min_count)
         
-        # [Requirement] Environment-based unified path management (k3s compliant)
-        env_root = os.getenv("OBSERVER_DATA_DIR")
-        if not env_root:
-            logger.warning("[INIT] OBSERVER_DATA_DIR not set. Using default /data path.")
-            env_root = "/data"
-            
-        self.base_path = Path(data_dir) if data_dir else Path(env_root)
+        # [Requirement] Environment-based unified path management
+        from observer.paths import observer_data_dir
+        self.base_path = Path(data_dir) if data_dir else observer_data_dir()
         self.universe_dir = self.base_path / "universe"
         
         # [Requirement] Hard-fail on directory creation issues with specific message

@@ -33,8 +33,8 @@ class HourlyRotatingFileHandler(logging.FileHandler):
         tz_name: 타임존 이름 (기본값: "Asia/Seoul")
 
     Example:
-        handler = HourlyRotatingFileHandler("/app/logs/system")
-        # 생성 파일: /app/logs/system/20260129_14.log (KST 기준)
+        handler = HourlyRotatingFileHandler("./logs/system")
+        # 생성 파일: ./logs/system/20260129_14.log (KST 기준)
     """
 
     def __init__(self, log_dir: str, tz_name: str = "Asia/Seoul") -> None:

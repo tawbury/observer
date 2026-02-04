@@ -66,6 +66,9 @@ class UniverseManager:
         # This will also perform its own path check
         self.symbol_gen = SymbolGenerator(self.engine, base_dir=str(self.base_path))
         
+        # [Requirement] Cleanup old universe files (7 days)
+        self._cleanup_old_universe_files()
+        
         logger.info(f"UniverseManager initialized at {self.universe_dir}")
         print(f"[UniverseManager] initialized. universe_dir={self.universe_dir}")
         sys.stdout.flush()
@@ -120,7 +123,17 @@ class UniverseManager:
         # 1. Load latest symbols via SymbolGenerator (Robust recovery inside)
         candidates = await self._load_robust_candidates()
         if not candidates:
-            raise ValueError("No candidate symbols available from any source.")
+            # Fallback check: even if load_robust_candidates returns empty, 
+            # try to get absolute latest symbol file as a last resort
+            logger.warning("No candidates from _load_robust_candidates. Checking local symbol storage.")
+            latest_symbol_file = self.symbol_gen.get_latest_symbol_file()
+            if latest_symbol_file:
+                with open(latest_symbol_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    candidates = data.get("symbols", [])
+            
+            if not candidates:
+                raise ValueError("No candidate symbols available from any source.")
 
         # 2. Filter symbols by price
         selected: List[str] = []
@@ -185,6 +198,13 @@ class UniverseManager:
     async def _load_robust_candidates(self) -> List[str]:
         """Load symbols from today's collection or fallback to most recent valid file."""
         tag = self._get_tag()
+        
+        # [Requirement] 1단계: 심볼 데이터가 아예 없으면 SymbolGenerator를 직접 await 하여 강제 생성
+        should_collect, existing_symbol_path = self.symbol_gen.should_collect()
+        if should_collect:
+            logger.info(f"[{tag}] No valid symbols found. Forcefully executing SymbolGenerator...")
+            await self.symbol_gen.execute()
+        
         # A. Attempt today's generation
         try:
             logger.info(f"[{tag}] Generating/Loading today's symbol candidates...")
@@ -216,6 +236,34 @@ class UniverseManager:
         
         logger.error(f"[{tag}] ❌ [CRITICAL] No valid symbol file found in historical storage.")
         return []
+
+    def _cleanup_old_universe_files(self):
+        """
+        Delete universe files older than 7 days based on YYYYMMDD filename pattern.
+        """
+        tag = self._get_tag()
+        cutoff_date = (datetime.now() - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Match any market identifier *_stocks.json
+        files = list(self.universe_dir.glob("*_stocks.json"))
+        
+        deleted_count = 0
+        for filepath in files:
+            # Pattern: YYYYMMDD_market_stocks.json
+            try:
+                date_str = filepath.name.split("_")[0]
+                if len(date_str) == 8:
+                    file_date = datetime.strptime(date_str, "%Y%m%d")
+                    if file_date < cutoff_date:
+                        filepath.unlink()
+                        deleted_count += 1
+                        logger.info(f"[{tag}] Cleanup: Removed old universe file {filepath.name}")
+            except (ValueError, IndexError, OSError) as e:
+                logger.debug(f"[{tag}] Cleanup skip or error for {filepath.name}: {e}")
+                continue
+                
+        if deleted_count > 0:
+            logger.info(f"[{tag}] Cleaned up {deleted_count} old universe files (7-day policy).")
 
     def _snapshot_path(self, day: date) -> Path:
         ymd = day.strftime("%Y%m%d")

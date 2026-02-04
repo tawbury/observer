@@ -85,41 +85,51 @@ class TrackACollector(TimeAwareMixin):
             log.error(f"Failed to setup swing file logger: {e}")
 
     async def start(self) -> None:
-        """Run every interval during trading hours."""
+        """Run every interval during trading hours with initial bootstrapping."""
         log.info("TrackACollector started (interval=%dm)", self.cfg.interval_minutes)
         
-        # DB 연결 초기화
+        # 0. DB 연결 초기화 (Best effort)
         db_connected = await self._db_writer.connect()
         if db_connected:
             log.info("✅ DB 연결 성공 - 실시간 저장 활성화")
         else:
             log.warning("⚠️ DB 연결 실패 - JSONL 파일만 저장됩니다")
         
-        # [Requirement] Bootstrapping - Ensure symbols are ready before main loop
-        log.info("Bootstrapping SymbolGenerator...")
-        try:
-            # 1. Symbol Check: Ensure minimum 2,500 symbols are available
-            should_collect, existing_symbol_path = self._manager.symbol_gen.should_collect()
-            if should_collect:
-                log.info("Symbol count check: Insufficient symbols (< 2,500). Starting immediate collection...")
-                await self._manager.symbol_gen.execute()
-            else:
-                log.info(f"Symbol count check: Sufficient symbols found at {existing_symbol_path}")
-
-            # 2. Universe Force Generation: Ensure at least one valid universe file exists (T-0 or T-1)
-            # This prevents the collector from entering a long wait loop if starting after a holiday.
-            current_universe = self._manager.get_current_universe()
-            if not current_universe:
-                log.warning("No valid universe file found for last 7 days. Forcing immediate snapshot generation...")
+        # [Requirement] Infinite Bootstrapping Sequence
+        while True:
+            log.info("Starting Bootstrapping Sequence...")
+            try:
+                # 1단계 (Symbol): SymbolGenerator.execute() 호출하여 최소 2,500개 확보
+                # _load_robust_candidates 내에서도 symbol_gen.execute()가 호출되지만
+                # 부트스트랩 시점에서 명시적으로 한번 더 확인/수집합니다.
+                should_collect, _ = self._manager.symbol_gen.should_collect()
+                if should_collect:
+                    log.info("[Bootstrap-1] Starting symbol collection...")
+                    await self._manager.symbol_gen.execute()
+                
+                # 심볼 확보 확인
+                latest_symbols = self._manager.symbol_gen.get_latest_symbol_file()
+                if not latest_symbols:
+                    raise RuntimeError("No symbol files available after collection attempt.")
+                
+                # 2단계 (Universe): T-0 유니버스 즉시 생성 강제
+                log.info("[Bootstrap-2] Creating immediate daily universe snapshot...")
+                # create_daily_snapshot 내부에서 _load_robust_candidates를 통해 심볼 로드
                 await self._manager.create_daily_snapshot(date.today())
-                log.info("Immediate universe snapshot created.")
-            else:
-                log.info(f"Universe verification: Valid universe found ({len(current_universe)} symbols).")
+                
+                # 3단계 (Loop Ready): 유효한 유니버스 소스 확보 확인
+                current_universe = self._manager.get_current_universe()
+                if not current_universe:
+                    raise RuntimeError("Failed to verify valid universe after snapshot creation.")
+                
+                log.info("[Bootstrap-3] Bootstrapping complete. Entering main collection loop.")
+                break # 부트스트랩 성공 시 루프 탈출
+                
+            except Exception as e:
+                log.error(f"❌ Bootstrapping failed: {e}. Retrying in 60s (Infinite Bootstrap Retry)...")
+                await asyncio.sleep(60)
 
-            log.info("Bootstrapping complete.")
-        except Exception as e:
-            log.warning(f"Bootstrapping failed: {e}. Collector will retry during execution.")
-
+        # Main Loop
         last_in_trading: Optional[bool] = None
         while True:
             now = self._now()

@@ -14,9 +14,11 @@ Responsibilities:
 """
 
 import asyncio
+import json
 import logging
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Dict, Optional
 import aiohttp
 
@@ -83,12 +85,18 @@ class KISAuth:
             default_virtual_url if is_virtual else default_real_url
         )
         
-        # Token state (Memory-only)
+        # Token state (Memory + File Cache)
         self.access_token: Optional[str] = None
         self.token_issued_at: Optional[datetime] = None
         self.token_expires_at: Optional[datetime] = None
         self.approval_key: Optional[str] = None
-        
+
+        # Token cache configuration
+        cache_dir_str = os.getenv("KIS_TOKEN_CACHE_DIR", "/tmp/kis_cache")
+        self.cache_dir = Path(cache_dir_str)
+        self.cache_file = self.cache_dir / "token_cache.json"
+        self._ensure_cache_dir()
+
         # Session state (Singleton Session)
         self._session: Optional[aiohttp.ClientSession] = None
         self._refresh_lock = asyncio.Lock()
@@ -106,20 +114,96 @@ class KISAuth:
             self._session = aiohttp.ClientSession()
         return self._session
 
+    def _ensure_cache_dir(self) -> None:
+        """Ensure cache directory exists."""
+        try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            logger.debug(f"Token cache directory ready: {self.cache_dir}")
+        except Exception as e:
+            logger.warning(f"Failed to create cache directory {self.cache_dir}: {e}")
+
+    def _load_cached_token(self) -> Optional[Dict[str, str]]:
+        """Load cached token from file if valid."""
+        if not self.cache_file.exists():
+            logger.debug("Token cache file does not exist")
+            return None
+
+        try:
+            with open(self.cache_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            # Validate required fields
+            if "access_token" not in data or "expires_at" not in data:
+                logger.warning("Invalid cache file format")
+                return None
+
+            # Check expiration
+            from zoneinfo import ZoneInfo
+            expires_at = datetime.fromisoformat(data["expires_at"])
+            now = datetime.now(ZoneInfo("Asia/Seoul"))
+
+            # Same 1-hour buffer as memory check
+            if (expires_at - now).total_seconds() < 3600:
+                logger.info("Cached token expired or expiring soon")
+                return None
+
+            logger.info(f"Using cached token (expires at {expires_at.isoformat()})")
+            return data
+
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.warning(f"Failed to load token cache: {e}")
+            # Delete corrupted cache file
+            try:
+                self.cache_file.unlink(missing_ok=True)
+            except Exception:
+                pass
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error loading token cache: {e}")
+            return None
+
+    def _save_token_cache(self, token: str, expires_at: datetime) -> None:
+        """Save token to cache file."""
+        try:
+            data = {
+                "access_token": token,
+                "expires_at": expires_at.isoformat(),
+                "issued_at": datetime.now().isoformat()
+            }
+
+            with open(self.cache_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+
+            logger.info(f"Token cached successfully (expires at {expires_at.isoformat()})")
+
+        except Exception as e:
+            logger.error(f"Failed to save token cache: {e}")
+
     async def ensure_token(self) -> str:
         """
-        Ensure valid access token is available in memory.
+        Ensure valid access token is available (Memory → Cache → Refresh).
         Includes a 1-hour buffer check for proactive renewal.
         """
+        # 1. Check memory first
         if self.access_token and not self._is_token_expired():
             return self.access_token
-            
+
         async with self._refresh_lock:
             # Double-check inside lock
             if self.access_token and not self._is_token_expired():
                 return self.access_token
-                
-            logger.info("Token missing or expiring soon, refreshing in memory...")
+
+            # 2. Check file cache
+            cached = self._load_cached_token()
+            if cached:
+                self.access_token = cached["access_token"]
+                from zoneinfo import ZoneInfo
+                self.token_expires_at = datetime.fromisoformat(cached["expires_at"])
+                self.token_issued_at = datetime.fromisoformat(cached["issued_at"])
+                return self.access_token
+
+            # 3. Refresh from API
+            logger.info("Token missing or expired, refreshing from KIS API...")
             await self._refresh_token()
             return self.access_token
 
@@ -172,7 +256,10 @@ class KISAuth:
                     self.token_issued_at = datetime.now(self._tz)
                     expires_in = result.get("expires_in", 86400)
                     self.token_expires_at = self.token_issued_at + timedelta(seconds=expires_in)
-                    
+
+                    # Save to cache
+                    self._save_token_cache(self.access_token, self.token_expires_at)
+
                     logger.info(f"Token refreshed successfully: Expires at {self.token_expires_at.isoformat()}")
                     return
             except Exception as e:

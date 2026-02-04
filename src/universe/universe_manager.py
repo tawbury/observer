@@ -137,7 +137,8 @@ class UniverseManager:
 
         # 2. Filter symbols by price
         selected: List[str] = []
-        sem = asyncio.Semaphore(15) # Optimized concurrency
+        failed_symbols: List[tuple] = []  # (symbol, error_type, error_msg)
+        sem = asyncio.Semaphore(15)  # Optimized concurrency
         processed_count = 0
         total_candidates = len(candidates)
 
@@ -147,18 +148,25 @@ class UniverseManager:
                 try:
                     # Filter uses previous trading day's close
                     data = await self.engine.fetch_daily_prices(sym, days=2)
-                    close = self._extract_prev_close(data)
-                    
+                    close = self._extract_prev_close(data, symbol=sym)
+
                     if close is not None and close >= self.min_price:
                         selected.append(sym)
                 except Exception as e:
-                    logger.debug(f"Symbol {sym} filter failed: {e}")
+                    failed_symbols.append((sym, type(e).__name__, str(e)[:50]))
+                    logger.debug("Symbol %s filter failed: %s", sym, e)
                 finally:
                     processed_count += 1
                     if processed_count % 100 == 0:
-                        logger.info(f"Universe build: {processed_count}/{total_candidates} processed...")
+                        logger.info("Universe build: %d/%d processed (selected=%d, failed=%d)...",
+                                    processed_count, total_candidates, len(selected), len(failed_symbols))
 
         await asyncio.gather(*(fetch_and_filter(s) for s in candidates))
+
+        # Log aggregated failure summary
+        if failed_symbols:
+            logger.warning("[%s] Universe build completed with %d/%d symbols failed. Sample failures: %s",
+                           self._get_tag(), len(failed_symbols), total_candidates, failed_symbols[:5])
 
         # Check size constraint
         if len(selected) < self.min_count:
@@ -225,7 +233,8 @@ class UniverseManager:
             sys.stdout.flush()
             await self.symbol_gen.generate_daily_symbols()
         except Exception as e:
-            logger.warning(f"[{tag}] [RECOVERY] Today's symbol generation failed: {e}. Attempting history search...")
+            logger.warning("[%s] [RECOVERY] Today's symbol generation failed: %s (type=%s). Attempting history search...",
+                           tag, e, type(e).__name__, exc_info=True)
 
         # B. Robust fallback: find most recent valid file (AM or PM)
         latest_file = self.symbol_gen.get_latest_symbol_file()
@@ -234,18 +243,25 @@ class UniverseManager:
             try:
                 with open(latest_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    
+
                     file_date = data.get("metadata", {}).get("date")
                     today_str = date.today().strftime("%Y%m%d")
                     if file_date != today_str:
-                        logger.warning(f"[{tag}] ⚠️ [RECOVERY] Today's data missing. Using past data from {file_date}")
-                    
+                        logger.warning(f"[{tag}] [RECOVERY] Today's data missing. Using past data from {file_date}")
+
                     symbols = data.get("symbols", [])
                     print(f"[{tag}] Loaded {len(symbols)} robust candidates from {latest_file}")
                     sys.stdout.flush()
                     return symbols
+            except json.JSONDecodeError as e:
+                logger.error("[%s] [RECOVERY] Latest symbol file %s contains invalid JSON: line %d, col %d",
+                             tag, latest_file, e.lineno, e.colno)
+            except (IOError, OSError) as e:
+                logger.error("[%s] [RECOVERY] Cannot read latest symbol file %s: %s (type=%s)",
+                             tag, latest_file, e, type(e).__name__)
             except Exception as e:
-                logger.error(f"[{tag}] [RECOVERY] Failed to read latest symbol file {latest_file}: {e}")
+                logger.error("[%s] [RECOVERY] Unexpected error reading latest symbol file %s: %s (type=%s)",
+                             tag, latest_file, e, type(e).__name__, exc_info=True)
         
         logger.error(f"[{tag}] ❌ [CRITICAL] No valid symbol file found in historical storage.")
         return []

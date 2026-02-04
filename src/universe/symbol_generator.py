@@ -160,8 +160,12 @@ class SymbolGenerator:
                     old_data = json.load(f)
                     existing_symbols = set(old_data.get("symbols", []))
                     logger.info(f"[{tag}] Existing today's file found ({len(existing_symbols)} symbols)")
-            except Exception:
-                pass
+            except json.JSONDecodeError as e:
+                logger.warning(f"[{tag}] Existing file {filepath} contains invalid JSON: line {e.lineno}, col {e.colno}")
+            except (IOError, OSError) as e:
+                logger.warning(f"[{tag}] Cannot read existing file {filepath}: {e} (type={type(e).__name__})")
+            except Exception as e:
+                logger.warning(f"[{tag}] Unexpected error reading {filepath}: {e} (type={type(e).__name__})")
 
         # Track Diff before saving
         await self._log_diff(symbols)
@@ -218,6 +222,7 @@ class SymbolGenerator:
         symbols = await self._step_emergency_fallback()
         if symbols: return symbols
 
+        logger.critical(f"[{tag}] [4-STEP FALLBACK] All collection strategies failed: API=FAIL, Master=FAIL, Backup=FAIL, Emergency=FAIL")
         return set()
 
     async def _step_api_with_retry(self, retries: int = 3) -> Optional[Set[str]]:
@@ -306,9 +311,15 @@ class SymbolGenerator:
         if self.state_file.exists():
             try:
                 with open(self.state_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                logger.warning("Failed to load state file. Proceeding with fresh state.")
+                    state = json.load(f)
+                    logger.debug("Loaded state file: %s", self.state_file)
+                    return state
+            except json.JSONDecodeError as e:
+                logger.warning("State file %s contains invalid JSON: line %d. Proceeding with fresh state.", self.state_file, e.lineno)
+            except (IOError, OSError) as e:
+                logger.warning("Cannot read state file %s: %s (type=%s). Proceeding with fresh state.", self.state_file, e, type(e).__name__)
+            except Exception as e:
+                logger.warning("Unexpected error loading state file %s: %s (type=%s). Proceeding with fresh state.", self.state_file, e, type(e).__name__)
         return {}
 
     def _save_state(self, state: Dict[str, Any]):
@@ -333,8 +344,12 @@ class SymbolGenerator:
                 with open(filepath, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     report["symbol_count"] = data.get("metadata", {}).get("count", 0)
-            except Exception:
-                pass
+            except json.JSONDecodeError as e:
+                logger.debug("Health report: symbol file %s has invalid JSON: line %d", filepath, e.lineno)
+            except (IOError, OSError) as e:
+                logger.debug("Health report: cannot read symbol file %s: %s", filepath, e)
+            except Exception as e:
+                logger.debug("Health report: unexpected error reading %s: %s (type=%s)", filepath, e, type(e).__name__)
 
         try:
             with open(self.health_file, "w", encoding="utf-8") as f:
@@ -383,8 +398,14 @@ class SymbolGenerator:
                 with open(filepath, "r", encoding="utf-8") as f:
                     json.load(f)
                 return str(filepath)
-            except Exception:
-                logger.warning(f"[RECOVERY] Skipping corrupted symbol file: {filepath}")
+            except json.JSONDecodeError as e:
+                logger.warning("[RECOVERY] Skipping corrupted symbol file %s: JSON parse error at line %d, col %d", filepath, e.lineno, e.colno)
+                continue
+            except (IOError, OSError) as e:
+                logger.warning("[RECOVERY] Skipping unreadable symbol file %s: %s (type=%s)", filepath, e, type(e).__name__)
+                continue
+            except Exception as e:
+                logger.warning("[RECOVERY] Skipping symbol file %s due to unexpected error: %s (type=%s)", filepath, e, type(e).__name__)
                 continue
         return None
 
@@ -414,15 +435,18 @@ class SymbolGenerator:
                     if file_date < cutoff_date:
                         should_delete = True
                         logger.info(f"[{tag}] Cleanup: File {filepath.name} is older than 7 days based on filename date.")
-            except (IndexError, ValueError):
+            except (IndexError, ValueError) as parse_err:
                 # Filename doesn't match expected pattern (symbols_YYYYMMDD_*.json)
-                # Fallback to mtime
+                logger.debug("[%s] Cleanup: File %s doesn't match date pattern, using mtime fallback (parse error: %s)", tag, filepath.name, parse_err)
                 try:
-                    if filepath.stat().st_mtime < cutoff_ts:
+                    mtime = filepath.stat().st_mtime
+                    if mtime < cutoff_ts:
                         should_delete = True
-                        logger.info(f"[{tag}] Cleanup: File {filepath.name} is older than 7 days based on mtime fallback.")
-                except Exception:
-                    pass
+                        logger.info(f"[{tag}] Cleanup: File {filepath.name} is older than 7 days based on mtime fallback (mtime={datetime.fromtimestamp(mtime).isoformat()}).")
+                except OSError as stat_err:
+                    logger.warning("[%s] Cleanup: Cannot stat file %s: %s", tag, filepath.name, stat_err)
+                except Exception as e:
+                    logger.warning("[%s] Cleanup: Unexpected error checking mtime for %s: %s (type=%s)", tag, filepath.name, e, type(e).__name__)
 
             if should_delete:
                 try:
@@ -468,7 +492,14 @@ class SymbolGenerator:
                 data = json.load(f)
                 count = data.get("metadata", {}).get("count", 0)
                 if count >= 2500:
+                    logger.debug("File %s passed quality check: count=%d", filepath.name, count)
                     return True
-        except Exception:
-            pass
+                else:
+                    logger.debug("File %s failed quality check: count=%d (< 2500)", filepath.name, count)
+        except json.JSONDecodeError as e:
+            logger.debug("File %s failed quality check: invalid JSON (line %d)", filepath.name, e.lineno)
+        except (IOError, OSError) as e:
+            logger.debug("File %s failed quality check: cannot read (%s)", filepath.name, type(e).__name__)
+        except Exception as e:
+            logger.debug("File %s failed quality check: unexpected error %s", filepath.name, type(e).__name__)
         return False

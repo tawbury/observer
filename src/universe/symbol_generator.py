@@ -62,20 +62,23 @@ class SymbolGenerator:
         """Helper to get AM/PM tag for logging."""
         return "AM" if datetime.now().hour < 12 else "PM"
 
-    async def execute(self) -> Optional[str]:
+    async def execute(self, force: bool = False) -> Optional[str]:
         """
         High-level controller for symbol generation.
         Handles CBC (Check-Before-Collect), state check, recovery, and results reporting.
+        
+        :param force: If True, bypass history/file checks and force collection.
         """
         start_time = time.time()
         tag = self._get_current_tag()
         ymd = datetime.now().strftime("%Y%m%d")
         
-        logger.info(f"[{tag}] Starting SymbolGenerator execution...")
+        logger.info(f"[{tag}] Starting SymbolGenerator execution (force={force})...")
         
         # 1. Check-Before-Collect (CBC) Logic
         # [Requirement] Skip API if valid T-0 or T-1 data exists with > 2500 symbols
-        should_run, existing_path = self.should_collect()
+        # If force=True, we ignore the existence of files and proceed.
+        should_run, existing_path = self.should_collect(force=force)
         
         # [Requirement] Cold Start: If no files exist (should_run=True), ignore state and force collection.
         if not should_run:
@@ -617,12 +620,17 @@ class SymbolGenerator:
         if deleted_count > 0:
             logger.info(f"[{tag}] Cleaned up {deleted_count} old symbol files (7-day policy).")
 
-    def should_collect(self) -> tuple[bool, Optional[str]]:
+    def should_collect(self, force: bool = False) -> tuple[bool, Optional[str]]:
         """
         Check if collection is necessary.
         Returns (True, None) if collection is needed,
         Returns (False, path) if valid data (T-0 or T-1) already exists.
+        
+        :param force: If True, always returns (True, None)
         """
+        if force:
+            return True, None
+            
         tag = self._get_current_tag()
         today_str = datetime.now().strftime("%Y%m%d")
         yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")

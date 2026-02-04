@@ -71,6 +71,13 @@ class UniverseScheduler:
         """Run the scheduler loop indefinitely."""
         # [INIT-CHECK] Immediate check on startup to prevent data gaps
         try:
+            log.info("[INIT-CHECK] Server Start Detected. Ensuring symbol data integrity...")
+            
+            # 1. 심볼 데이터 무결성 체크 (없으면 생성, 있으면 유효성 검증 후 스킵)
+            # force=False로 호출하여 'Smart Check'를 수행합니다. (파일이 정상이면 API 호출 안 함)
+            await self._manager.symbol_gen.execute(force=False)
+            
+            # 2. 유니버스 스냅샷 체크
             today = date.today()
             if not self._manager.load_universe(today):
                 log.info("[INIT-CHECK] Today's snapshot missing. Starting immediate generation...")

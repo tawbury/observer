@@ -523,16 +523,10 @@ class KISRestProvider:
                     symbols.append(code)
             
             # Check for next page
-            # KIS uses 'tr_cont' in response headers or body to indicate more data
+            # KIS API pagination: "M" = More data available, others ("F", "D", "") = Last page
             tr_cont = response.headers.get("tr_cont", "")
-            if tr_cont not in ["F", "M"]: # F: First/Final?, M: Middle?
-                # This depends on the specific TR. If tr_cont is not provided or 'F', we stop.
-                # Actually, KIS often returns 'M' for more, 'F' or empty for end.
-                if not tr_cont or tr_cont == "D": # 'D' is sometimes used for end
-                    break
-            
-            # If the response itself has pagination info
-            if not tr_cont:
+            if tr_cont != "M":
+                logger.debug(f"Pagination complete for market {mkt_code}: tr_cont={tr_cont!r}")
                 break
                 
         logger.info(f"Fetched {len(symbols)} symbols for market {mkt_code}")

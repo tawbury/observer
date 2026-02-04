@@ -3,6 +3,8 @@ import json
 import logging
 import asyncio
 import sys
+import time
+import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Set, Optional, Dict, Any
@@ -34,6 +36,10 @@ class SymbolGenerator:
         self.universe_dir = self.base_path / "universe"  # Mandatory output directory
         self.backup_dir = self.base_path / "backup"
         
+        # New state and health file paths
+        self.state_file = self.base_path / "last_run_state.json"
+        self.health_file = self.base_path / "symbol_health.json"
+        
         # [Requirement] Hard-fail on directory creation issues with specific message
         try:
             self.symbols_dir.mkdir(parents=True, exist_ok=True)
@@ -58,18 +64,68 @@ class SymbolGenerator:
         """Helper to get AM/PM tag for logging."""
         return "AM" if datetime.now().hour < 12 else "PM"
 
+    async def execute(self) -> Optional[str]:
+        """
+        High-level controller for symbol generation.
+        Handles state check, recovery, and results reporting.
+        """
+        start_time = time.time()
+        tag = self._get_current_tag()
+        ymd = datetime.now().strftime("%Y%m%d")
+        
+        logger.info(f"[{tag}] Starting SymbolGenerator execution...")
+        
+        # 1. State Check & Recovery Logic
+        state = self._load_state()
+        if state.get("last_ymd") == ymd and state.get("last_tag") == tag and state.get("status") == "SUCCESS":
+            logger.info(f"[{tag}] Already successfully executed for this timeslot. Skipping.")
+            return state.get("last_filepath")
+
+        try:
+            filepath = await self.generate_daily_symbols()
+            duration = time.time() - start_time
+            
+            # 2. Record Success State
+            self._save_state({
+                "last_ymd": ymd,
+                "last_tag": tag,
+                "status": "SUCCESS",
+                "last_run": datetime.now().isoformat(),
+                "last_filepath": filepath
+            })
+            
+            # 3. Health Check Output
+            self._write_health_report(True, filepath, duration)
+            return filepath
+            
+        except Exception as e:
+            duration = time.time() - start_time
+            logger.exception(f"[{tag}] Critical failure during symbol generation")
+            
+            # Record Failure State
+            self._save_state({
+                "last_ymd": ymd,
+                "last_tag": tag,
+                "status": "FAILED",
+                "last_run": datetime.now().isoformat(),
+                "error": str(e)
+            })
+            
+            self._write_health_report(False, None, duration, str(e))
+            return None
+
     async def generate_daily_symbols(self) -> str:
         """
-        Execute the 3-step collection strategy and save the result.
+        Execute the 4-step collection strategy and save the result.
         Returns the path to the generated symbol file.
         """
         tag = self._get_current_tag()
         logger.info(f"[{tag}] Starting daily symbol generation process...")
         
-        symbols = await self._collect_symbols_3step()
+        symbols = await self._collect_symbols_4step()
         
         if not symbols:
-            logger.error(f"[{tag}] [CRITICAL] Failed to collect symbols after all 3 steps.")
+            logger.error(f"[{tag}] [CRITICAL] Failed to collect symbols after all steps.")
             raise RuntimeError("Failed to collect symbols.")
 
         # Determine version (AM/PM)
@@ -88,7 +144,7 @@ class SymbolGenerator:
                 "version": tag,
                 "generated_at": now.isoformat(),
                 "count": len(symbols),
-                "source_strategy": "3-Step-Success"
+                "source_strategy": "4-Step-Strategy"
             },
             "symbols": sorted(list(symbols))
         }
@@ -106,65 +162,152 @@ class SymbolGenerator:
         
         return str(filepath)
 
-    async def _collect_symbols_3step(self) -> Set[str]:
+    async def _collect_symbols_4step(self) -> Set[str]:
         """
-        3-Step Collection Strategy (API -> Master File -> Local Backup).
-        All steps are strictly managed and logged.
+        4-Step Collection Strategy (API -> Master File -> Local Backup -> Emergency Fallback).
         """
         tag = self._get_current_tag()
         
-        # Step 1: KIS API
-        try:
-            logger.info(f"[{tag}] Step 1: Attempting KIS API collection...")
-            symbols = await self.engine.fetch_stock_list(market="ALL")
-            if symbols and len(symbols) > 500:
-                logger.info(f"[{tag}] Step 1 Success: {len(symbols)} symbols fetched via API")
-                return set(symbols)
-            else:
-                logger.warning(f"[{tag}] Step 1 Failed: API returned insufficient symbols (Count: {len(symbols) if symbols else 0})")
-        except Exception as e:
-            logger.error(f"[{tag}] Step 1 Failed (API 404/Connection): {e}")
+        # Step 1: KIS API with Retry
+        symbols = await self._step_api_with_retry()
+        if symbols: return symbols
 
         # Step 2: KIS Master File
-        logger.info(f"[{tag}] Step 2: Attempting KIS Master File download...")
-        if hasattr(self.engine, "_fetch_stock_list_from_file"):
-            try:
-                symbols = await self.engine._fetch_stock_list_from_file()
-                if symbols and len(symbols) > 500:
-                    logger.info(f"[{tag}] Step 2 Success: {len(symbols)} symbols from master file")
-                    return set(symbols)
-                else:
-                    logger.warning(f"[{tag}] Step 2 Failed: Master file contains invalid data or insufficient symbols.")
-            except Exception as e:
-                logger.error(f"[{tag}] Step 2 Failed (Master File 404/Fetch): {e}")
-        else:
-            logger.info(f"[{tag}] Step 2 Skipped: Engine method '_fetch_stock_list_from_file' not implemented.")
+        symbols = await self._step_master_file()
+        if symbols: return symbols
 
         # Step 3: Local Backup (JSON Only)
+        symbols = await self._step_local_backup()
+        if symbols: return symbols
+
+        # Step 4: Emergency Fallback (The Last Resort)
+        symbols = await self._step_emergency_fallback()
+        if symbols: return symbols
+
+        return set()
+
+    async def _step_api_with_retry(self, retries: int = 3) -> Optional[Set[str]]:
+        """Step 1: Fetch via API with exponential backoff."""
+        tag = self._get_current_tag()
+        for attempt in range(1, retries + 1):
+            try:
+                logger.info(f"[{tag}] Step 1: Attempting KIS API collection (Attempt {attempt}/{retries})...")
+                symbols = await self.engine.fetch_stock_list(market="ALL")
+                if self._validate_symbols(symbols):
+                    logger.info(f"[{tag}] Step 1 Success: {len(symbols)} symbols fetched via API")
+                    return set(symbols)
+                else:
+                    logger.warning(f"[{tag}] Step 1 Validation Failed: Insufficient or invalid data.")
+            except Exception as e:
+                logger.error(f"[{tag}] Step 1 Attempt {attempt} Failed: {e}")
+                if attempt < retries:
+                    wait_time = 60 * (2 ** (attempt - 1)) # 60s, 120s, 240s...
+                    logger.info(f"[{tag}] Retrying in {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+        return None
+
+    async def _step_master_file(self) -> Optional[Set[str]]:
+        """Step 2: Fetch via KIS Master File."""
+        tag = self._get_current_tag()
+        if hasattr(self.engine, "_fetch_stock_list_from_file"):
+            try:
+                logger.info(f"[{tag}] Step 2: Attempting KIS Master File collection...")
+                symbols = await self.engine._fetch_stock_list_from_file()
+                if self._validate_symbols(symbols):
+                    logger.info(f"[{tag}] Step 2 Success: {len(symbols)} symbols from master file")
+                    return set(symbols)
+            except Exception as e:
+                logger.error(f"[{tag}] Step 2 Failed: {e}")
+        return None
+
+    async def _step_local_backup(self) -> Optional[Set[str]]:
+        """Step 3: Fetch via Local Backup snapshots."""
+        tag = self._get_current_tag()
         try:
-            logger.info(f"[{tag}] Step 3: Attempting local backup collection (JSON only) from {self.backup_dir}...")
-            # [Requirement] strictly JSON files in backup
-            backup_files = list(self.backup_dir.glob("symbols_*.json"))
+            logger.info(f"[{tag}] Step 3: Attempting local backup collection from {self.backup_dir}...")
+            backup_files = sorted(list(self.backup_dir.glob("symbols_*.json")), key=os.path.getmtime, reverse=True)
             if backup_files:
-                backup_files.sort(key=os.path.getmtime, reverse=True)
                 latest_backup = backup_files[0]
-                logger.info(f"[{tag}] Loading from stable local backup: {latest_backup}")
-                
                 with open(latest_backup, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     symbols = data.get("symbols", [])
-                
-                if symbols:
-                    logger.info(f"[{tag}] Step 3 Success: {len(symbols)} symbols from backup snapshot")
+                if self._validate_symbols(symbols):
+                    logger.info(f"[{tag}] Step 3 Success: {len(symbols)} symbols from {latest_backup.name}")
                     return set(symbols)
-            else:
-                logger.warning(f"[{tag}] Step 3 Failed: No valid JSON backup files found in {self.backup_dir}")
         except Exception as e:
-            logger.error(f"[{tag}] Step 3 Failed (Local Backup Recovery): {e}")
+            logger.error(f"[{tag}] Step 3 Failed: {e}")
+        return None
 
-        return set()
+    async def _step_emergency_fallback(self) -> Optional[Set[str]]:
+        """Step 4: Emergency Fallback - Use the most recent symbol file from the symbols directory."""
+        tag = self._get_current_tag()
+        try:
+            logger.warning(f"[{tag}] Step 4: EMERGENCY FALLBACK - Attempting to use latest generated symbols...")
+            latest_file = self.get_latest_symbol_file()
+            if latest_file:
+                logger.info(f"[{tag}] Found latest valid file: {latest_file}. Using as today's data.")
+                with open(latest_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    symbols = data.get("symbols", [])
+                if symbols:
+                    return set(symbols)
+        except Exception as e:
+            logger.critical(f"[{tag}] Step 4 Emergency Fallback Failed: {e}")
+        return None
 
-        return set()
+    def _validate_symbols(self, symbols: List[str]) -> bool:
+        """Validate the collected data."""
+        if not symbols or len(symbols) < 500:
+            return False
+            
+        # Example of data sanity check: Check if major symbols exist
+        # This can be expanded based on specific requirements
+        # majors = {"005930", "000660"} # Samsung, Hynix
+        # if not majors.issubset(set(symbols)):
+        #     return False
+            
+        return True
+
+    def _load_state(self) -> Dict[str, Any]:
+        """Load the last run state."""
+        if self.state_file.exists():
+            try:
+                with open(self.state_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                logger.warning("Failed to load state file. Proceeding with fresh state.")
+        return {}
+
+    def _save_state(self, state: Dict[str, Any]):
+        """Save the current run state."""
+        try:
+            with open(self.state_file, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save state file: {e}")
+
+    def _write_health_report(self, success: bool, filepath: Optional[str], duration: float, error: Optional[str] = None):
+        """Write a summary report for external monitoring."""
+        report = {
+            "success": success,
+            "timestamp": datetime.now().isoformat(),
+            "duration_sec": round(duration, 2),
+            "filepath": filepath,
+            "error": error
+        }
+        if filepath and os.path.exists(filepath):
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    report["symbol_count"] = data.get("metadata", {}).get("count", 0)
+            except Exception:
+                pass
+
+        try:
+            with open(self.health_file, "w", encoding="utf-8") as f:
+                json.dump(report, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to write health report: {e}")
 
     async def _log_diff(self, new_symbols: Set[str]):
         """Compare with current latest symbol file and log detailed changes."""

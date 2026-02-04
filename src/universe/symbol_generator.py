@@ -132,9 +132,26 @@ class SymbolGenerator:
         filename = f"symbols_{ymd}_{tag}.json"
         filepath = self.symbols_dir / filename
         
+        # [Requirement] AM/PM File Management & Diff Update
+        # Load existing today's file if it exists to compare/merge
+        existing_symbols: Set[str] = set()
+        if filepath.exists():
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    old_data = json.load(f)
+                    existing_symbols = set(old_data.get("symbols", []))
+                    logger.info(f"[{tag}] Existing today's file found ({len(existing_symbols)} symbols)")
+            except Exception:
+                pass
+
         # Track Diff before saving
         await self._log_diff(symbols)
         
+        # If new symbols are fewer than existing, keep existing ones to be safe (unless emergency)
+        if len(symbols) < len(existing_symbols) and len(symbols) < 2500:
+            logger.warning(f"[{tag}] New symbol count ({len(symbols)}) is less than existing ({len(existing_symbols)}). Merging with existing data for stability.")
+            symbols.update(existing_symbols)
+
         # Save to JSON
         data = {
             "metadata": {
@@ -185,7 +202,7 @@ class SymbolGenerator:
         return set()
 
     async def _step_api_with_retry(self, retries: int = 3) -> Optional[Set[str]]:
-        """Step 1: Fetch via API with exponential backoff."""
+        """Step 1: Fetch via API with exponential backoff and count validation."""
         tag = self._get_current_tag()
         for attempt in range(1, retries + 1):
             try:
@@ -195,13 +212,15 @@ class SymbolGenerator:
                     logger.info(f"[{tag}] Step 1 Success: {len(symbols)} symbols fetched via API")
                     return set(symbols)
                 else:
-                    logger.warning(f"[{tag}] Step 1 Validation Failed: Insufficient or invalid data.")
+                    count = len(symbols) if symbols else 0
+                    logger.warning(f"[{tag}] Step 1 Validation Failed: Insufficient data count ({count} < 2500).")
             except Exception as e:
                 logger.error(f"[{tag}] Step 1 Attempt {attempt} Failed: {e}")
-                if attempt < retries:
-                    wait_time = 60 * (2 ** (attempt - 1)) # 60s, 120s, 240s...
-                    logger.info(f"[{tag}] Retrying in {wait_time}s...")
-                    await asyncio.sleep(wait_time)
+            
+            if attempt < retries:
+                wait_time = 10 * attempt  # Shorter wait for internal retry (10s, 20s)
+                logger.info(f"[{tag}] Retrying API collection in {wait_time}s...")
+                await asyncio.sleep(wait_time)
         return None
 
     async def _step_master_file(self) -> Optional[Set[str]]:
@@ -254,15 +273,12 @@ class SymbolGenerator:
         return None
 
     def _validate_symbols(self, symbols: List[str]) -> bool:
-        """Validate the collected data."""
-        if not symbols or len(symbols) < 500:
+        """
+        Validate the collected data.
+        [Requirement] Minimum count 2,500 symbols check.
+        """
+        if not symbols or len(symbols) < 2500:
             return False
-            
-        # Example of data sanity check: Check if major symbols exist
-        # This can be expanded based on specific requirements
-        # majors = {"005930", "000660"} # Samsung, Hynix
-        # if not majors.issubset(set(symbols)):
-        #     return False
             
         return True
 

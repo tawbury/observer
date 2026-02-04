@@ -66,28 +66,41 @@ class UniverseManager:
 
     # ----------------------- Public APIs -----------------------
     def get_current_universe(self) -> List[str]:
-        """Load today's universe list; falls back to last available snapshot."""
-        today_str = date.today().strftime("%Y%m%d")
+        """Load today's universe list; falls back to T-1 or last available snapshot."""
+        today = date.today()
+        today_str = today.strftime("%Y%m%d")
         
-        # Priority 1: Exact date match with glob (catches yyyymmdd_k3_stocks.json etc)
-        pattern = f"{today_str}*_{self.market}.json"
+        # Priority 1: Exact date match for Today (Dynamic market identifier)
+        # Match both kr_stocks, k3_stocks, etc. using generalized pattern
+        pattern = f"{today_str}*_stocks.json"
         files = list(self.universe_dir.glob(pattern))
         
         if files:
-            # Sort to get the most recent for today if multiple exist
             files.sort(reverse=True)
-            logger.info(f"Today's universe found via glob: {files[0].name}")
+            logger.info(f"Today's universe found: {files[0].name}")
             return self._load_universe_list_from_path(files[0])
             
-        # Priority 2: Standard path check (legacy or exact match)
-        symbols = self._try_load_universe_list(date.today())
+        # Priority 2: T-1 (Previous Trading Day) Failover
+        # [Requirement] Check T-1 if T-0 is missing
+        prev_date = self._previous_trading_day(today)
+        prev_str = prev_date.strftime("%Y%m%d")
+        prev_pattern = f"{prev_str}*_stocks.json"
+        prev_files = list(self.universe_dir.glob(prev_pattern))
+        
+        if prev_files:
+            prev_files.sort(reverse=True)
+            logger.warning(f"[FAILOVER] 당일 파일 부재로 전일 유니버스({prev_files[0].name})를 로드합니다")
+            return self._load_universe_list_from_path(prev_files[0])
+            
+        # Priority 3: Standard path check (Legacy support)
+        symbols = self._try_load_universe_list(today)
         if symbols:
             return symbols
             
-        # Fallback: Find the latest valid snapshot
+        # Priority 4: Final Fallback - Find the latest valid snapshot regardless of date
         latest_snapshot = self._find_latest_snapshot()
         if latest_snapshot:
-            logger.warning(f"Today's universe not found. Falling back to latest snapshot: {latest_snapshot}")
+            logger.warning(f"Universe data missing for T-0/T-1. Falling back to latest snapshot: {latest_snapshot}")
             return self._load_universe_list_from_path(latest_snapshot)
             
         return []
@@ -228,7 +241,8 @@ class UniverseManager:
             return []
 
     def _find_latest_snapshot(self) -> Optional[Path]:
-        files = list(self.universe_dir.glob(f"*_{self.market}.json"))
+        # Generalized pattern to match any market identifier
+        files = list(self.universe_dir.glob("*_stocks.json"))
         if not files:
             return None
         files.sort(reverse=True)

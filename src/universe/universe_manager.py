@@ -40,7 +40,13 @@ class UniverseManager:
         # [Requirement] Environment-based unified path management
         from observer.paths import observer_data_dir, snapshot_dir
         self.base_path = Path(data_dir) if data_dir else observer_data_dir()
-        self.universe_dir = Path(data_dir) if data_dir else snapshot_dir()
+        
+        # If data_dir is provided, we assume it's the base directory and snapshots go to base/universe
+        # This aligns with SymbolGenerator's behavior.
+        if data_dir:
+            self.universe_dir = self.base_path / "universe"
+        else:
+            self.universe_dir = snapshot_dir()
         
         # [Requirement] Hard-fail on directory creation issues with specific message
         try:
@@ -66,41 +72,33 @@ class UniverseManager:
 
     # ----------------------- Public APIs -----------------------
     def get_current_universe(self) -> List[str]:
-        """Load today's universe list; falls back to T-1 or last available snapshot."""
+        """Load today's universe list; falls back up to 7 days in reverse (Holiday support)."""
         today = date.today()
-        today_str = today.strftime("%Y%m%d")
         
-        # Priority 1: Exact date match for Today (Dynamic market identifier)
-        # Match both kr_stocks, k3_stocks, etc. using generalized pattern
-        pattern = f"{today_str}*_stocks.json"
-        files = list(self.universe_dir.glob(pattern))
-        
-        if files:
-            files.sort(reverse=True)
-            logger.info(f"Today's universe found: {files[0].name}")
-            return self._load_universe_list_from_path(files[0])
+        # [Requirement] Scan up to 7 days reverse to find the most recent valid universe file
+        # This handles weekends and long public holidays (e.g., Chu-seok).
+        for i in range(8):  # 0 to 7 days
+            scan_date = today - timedelta(days=i)
+            date_str = scan_date.strftime("%Y%m%d")
             
-        # Priority 2: T-1 (Previous Trading Day) Failover
-        # [Requirement] Check T-1 if T-0 is missing
-        prev_date = self._previous_trading_day(today)
-        prev_str = prev_date.strftime("%Y%m%d")
-        prev_pattern = f"{prev_str}*_stocks.json"
-        prev_files = list(self.universe_dir.glob(prev_pattern))
-        
-        if prev_files:
-            prev_files.sort(reverse=True)
-            logger.warning(f"[FAILOVER] 당일 파일 부재로 전일 유니버스({prev_files[0].name})를 로드합니다")
-            return self._load_universe_list_from_path(prev_files[0])
+            # Match both kr_stocks, k3_stocks, etc. using generalized pattern
+            # But prioritize current MARKET_CODE if possible
+            pattern = f"{date_str}*_stocks.json"
+            files = list(self.universe_dir.glob(pattern))
             
-        # Priority 3: Standard path check (Legacy support)
-        symbols = self._try_load_universe_list(today)
-        if symbols:
-            return symbols
-            
-        # Priority 4: Final Fallback - Find the latest valid snapshot regardless of date
+            if files:
+                files.sort(reverse=True)
+                if i == 0:
+                    logger.info(f"Today's universe found: {files[0].name}")
+                else:
+                    logger.warning(f"[FAILOVER] {i}일 전 유니버스({files[0].name})를 로드합니다 (공휴일 대응)")
+                
+                return self._load_universe_list_from_path(files[0])
+
+        # Priority 4: Final Fallback - Find the absolute latest valid snapshot regardless of date
         latest_snapshot = self._find_latest_snapshot()
         if latest_snapshot:
-            logger.warning(f"Universe data missing for T-0/T-1. Falling back to latest snapshot: {latest_snapshot}")
+            logger.warning(f"Universe data missing for last 7 days. Falling back to absolute latest snapshot: {latest_snapshot}")
             return self._load_universe_list_from_path(latest_snapshot)
             
         return []

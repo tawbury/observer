@@ -388,10 +388,11 @@ class SymbolGenerator:
     def _cleanup_old_files(self):
         """
         Delete symbol files older than 7 days.
-        Uses both filename date and file modification time (mtime) for robustness.
+        [Requirement] Prioritize filename-based date (YYYYMMDD) parsing.
+        Use modification time (mtime) only as a fallback.
         """
         tag = self._get_current_tag()
-        cutoff_date = datetime.now() - timedelta(days=7)
+        cutoff_date = (datetime.now() - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
         cutoff_ts = cutoff_date.timestamp()
         
         files = list(self.symbols_dir.glob("symbols_*.json"))
@@ -400,22 +401,25 @@ class SymbolGenerator:
         for filepath in files:
             should_delete = False
             
-            # 1. Filename-based check
+            # 1. Filename-based check (Priority)
+            # Pattern: symbols_YYYYMMDD_TAG.json
             try:
-                date_str = filepath.stem.split("_")[1]
-                file_date = datetime.strptime(date_str, "%Y%m%d")
-                if file_date < cutoff_date:
-                    should_delete = True
+                parts = filepath.stem.split("_")
+                if len(parts) >= 2:
+                    date_str = parts[1]
+                    file_date = datetime.strptime(date_str, "%Y%m%d")
+                    if file_date < cutoff_date:
+                        should_delete = True
+                        logger.info(f"[{tag}] Cleanup: File {filepath.name} is older than 7 days based on filename date.")
             except (IndexError, ValueError):
-                # Filename doesn't match pattern, rely on mtime
-                pass
-            
-            # 2. mtime-based secondary check
-            try:
-                if not should_delete and filepath.stat().st_mtime < cutoff_ts:
-                    should_delete = True
-            except Exception:
-                pass
+                # Filename doesn't match expected pattern (symbols_YYYYMMDD_*.json)
+                # Fallback to mtime
+                try:
+                    if filepath.stat().st_mtime < cutoff_ts:
+                        should_delete = True
+                        logger.info(f"[{tag}] Cleanup: File {filepath.name} is older than 7 days based on mtime fallback.")
+                except Exception:
+                    pass
 
             if should_delete:
                 try:

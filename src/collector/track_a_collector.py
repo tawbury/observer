@@ -98,7 +98,24 @@ class TrackACollector(TimeAwareMixin):
         # [Requirement] Bootstrapping - Ensure symbols are ready before main loop
         log.info("Bootstrapping SymbolGenerator...")
         try:
-            await self._manager.symbol_gen.execute()
+            # 1. Symbol Check: Ensure minimum 2,500 symbols are available
+            should_collect, existing_symbol_path = self._manager.symbol_gen.should_collect()
+            if should_collect:
+                log.info("Symbol count check: Insufficient symbols (< 2,500). Starting immediate collection...")
+                await self._manager.symbol_gen.execute()
+            else:
+                log.info(f"Symbol count check: Sufficient symbols found at {existing_symbol_path}")
+
+            # 2. Universe Force Generation: Ensure at least one valid universe file exists (T-0 or T-1)
+            # This prevents the collector from entering a long wait loop if starting after a holiday.
+            current_universe = self._manager.get_current_universe()
+            if not current_universe:
+                log.warning("No valid universe file found for last 7 days. Forcing immediate snapshot generation...")
+                await self._manager.create_daily_snapshot(date.today())
+                log.info("Immediate universe snapshot created.")
+            else:
+                log.info(f"Universe verification: Valid universe found ({len(current_universe)} symbols).")
+
             log.info("Bootstrapping complete.")
         except Exception as e:
             log.warning(f"Bootstrapping failed: {e}. Collector will retry during execution.")

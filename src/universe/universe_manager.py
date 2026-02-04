@@ -31,7 +31,9 @@ class UniverseManager:
         data_dir: Optional[str] = None,
     ) -> None:
         self.engine = provider_engine
-        self.market = market
+        # [Requirement] Market code management
+        market_code = os.getenv("MARKET_CODE", "kr")
+        self.market = f"{market_code}_stocks"
         self.min_price = int(min_price)
         self.min_count = int(min_count)
         

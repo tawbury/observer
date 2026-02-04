@@ -15,10 +15,12 @@ logger = logging.getLogger("VerifyFix")
 async def test_universe_manager_glob(tmp_path):
     # Setup mock snapshot_dir
     with patch("observer.paths.snapshot_dir", return_value=tmp_path):
-        manager = UniverseManager(provider_engine=MagicMock(), market="k3_stocks")
+        # Now defaults to kr_stocks via os.getenv('MARKET_CODE', 'kr')
+        manager = UniverseManager(provider_engine=MagicMock())
         
         today_str = date.today().strftime("%Y%m%d")
-        universe_file = tmp_path / f"{today_str}_extra_k3_stocks.json"
+        # Match current market default: kr_stocks
+        universe_file = tmp_path / f"{today_str}_kr_stocks.json"
         universe_data = {"symbols": ["005930", "000660"], "metadata": {"date": today_str}}
         
         with open(universe_file, "w") as f:

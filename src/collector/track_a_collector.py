@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, date, time, timedelta
 from typing import List, Dict, Any, Optional, Callable
 
+import os
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -25,7 +26,7 @@ log = logging.getLogger("TrackACollector")
 class TrackAConfig:
     tz_name: str = "Asia/Seoul"
     interval_minutes: int = 5
-    market: str = "kr_stocks"
+    market: str = f"{os.getenv('MARKET_CODE', 'kr')}_stocks"
     session_id: str = "track_a_session"
     mode: str = "PROD"
     semaphore_limit: int = 20  # respect 20 req/sec
@@ -141,7 +142,8 @@ class TrackACollector(TimeAwareMixin):
             if symbols:
                 break
             
-            log.warning("당일 유니버스 파일(YYYYMMDD_k3_stocks.json)을 찾을 수 없습니다. 60초 후 재시도합니다.")
+            expected_file = f"{datetime.now().strftime('%Y%m%d')}_{self.cfg.market}.json"
+            log.warning(f"당일 유니버스 파일({expected_file})을 찾을 수 없습니다. 60초 후 재시도합니다.")
             log.info("Waiting for universe file...")
             await asyncio.sleep(60)
 

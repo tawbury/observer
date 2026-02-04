@@ -22,10 +22,16 @@ from observer.paths import (
 # Deployment-specific Constants
 # ============================================================
 
+from observer.paths import data_dir, log_dir, config_dir
+
+# ============================================================
+# Deployment-specific Constants
+# ============================================================
+
 DEPLOYMENT_ROOT = project_root()
-DATA_ROOT = DEPLOYMENT_ROOT / "data"
-LOG_ROOT = DEPLOYMENT_ROOT / "logs"
-CONFIG_ROOT = DEPLOYMENT_ROOT / "config"
+DATA_ROOT = data_dir()
+LOG_ROOT = log_dir()
+CONFIG_ROOT = config_dir()
 
 # ============================================================
 # Observer Asset Paths (delegate to observer.paths)

@@ -25,13 +25,11 @@ class SymbolGenerator:
     
     def __init__(self, provider_engine, base_dir: Optional[str] = None):
         self.engine = provider_engine
-        # [Requirement] Force path through OBSERVER_DATA_DIR for k3s compatibility
-        env_root = os.getenv("OBSERVER_DATA_DIR")
-        if not env_root:
-            logger.warning("[INIT] OBSERVER_DATA_DIR not set. Using default /data path.")
-            env_root = "/data"
-            
-        self.base_path = Path(base_dir) if base_dir else Path(env_root)
+        
+        # [Requirement] Environment-based unified path management
+        from observer.paths import observer_data_dir
+        self.base_path = Path(base_dir) if base_dir else observer_data_dir()
+        
         self.symbols_dir = self.base_path / "symbols"
         self.universe_dir = self.base_path / "universe"  # Mandatory output directory
         self.backup_dir = self.base_path / "backup"

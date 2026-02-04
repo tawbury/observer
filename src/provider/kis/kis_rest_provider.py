@@ -427,43 +427,113 @@ class KISRestProvider:
     
     async def fetch_stock_list(self, market: str = "ALL") -> List[str]:
         """
-        Fetch all Korean stock symbols using the official stock information file.
-        
-        **IMPORTANT**: Changed from API-based to file-based approach.
-        
-        Reference:
-        - Official KIS API Portal: https://apiportal.koreainvestment.com/apiservice-category
-        - Document: "종목정보파일" (Stock Information File)
-        - Updated daily with all 2894 Korean stocks
-        - No API calls needed, no rate limit concerns
+        시장 세그먼트별(KOSPI, KOSDAQ)로 주식 종목 리스트를 가져와 병합합니다.
         
         Args:
-            market: Market filter - "KOSPI", "KOSDAQ", or "ALL" (ignored, file contains all)
+            market: 시장 구분 - "KOSPI", "KOSDAQ", 또는 "ALL" (기본값)
             
         Returns:
-            List of all available stock codes (2894+ symbols)
-            
-        Note:
-            - This method now downloads the official stock information file
-            - Much faster and more reliable than API-based approach
-            - No rate limiting issues
-            - Recommended by official KIS documentation
+            병합된 주식 코드 리스트
         """
-        logger.info("Fetching stock list from official KIS stock information file...")
+        logger.info(f"Fetching stock list for market: {market}")
         
-        try:
-            symbols = await self._fetch_stock_list_from_file()
+        targets = []
+        if market == "KOSPI":
+            targets = ["J"]
+        elif market == "KOSDAQ":
+            targets = ["Q"]
+        else:
+            targets = ["J", "Q"]
             
-            if market != "ALL":
-                # Future: Add market filtering if file format supports it
-                logger.info(f"File contains all markets; 'market={market}' filter ignored")
+        all_symbols = []
+        for mkt_code in targets:
+            symbols = await self._fetch_market_symbols(mkt_code)
+            all_symbols.extend(symbols)
             
-            logger.info(f"✅ Successfully fetched {len(symbols)} symbols from file")
-            return symbols
+        # 중복 제거 및 정렬
+        unique_symbols = sorted(list(set(all_symbols)))
+        logger.info(f"✅ Successfully fetched total {len(unique_symbols)} symbols")
+        return unique_symbols
+
+    async def _fetch_market_symbols(self, mkt_code: str) -> List[str]:
+        """
+        특정 시장의 모든 종목 코드를 페이지네이션을 통해 수집합니다.
+        
+        API: GET /uapi/domestic-stock/v1/quotations/inquire-search-item
+        TR_ID: HHKST01010100
+        """
+        import time
+        import random
+
+        url = f"{self.auth.base_url}/uapi/domestic-stock/v1/quotations/inquire-search-item"
+        symbols = []
+        
+        # KIS API pagination usually uses some indicator for next data
+        # However, for this specific API, we might need to check the exact spec.
+        # Based on typical KIS patterns:
+        tr_cont = ""
+        
+        while True:
+            await self.rate_limiter.acquire()
+            await self.auth.ensure_token()
             
-        except Exception as e:
-            logger.error(f"❌ Failed to fetch stock list: {e}")
-            return []
+            params = {
+                "FID_COND_MRKT_DIV_CODE": mkt_code,
+                "FID_INPUT_ISCD": "", # Empty for all
+            }
+            
+            # Retry loop with exponential backoff
+            data = None
+            for attempt in range(3): # Max 3 retries
+                try:
+                    headers = self.auth.get_headers(tr_id="HHKST01010100")
+                    if tr_cont:
+                        headers["tr_cont"] = tr_cont
+                        
+                    session = await self.auth.get_session()
+                    async with session.get(url, headers=headers, params=params) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            if data.get("rt_cd") == "0":
+                                break # Success
+                            else:
+                                error_msg = data.get("msg1", "Unknown error")
+                                logger.error(f"API Error (Market {mkt_code}, Attempt {attempt+1}): {error_msg}")
+                        elif response.status == 401:
+                            await self.auth.emergency_refresh()
+                        else:
+                            logger.error(f"HTTP Error (Market {mkt_code}, Attempt {attempt+1}): {response.status}")
+                            
+                except Exception as e:
+                    logger.error(f"Request Exception (Market {mkt_code}, Attempt {attempt+1}): {e}")
+                
+                # Exponential backoff
+                wait_time = (2 ** attempt) + random.random()
+                await asyncio.sleep(wait_time)
+            
+            if not data or data.get("rt_cd") != "0":
+                logger.error(f"Failed to fetch data for market {mkt_code} after retries. Data: {data}")
+                break
+                
+            # Extract symbols
+            output = data.get("output", [])
+            if not output:
+                logger.warning(f"Empty output for market {mkt_code}, response keys: {list(data.keys())}")
+            for item in output:
+                # KIS API uses different field names: stck_shrn_iscd, mksc_shrn_iscd, or pdno
+                code = item.get("stck_shrn_iscd") or item.get("mksc_shrn_iscd") or item.get("pdno")
+                if code and len(code) == 6:
+                    symbols.append(code)
+            
+            # Check for next page
+            # KIS API pagination: "M" = More data available, others ("F", "D", "") = Last page
+            tr_cont = response.headers.get("tr_cont", "")
+            if tr_cont != "M":
+                logger.debug(f"Pagination complete for market {mkt_code}: tr_cont={tr_cont!r}")
+                break
+                
+        logger.info(f"Fetched {len(symbols)} symbols for market {mkt_code}")
+        return symbols
     
     async def _fetch_stock_list_from_file(self) -> List[str]:
         """

@@ -102,13 +102,14 @@ def data_dir() -> Path:
     Canonical data root directory.
 
     Environment variable: OBSERVER_DATA_DIR
-    Default: {project_root}/data
+    Default: /opt/platform/runtime/observer/data
     """
     env_path = os.environ.get("OBSERVER_DATA_DIR")
     if env_path:
         path = Path(env_path)
     else:
-        path = project_root() / "data"
+        # K8S native mount point as default to avoid Read-only filesystem error
+        path = Path("/opt/platform/runtime/observer/data")
 
     path = path.resolve()
     # In read-only filesystem, mkdir might fail if the path is not a volume mount.
@@ -126,12 +127,12 @@ def config_dir() -> Path:
 
     Resolution order:
     1. OBSERVER_CONFIG_DIR environment variable
-    2. {project_root}/config
+    2. /opt/platform/runtime/observer/config
     """
     if os.environ.get("OBSERVER_CONFIG_DIR"):
         path = Path(os.environ["OBSERVER_CONFIG_DIR"])
     else:
-        path = project_root() / "config"
+        path = Path("/opt/platform/runtime/observer/config")
     
     path = path.resolve()
     try:
@@ -299,13 +300,13 @@ def log_dir() -> Path:
     Canonical log root directory.
 
     Environment variable: OBSERVER_LOG_DIR
-    Default: {project_root}/logs
+    Default: /opt/platform/runtime/observer/logs
     """
     env_path = os.environ.get("OBSERVER_LOG_DIR")
     if env_path:
         path = Path(env_path)
     else:
-        path = project_root() / "logs"
+        path = Path("/opt/platform/runtime/observer/logs")
     
     path = path.resolve()
     try:
@@ -359,14 +360,16 @@ def snapshot_dir() -> Path:
     """
     Canonical Universe/Symbol snapshot directory.
 
-    Environment variable: OBSERVER_SNAPSHOT_DIR
-    Default: {data_dir}/universe
+    Resolution:
+    1. OBSERVER_SNAPSHOT_DIR env
+    2. {data_dir()}/universe
     """
     env_path = os.environ.get("OBSERVER_SNAPSHOT_DIR")
     if env_path:
         path = Path(env_path)
     else:
-        path = data_dir() / "universe"
+        path = Path("/opt/platform/runtime/observer/universe")
+    
     path = path.resolve()
     try:
         path.mkdir(parents=True, exist_ok=True)

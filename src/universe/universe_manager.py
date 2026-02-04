@@ -31,14 +31,22 @@ class UniverseManager:
         data_dir: Optional[str] = None,
     ) -> None:
         self.engine = provider_engine
-        self.market = market
+        # [Requirement] Market code management
+        market_code = os.getenv("MARKET_CODE", "kr")
+        self.market = f"{market_code}_stocks"
         self.min_price = int(min_price)
         self.min_count = int(min_count)
         
         # [Requirement] Environment-based unified path management
-        from observer.paths import observer_data_dir
+        from observer.paths import observer_data_dir, snapshot_dir
         self.base_path = Path(data_dir) if data_dir else observer_data_dir()
-        self.universe_dir = self.base_path / "universe"
+        
+        # If data_dir is provided, we assume it's the base directory and snapshots go to base/universe
+        # This aligns with SymbolGenerator's behavior.
+        if data_dir:
+            self.universe_dir = self.base_path / "universe"
+        else:
+            self.universe_dir = snapshot_dir()
         
         # [Requirement] Hard-fail on directory creation issues with specific message
         try:
@@ -48,17 +56,18 @@ class UniverseManager:
             test_file.touch()
             test_file.unlink()
         except (PermissionError, OSError) as e:
-            logger.critical(f"[FATAL] 권한 부족: 관리자에게 {self.base_path} 폴더의 쓰기 권한 부여 요청 필요. Error: {e}")
-            import sys
+            logger.critical(f"[FATAL] 권한 부족: 관리자에게 {self.universe_dir} 폴더의 쓰기 권한 부여 요청 필요. Error: {e}")
             sys.exit(1)
         except Exception as e:
             logger.critical(f"[FATAL] Failed to initialize universe directory: {e}")
-            import sys
             sys.exit(1)
         
         # Initialize SymbolGenerator
         # This will also perform its own path check
         self.symbol_gen = SymbolGenerator(self.engine, base_dir=str(self.base_path))
+        
+        # [Requirement] Cleanup old universe files (7 days)
+        self._cleanup_old_universe_files()
         
         logger.info(f"UniverseManager initialized at {self.universe_dir}")
         print(f"[UniverseManager] initialized. universe_dir={self.universe_dir}")
@@ -66,16 +75,33 @@ class UniverseManager:
 
     # ----------------------- Public APIs -----------------------
     def get_current_universe(self) -> List[str]:
-        """Load today's universe list; falls back to last available snapshot."""
+        """Load today's universe list; falls back up to 7 days in reverse (Holiday support)."""
         today = date.today()
-        symbols = self._try_load_universe_list(today)
-        if symbols:
-            return symbols
+        
+        # [Requirement] Scan up to 7 days reverse to find the most recent valid universe file
+        # This handles weekends and long public holidays (e.g., Chu-seok).
+        for i in range(8):  # 0 to 7 days
+            scan_date = today - timedelta(days=i)
+            date_str = scan_date.strftime("%Y%m%d")
             
-        # Fallback: Find the latest valid snapshot
+            # Match both kr_stocks, k3_stocks, etc. using generalized pattern
+            # But prioritize current MARKET_CODE if possible
+            pattern = f"{date_str}*_stocks.json"
+            files = list(self.universe_dir.glob(pattern))
+            
+            if files:
+                files.sort(reverse=True)
+                if i == 0:
+                    logger.info(f"Today's universe found: {files[0].name}")
+                else:
+                    logger.warning(f"[FAILOVER] {i}일 전 유니버스({files[0].name})를 로드합니다 (공휴일 대응)")
+                
+                return self._load_universe_list_from_path(files[0])
+
+        # Priority 4: Final Fallback - Find the absolute latest valid snapshot regardless of date
         latest_snapshot = self._find_latest_snapshot()
         if latest_snapshot:
-            logger.warning(f"Today's universe not found. Falling back to latest snapshot: {latest_snapshot}")
+            logger.warning(f"Universe data missing for last 7 days. Falling back to absolute latest snapshot: {latest_snapshot}")
             return self._load_universe_list_from_path(latest_snapshot)
             
         return []
@@ -97,11 +123,22 @@ class UniverseManager:
         # 1. Load latest symbols via SymbolGenerator (Robust recovery inside)
         candidates = await self._load_robust_candidates()
         if not candidates:
-            raise ValueError("No candidate symbols available from any source.")
+            # Fallback check: even if load_robust_candidates returns empty, 
+            # try to get absolute latest symbol file as a last resort
+            logger.warning("No candidates from _load_robust_candidates. Checking local symbol storage.")
+            latest_symbol_file = self.symbol_gen.get_latest_symbol_file()
+            if latest_symbol_file:
+                with open(latest_symbol_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    candidates = data.get("symbols", [])
+            
+            if not candidates:
+                raise ValueError("No candidate symbols available from any source.")
 
         # 2. Filter symbols by price
         selected: List[str] = []
-        sem = asyncio.Semaphore(15) # Optimized concurrency
+        failed_symbols: List[tuple] = []  # (symbol, error_type, error_msg)
+        sem = asyncio.Semaphore(15)  # Optimized concurrency
         processed_count = 0
         total_candidates = len(candidates)
 
@@ -111,18 +148,25 @@ class UniverseManager:
                 try:
                     # Filter uses previous trading day's close
                     data = await self.engine.fetch_daily_prices(sym, days=2)
-                    close = self._extract_prev_close(data)
-                    
+                    close = self._extract_prev_close(data, symbol=sym)
+
                     if close is not None and close >= self.min_price:
                         selected.append(sym)
                 except Exception as e:
-                    logger.debug(f"Symbol {sym} filter failed: {e}")
+                    failed_symbols.append((sym, type(e).__name__, str(e)[:50]))
+                    logger.debug("Symbol %s filter failed: %s", sym, e)
                 finally:
                     processed_count += 1
                     if processed_count % 100 == 0:
-                        logger.info(f"Universe build: {processed_count}/{total_candidates} processed...")
+                        logger.info("Universe build: %d/%d processed (selected=%d, failed=%d)...",
+                                    processed_count, total_candidates, len(selected), len(failed_symbols))
 
         await asyncio.gather(*(fetch_and_filter(s) for s in candidates))
+
+        # Log aggregated failure summary
+        if failed_symbols:
+            logger.warning("[%s] Universe build completed with %d/%d symbols failed. Sample failures: %s",
+                           self._get_tag(), len(failed_symbols), total_candidates, failed_symbols[:5])
 
         # Check size constraint
         if len(selected) < self.min_count:
@@ -162,6 +206,26 @@ class UniverseManager:
     async def _load_robust_candidates(self) -> List[str]:
         """Load symbols from today's collection or fallback to most recent valid file."""
         tag = self._get_tag()
+        
+        # [Requirement] 1단계: 심볼 데이터가 아예 없으면 SymbolGenerator를 직접 await 하여 강제 생성
+        should_collect, existing_symbol_path = self.symbol_gen.should_collect()
+        if should_collect:
+            logger.info(f"[{tag}] No valid symbols found. Forcefully executing SymbolGenerator...")
+            symbol_file = await self.symbol_gen.execute()
+            
+            # [Requirement] 물리적 파일 존재 여부 확인 (Cold Start 검증)
+            if not symbol_file or not Path(symbol_file).exists():
+                logger.error(f"[{tag}] ❌ Symbol file generation failed or file not found on disk: {symbol_file}")
+            else:
+                logger.info(f"[{tag}] ✅ Symbol file verified on disk: {symbol_file}")
+                
+                # [Requirement] 연쇄 생성: 심볼 확보 직후 당일 유니버스 파일이 없으면 즉시 생성 트리거
+                today_str = date.today().strftime("%Y%m%d")
+                pattern = f"{today_str}_{self.market}.json"
+                if not (self.universe_dir / pattern).exists():
+                    logger.info(f"[{tag}] ⚡ Chain Reaction: Today's universe missing. Triggering immediate creation...")
+                    await self.create_daily_snapshot(date.today())
+        
         # A. Attempt today's generation
         try:
             logger.info(f"[{tag}] Generating/Loading today's symbol candidates...")
@@ -169,7 +233,8 @@ class UniverseManager:
             sys.stdout.flush()
             await self.symbol_gen.generate_daily_symbols()
         except Exception as e:
-            logger.warning(f"[{tag}] [RECOVERY] Today's symbol generation failed: {e}. Attempting history search...")
+            logger.warning("[%s] [RECOVERY] Today's symbol generation failed: %s (type=%s). Attempting history search...",
+                           tag, e, type(e).__name__, exc_info=True)
 
         # B. Robust fallback: find most recent valid file (AM or PM)
         latest_file = self.symbol_gen.get_latest_symbol_file()
@@ -178,21 +243,56 @@ class UniverseManager:
             try:
                 with open(latest_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    
+
                     file_date = data.get("metadata", {}).get("date")
                     today_str = date.today().strftime("%Y%m%d")
                     if file_date != today_str:
-                        logger.warning(f"[{tag}] ⚠️ [RECOVERY] Today's data missing. Using past data from {file_date}")
-                    
+                        logger.warning(f"[{tag}] [RECOVERY] Today's data missing. Using past data from {file_date}")
+
                     symbols = data.get("symbols", [])
                     print(f"[{tag}] Loaded {len(symbols)} robust candidates from {latest_file}")
                     sys.stdout.flush()
                     return symbols
+            except json.JSONDecodeError as e:
+                logger.error("[%s] [RECOVERY] Latest symbol file %s contains invalid JSON: line %d, col %d",
+                             tag, latest_file, e.lineno, e.colno)
+            except (IOError, OSError) as e:
+                logger.error("[%s] [RECOVERY] Cannot read latest symbol file %s: %s (type=%s)",
+                             tag, latest_file, e, type(e).__name__)
             except Exception as e:
-                logger.error(f"[{tag}] [RECOVERY] Failed to read latest symbol file {latest_file}: {e}")
+                logger.error("[%s] [RECOVERY] Unexpected error reading latest symbol file %s: %s (type=%s)",
+                             tag, latest_file, e, type(e).__name__, exc_info=True)
         
         logger.error(f"[{tag}] ❌ [CRITICAL] No valid symbol file found in historical storage.")
         return []
+
+    def _cleanup_old_universe_files(self):
+        """
+        Delete universe files older than 7 days based on YYYYMMDD filename pattern.
+        """
+        tag = self._get_tag()
+        cutoff_date = (datetime.now() - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Match any market identifier *_stocks.json
+        files = list(self.universe_dir.glob("*_stocks.json"))
+        
+        deleted_count = 0
+        for filepath in files:
+            # Pattern: YYYYMMDD_market_stocks.json
+            try:
+                date_str = filepath.name.split("_")[0]
+                if len(date_str) == 8:
+                    file_date = datetime.strptime(date_str, "%Y%m%d")
+                    if file_date < cutoff_date:
+                        filepath.unlink()
+                        deleted_count += 1
+                        logger.info(f"[{tag}] Cleanup: Removed old universe file {filepath.name}")
+            except (ValueError, IndexError, OSError) as e:
+                logger.debug(f"[{tag}] Cleanup skip or error for {filepath.name}: {e}")
+                continue
+                
+        if deleted_count > 0:
+            logger.info(f"[{tag}] Cleaned up {deleted_count} old universe files (7-day policy).")
 
     def _snapshot_path(self, day: date) -> Path:
         ymd = day.strftime("%Y%m%d")
@@ -216,7 +316,8 @@ class UniverseManager:
             return []
 
     def _find_latest_snapshot(self) -> Optional[Path]:
-        files = list(self.universe_dir.glob(f"*_{self.market}.json"))
+        # Generalized pattern to match any market identifier
+        files = list(self.universe_dir.glob("*_stocks.json"))
         if not files:
             return None
         files.sort(reverse=True)

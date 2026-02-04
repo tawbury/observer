@@ -295,7 +295,8 @@ class TrackBCollector(TimeAwareMixin):
                 
                 # Data validation: ensure required fields exist
                 if not data or 'symbol' not in data:
-                    log.warning("Invalid price update data (missing symbol): %s", repr(data)[:200])
+                    log.warning("Invalid price update data (missing symbol): type=%s, keys=%s, sample=%s",
+                                type(data).__name__, list(data.keys()) if isinstance(data, dict) else "N/A", repr(data)[:200])
                     return
                 
                 # Log every 100th callback to avoid spam (diagnostic)

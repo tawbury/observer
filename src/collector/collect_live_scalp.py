@@ -61,6 +61,8 @@ def _make_record(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def collect(symbols: List[str], seconds: int, is_virtual_env: bool | None = None) -> int:
+    log.info("Starting live scalp collection: symbols=%s, duration=%ds, virtual=%s", symbols, seconds, is_virtual_env)
+
     # Load .env
     env_path = env_file_path()
     if env_path.exists():
@@ -68,8 +70,11 @@ async def collect(symbols: List[str], seconds: int, is_virtual_env: bool | None 
             from dotenv import load_dotenv  # type: ignore
 
             load_dotenv(env_path)
-        except Exception:
-            pass
+            log.debug("Loaded .env from %s", env_path)
+        except ImportError as e:
+            log.warning("dotenv not installed, skipping .env load: %s", e)
+        except Exception as e:
+            log.warning("Failed to load .env from %s: %s (type=%s)", env_path, e, type(e).__name__)
 
     # Engine
     auth = KISAuth(is_virtual=is_virtual_env)
@@ -77,18 +82,35 @@ async def collect(symbols: List[str], seconds: int, is_virtual_env: bool | None 
 
     # Output
     out_path = _scalp_log_path()
-    f = out_path.open("a", encoding="utf-8")
+    try:
+        f = out_path.open("a", encoding="utf-8")
+        log.info("Opened scalp log file for writing: %s", out_path)
+    except (IOError, PermissionError, OSError) as e:
+        log.error("FATAL: Cannot open scalp log file %s: %s (type=%s)", out_path, e, type(e).__name__)
+        return 1
 
     # Callback
     tick_count = [0]  # mutable counter
 
     def on_price_update(data: Dict[str, Any]) -> None:
-        rec = _make_record(data)
-        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        f.flush()  # Force flush
-        tick_count[0] += 1
-        if tick_count[0] % 10 == 1:
-            log.info(f"📊 Received {tick_count[0]} ticks so far...")
+        try:
+            if not data or not isinstance(data, dict):
+                log.warning("Invalid WebSocket data received (not a dict): %s", repr(data)[:200])
+                return
+            if "symbol" not in data:
+                log.warning("WebSocket data missing 'symbol' field: keys=%s, sample=%s", list(data.keys()), repr(data)[:200])
+                return
+
+            rec = _make_record(data)
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            f.flush()  # Force flush
+            tick_count[0] += 1
+            if tick_count[0] % 10 == 1:
+                log.info("Received %d ticks so far...", tick_count[0])
+        except (IOError, OSError) as e:
+            log.error("Failed to write tick to file %s: %s", out_path, e)
+        except Exception as e:
+            log.error("Unexpected error in price update callback: %s (type=%s)", e, type(e).__name__, exc_info=True)
 
     engine.on_price_update = on_price_update
 
@@ -108,9 +130,9 @@ async def collect(symbols: List[str], seconds: int, is_virtual_env: bool | None 
                 log.warning(f"Subscribe failed for {s}: {e}")
 
         # Run
-        log.info(f"Collecting data for {seconds} seconds...")
+        log.info("Collecting data for %d seconds...", seconds)
         await asyncio.sleep(seconds)
-        log.info(f"✅ Collection complete. Total ticks received: {tick_count[0]}")
+        log.info("Collection complete. Total ticks received: %d, file: %s", tick_count[0], out_path)
         return 0
 
     finally:

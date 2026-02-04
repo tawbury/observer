@@ -1,13 +1,17 @@
-# 프로젝트 문서
+# 프로젝트 문서 가이드 (Docs)
 
-- **guides/** — 운영·배포·롤백 가이드
-- **dev/** — 아키텍처, PRD, 개발 가이드
-- **deployment/** — 배포 관련 문서
-- **tasks/** — 태스크·페이즈 정리
-- **refactoring/** — 리팩터링 로드맵·태스크
-- **reports/** — 분석·감사·운영 리포트
+이 디렉토리는 Observer 시스템의 설계, 운영 및 개발을 위한 문서를 포함합니다.
 
-**archive/** — 과거 완료·히스토리 문서 보관 (`archive/completion_reports/` 등).  
-최신 가이드는 **guides**, **dev**, **deployment**를 참고하세요.
+## 주요 카테고리
+- **[dev/archi/](dev/archi/)** — **시스템 아키텍처 (SSoT)**. 전체 설계 및 핵심 규칙 정의.
+- **[guides/](guides/)** — 운영, 배포, 롤백 및 트러블슈팅 가이드.
+- **[dev/](dev/)** — 개발 환경 설정, PRD 및 개발자 가이드.
+- **[deployment/](deployment/)** — K8s/Docker 배포 관련 아키텍처 및 설정 문서.
+- **[tasks/](tasks/)** — 프로젝트 태스크 및 페이즈 정리.
+- **[reports/](reports/)** — 분석, 감사 및 운영 리포트.
 
-모니터링 설정(그라파나, 프로메테우스 등)은 `infra/monitoring/`을 참고하세요.
+## 문서 관리 규칙
+- **최신성 유지**: 모든 코드 변경은 관련 아키텍처 문서(`dev/archi/`)에 먼저 반영되어야 합니다.
+- **아카이브**: 완료된 히스토리성 문서는 `archive/` 폴더로 이동합니다.
+
+모니터링 설정(Grafana, Prometheus) 및 인프라 상세는 별도의 `deployment` 저장소를 참고하거나 본 저장소의 `docker/` 설정을 확인하세요.

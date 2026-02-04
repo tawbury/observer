@@ -1,12 +1,12 @@
--- Phase 13: Swing (Track A) 테이블 생성 및 스키마 수정
--- 생성 날짜: 2026-01-22
--- 설명: REST API 10분 봉 데이터 저장 (bid/ask 필드 추가)
+-- Phase 13: Swing (Track A) íì´ë¸ ìì± ë° ì¤í¤ë§ ìì 
+-- ìì± ë ì§: 2026-01-22
+-- ì¤ëª: REST API 10ë¶ ë´ ë°ì´í° ì ì¥ (bid/ask íë ì¶ê°)
 
 -- Drop existing tables if they exist (for idempotency)
 DROP TABLE IF EXISTS swing_bars_10m CASCADE;
 
 -- =====================================================
--- 1. swing_bars_10m 테이블 (10분 봉 데이터)
+-- 1. swing_bars_10m íì´ë¸ (10ë¶ ë´ ë°ì´í°)
 -- =====================================================
 CREATE TABLE swing_bars_10m (
     symbol          VARCHAR(20) NOT NULL,
@@ -31,7 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_swing_10m_session ON swing_bars_10m(session_id);
 CREATE INDEX IF NOT EXISTS idx_swing_10m_bid_ask ON swing_bars_10m(symbol, bar_time, bid_price, ask_price);
 
 -- =====================================================
--- 메타데이터 업데이트
+-- ë©íë°ì´í° ìë°ì´í¸
 -- =====================================================
 INSERT INTO migration_log (migration_name, status)
 VALUES ('002_create_swing_tables', 'success');

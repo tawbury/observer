@@ -203,7 +203,20 @@ class UniverseManager:
         should_collect, existing_symbol_path = self.symbol_gen.should_collect()
         if should_collect:
             logger.info(f"[{tag}] No valid symbols found. Forcefully executing SymbolGenerator...")
-            await self.symbol_gen.execute()
+            symbol_file = await self.symbol_gen.execute()
+            
+            # [Requirement] 물리적 파일 존재 여부 확인 (Cold Start 검증)
+            if not symbol_file or not Path(symbol_file).exists():
+                logger.error(f"[{tag}] ❌ Symbol file generation failed or file not found on disk: {symbol_file}")
+            else:
+                logger.info(f"[{tag}] ✅ Symbol file verified on disk: {symbol_file}")
+                
+                # [Requirement] 연쇄 생성: 심볼 확보 직후 당일 유니버스 파일이 없으면 즉시 생성 트리거
+                today_str = date.today().strftime("%Y%m%d")
+                pattern = f"{today_str}_{self.market}.json"
+                if not (self.universe_dir / pattern).exists():
+                    logger.info(f"[{tag}] ⚡ Chain Reaction: Today's universe missing. Triggering immediate creation...")
+                    await self.create_daily_snapshot(date.today())
         
         # A. Attempt today's generation
         try:

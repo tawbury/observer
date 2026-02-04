@@ -120,9 +120,14 @@ class TrackACollector(TimeAwareMixin):
                 # 3단계 (Loop Ready): 유효한 유니버스 소스 확보 확인
                 current_universe = self._manager.get_current_universe()
                 if not current_universe:
+                    log.warning("[Bootstrap-3] Universe still empty. Forcefully creating daily snapshot...")
+                    await self._manager.create_daily_snapshot(date.today())
+                    current_universe = self._manager.get_current_universe()
+                    
+                if not current_universe:
                     raise RuntimeError("Failed to verify valid universe after snapshot creation.")
                 
-                log.info("[Bootstrap-3] Bootstrapping complete. Entering main collection loop.")
+                log.info("[Bootstrap-3] Bootstrapping complete (Symbols: %d). Entering main collection loop.", len(current_universe))
                 break # 부트스트랩 성공 시 루프 탈출
                 
             except Exception as e:

@@ -27,11 +27,11 @@ class SymbolGenerator:
         self.engine = provider_engine
         
         # [Requirement] Environment-based unified path management
-        from observer.paths import observer_data_dir
+        from observer.paths import observer_data_dir, snapshot_dir
         self.base_path = Path(base_dir) if base_dir else observer_data_dir()
         
         self.symbols_dir = self.base_path / "symbols"
-        self.universe_dir = self.base_path / "universe"  # Mandatory output directory
+        self.universe_dir = snapshot_dir()  # Align with UniverseManager's snapshot_dir
         self.backup_dir = self.base_path / "backup"
         
         # New state and health file paths
@@ -76,6 +76,8 @@ class SymbolGenerator:
         # 1. Check-Before-Collect (CBC) Logic
         # [Requirement] Skip API if valid T-0 or T-1 data exists with > 2500 symbols
         should_run, existing_path = self.should_collect()
+        
+        # [Requirement] Cold Start: If no files exist (should_run=True), ignore state and force collection.
         if not should_run:
             logger.info(f"[{tag}] [CBC] Valid existing data found at {existing_path}. Skipping collection.")
             # Record Success State for consistency
@@ -90,8 +92,9 @@ class SymbolGenerator:
             return existing_path
 
         # 2. State Check & Recovery Logic (Traditional)
+        # Skip this check if should_run is True (meaning we MUST collect because files are missing)
         state = self._load_state()
-        if state.get("last_ymd") == ymd and state.get("last_tag") == tag and state.get("status") == "SUCCESS":
+        if not should_run and state.get("last_ymd") == ymd and state.get("last_tag") == tag and state.get("status") == "SUCCESS":
             logger.info(f"[{tag}] Already successfully executed for this timeslot. Skipping.")
             return state.get("last_filepath")
 

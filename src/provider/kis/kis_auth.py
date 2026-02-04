@@ -134,7 +134,7 @@ class KISAuth:
         return (self.token_expires_at - now).total_seconds() < 3600
 
     async def _refresh_token(self, force: bool = False) -> None:
-        """issue/renewal of OAuth token."""
+        """issue/renewal of OAuth token with exponential backoff retry."""
         url = f"{self.base_url}/oauth2/tokenP"
         headers = {"content-type": "application/json"}
         data = {
@@ -143,26 +143,45 @@ class KISAuth:
             "appsecret": self.app_secret,
         }
         
-        session = await self.get_session()
-        try:
-            async with session.post(url, headers=headers, json=data) as response:
-                result = await response.json()
-                
-                if "access_token" not in result:
-                    error_msg = result.get("error_description", "Unknown error")
-                    error_code = result.get("error_code", "N/A")
-                    raise RuntimeError(f"Token refresh failed: {error_msg} (code: {error_code})")
-                
-                self.access_token = result["access_token"]
-                from zoneinfo import ZoneInfo
-                self.token_issued_at = datetime.now(ZoneInfo("Asia/Seoul"))
-                expires_in = result.get("expires_in", 86400)
-                self.token_expires_at = self.token_issued_at + timedelta(seconds=expires_in)
-                
-                logger.info(f"Token refreshed: Expires at {self.token_expires_at.isoformat()}")
-        except Exception as e:
-            logger.error(f"Critical error during KIS token refresh: {e}")
-            raise
+        max_retries = 3
+        retry_delay = 60  # Start with 60s to clear KIS 1-min rate limit
+        
+        for attempt in range(max_retries + 1):
+            try:
+                session = await self.get_session()
+                async with session.post(url, headers=headers, json=data) as response:
+                    result = await response.json()
+                    
+                    if "access_token" not in result:
+                        error_msg = result.get("error_description", "Unknown error")
+                        error_code = result.get("error_code", "N/A")
+                        # KIS often returns EGW00133 for rate limits
+                        logger.warning(f"Token refresh attempt {attempt+1} failed: {error_msg} (code: {error_code})")
+                        
+                        if attempt < max_retries:
+                            logger.info(f"Retrying in {retry_delay} seconds...")
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2 # Exponential backoff
+                            continue
+                        else:
+                            raise RuntimeError(f"Token refresh failed after {max_retries} retries: {error_msg} (code: {error_code})")
+                    
+                    self.access_token = result["access_token"]
+                    from zoneinfo import ZoneInfo
+                    self._tz = ZoneInfo("Asia/Seoul")
+                    self.token_issued_at = datetime.now(self._tz)
+                    expires_in = result.get("expires_in", 86400)
+                    self.token_expires_at = self.token_issued_at + timedelta(seconds=expires_in)
+                    
+                    logger.info(f"Token refreshed successfully: Expires at {self.token_expires_at.isoformat()}")
+                    return
+            except Exception as e:
+                logger.error(f"Error during KIS token refresh (attempt {attempt+1}/{max_retries+1}): {e}")
+                if attempt < max_retries:
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    raise
 
     async def emergency_refresh(self) -> str:
         """Emergency force refresh (usually on 401)."""

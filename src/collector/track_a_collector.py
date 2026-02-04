@@ -48,7 +48,7 @@ class TrackACollector(TimeAwareMixin):
         self._init_timezone()
         self._manager = UniverseManager(
             provider_engine=self.engine,
-            universe_dir=universe_dir,
+            data_dir=universe_dir,
             market=self.cfg.market,
             min_price=4000,  # aligned with Task 6.1
             min_count=100,

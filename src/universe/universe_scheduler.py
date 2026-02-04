@@ -242,7 +242,6 @@ async def _run_cli(run_once: bool = False) -> None:
 
 def main():
     import argparse
-    import sys
     
     # Force basicConfig to ensure it's not overridden by other modules
     logging.basicConfig(

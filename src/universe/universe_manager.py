@@ -49,11 +49,9 @@ class UniverseManager:
             test_file.unlink()
         except (PermissionError, OSError) as e:
             logger.critical(f"[FATAL] 권한 부족: 관리자에게 {self.base_path} 폴더의 쓰기 권한 부여 요청 필요. Error: {e}")
-            import sys
             sys.exit(1)
         except Exception as e:
             logger.critical(f"[FATAL] Failed to initialize universe directory: {e}")
-            import sys
             sys.exit(1)
         
         # Initialize SymbolGenerator

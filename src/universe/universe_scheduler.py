@@ -93,10 +93,18 @@ class UniverseScheduler:
             
             try:
                 await self._run_once_internal()
+            except asyncio.CancelledError:
+                log.info("[%s] Scheduler loop cancelled, exiting gracefully", tag)
+                raise  # Re-raise to allow proper shutdown
+            except KeyboardInterrupt:
+                log.info("[%s] Keyboard interrupt received, exiting", tag)
+                raise
             except Exception as e:
                 # Catch-all to prevent the loop from dying
-                log.error("[%s] [FATAL] Unexpected loop error: %s. Continuing to next schedule.", tag, e)
-                await asyncio.sleep(60) # Prevent tight error loops
+                log.error("[%s] [FATAL] Unexpected loop error: %s (type=%s). Continuing to next schedule.",
+                          tag, e, type(e).__name__, exc_info=True)
+                self._emit_alert("scheduler_loop_error", {"error": str(e), "type": type(e).__name__, "tag": tag})
+                await asyncio.sleep(60)  # Prevent tight error loops
 
     async def run_once(self) -> Dict[str, Any]:
         """Run the universe generation once immediately (for smoke tests)."""
@@ -200,9 +208,11 @@ class UniverseScheduler:
         if self.on_alert:
             try:
                 self.on_alert(kind, payload)
+                log.debug("Alert emitted successfully: %s", kind)
                 return
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("Alert callback failed for '%s': %s (type=%s). Falling back to log.",
+                            kind, e, type(e).__name__)
         # Default: log warning
         log.warning("ALERT[%s] %s", kind, payload)
 
@@ -217,10 +227,15 @@ async def _run_cli(run_once: bool = False) -> None:
             try:
                 from dotenv import load_dotenv  # type: ignore
                 load_dotenv(env_path)
-            except Exception:
-                pass
-    except Exception:
-        pass
+                log.debug("Loaded .env from %s", env_path)
+            except ImportError:
+                log.warning("dotenv package not installed, skipping .env load")
+            except Exception as e:
+                log.warning("Failed to load .env from %s: %s (type=%s)", env_path, e, type(e).__name__)
+        else:
+            log.debug(".env file not found at %s", env_path)
+    except Exception as e:
+        log.warning("Error during .env setup: %s (type=%s)", e, type(e).__name__)
 
     # Prefer REAL_* env vars if set (like tests)
     app_key = os.getenv("KIS_APP_KEY") or os.getenv("REAL_APP_KEY")

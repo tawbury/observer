@@ -61,6 +61,9 @@ class BaseCollector(TimeAwareMixin, ABC):
         self._on_error = on_error
         self._running = False
 
+        log.info("%s initialized: tz=%s, trading_hours=%s-%s, market=%s",
+                 self.__class__.__name__, config.tz_name, config.trading_start, config.trading_end, config.market)
+
     def is_in_trading_hours(self, dt: Optional[datetime] = None) -> bool:
         """
         Check if current or given datetime is within trading hours.
@@ -89,7 +92,8 @@ class BaseCollector(TimeAwareMixin, ABC):
             try:
                 self._on_error(error_msg)
             except Exception as callback_error:
-                log.error(f"Error callback failed: {callback_error}")
+                log.error("Error callback failed while handling '%s': %s (callback_type=%s)",
+                          error_msg[:100], callback_error, type(self._on_error).__name__)
 
     @abstractmethod
     async def collect_once(self) -> Dict[str, Any]:

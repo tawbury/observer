@@ -135,10 +135,15 @@ class TrackACollector(TimeAwareMixin):
     # -----------------------------------------------------
     async def collect_once(self) -> Dict[str, Any]:
         today = date.today().isoformat()
-        # Load universe (fallback to last available if today's missing)
-        symbols: List[str] = self._manager.get_current_universe()
-        if not symbols:
-            raise RuntimeError("Universe symbols unavailable for Track A")
+        # Load universe (with graceful wait if missing)
+        while True:
+            symbols: List[str] = self._manager.get_current_universe()
+            if symbols:
+                break
+            
+            log.warning("당일 유니버스 파일(YYYYMMDD_k3_stocks.json)을 찾을 수 없습니다. 60초 후 재시도합니다.")
+            log.info("Waiting for universe file...")
+            await asyncio.sleep(60)
 
         # Prepare JSONL path under data/assets/swing/YYYYMMDD.jsonl
         ymd = datetime.now().strftime("%Y%m%d")

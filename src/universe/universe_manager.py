@@ -36,9 +36,9 @@ class UniverseManager:
         self.min_count = int(min_count)
         
         # [Requirement] Environment-based unified path management
-        from observer.paths import observer_data_dir
+        from observer.paths import observer_data_dir, snapshot_dir
         self.base_path = Path(data_dir) if data_dir else observer_data_dir()
-        self.universe_dir = self.base_path / "universe"
+        self.universe_dir = Path(data_dir) if data_dir else snapshot_dir()
         
         # [Requirement] Hard-fail on directory creation issues with specific message
         try:
@@ -48,7 +48,7 @@ class UniverseManager:
             test_file.touch()
             test_file.unlink()
         except (PermissionError, OSError) as e:
-            logger.critical(f"[FATAL] 권한 부족: 관리자에게 {self.base_path} 폴더의 쓰기 권한 부여 요청 필요. Error: {e}")
+            logger.critical(f"[FATAL] 권한 부족: 관리자에게 {self.universe_dir} 폴더의 쓰기 권한 부여 요청 필요. Error: {e}")
             sys.exit(1)
         except Exception as e:
             logger.critical(f"[FATAL] Failed to initialize universe directory: {e}")
@@ -65,8 +65,20 @@ class UniverseManager:
     # ----------------------- Public APIs -----------------------
     def get_current_universe(self) -> List[str]:
         """Load today's universe list; falls back to last available snapshot."""
-        today = date.today()
-        symbols = self._try_load_universe_list(today)
+        today_str = date.today().strftime("%Y%m%d")
+        
+        # Priority 1: Exact date match with glob (catches yyyymmdd_k3_stocks.json etc)
+        pattern = f"{today_str}*_{self.market}.json"
+        files = list(self.universe_dir.glob(pattern))
+        
+        if files:
+            # Sort to get the most recent for today if multiple exist
+            files.sort(reverse=True)
+            logger.info(f"Today's universe found via glob: {files[0].name}")
+            return self._load_universe_list_from_path(files[0])
+            
+        # Priority 2: Standard path check (legacy or exact match)
+        symbols = self._try_load_universe_list(date.today())
         if symbols:
             return symbols
             

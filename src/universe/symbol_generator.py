@@ -65,7 +65,7 @@ class SymbolGenerator:
     async def execute(self) -> Optional[str]:
         """
         High-level controller for symbol generation.
-        Handles state check, recovery, and results reporting.
+        Handles CBC (Check-Before-Collect), state check, recovery, and results reporting.
         """
         start_time = time.time()
         tag = self._get_current_tag()
@@ -73,7 +73,23 @@ class SymbolGenerator:
         
         logger.info(f"[{tag}] Starting SymbolGenerator execution...")
         
-        # 1. State Check & Recovery Logic
+        # 1. Check-Before-Collect (CBC) Logic
+        # [Requirement] Skip API if valid T-0 or T-1 data exists with > 2500 symbols
+        should_run, existing_path = self.should_collect()
+        if not should_run:
+            logger.info(f"[{tag}] [CBC] Valid existing data found at {existing_path}. Skipping collection.")
+            # Record Success State for consistency
+            self._save_state({
+                "last_ymd": ymd,
+                "last_tag": tag,
+                "status": "SUCCESS",
+                "last_run": datetime.now().isoformat(),
+                "last_filepath": existing_path
+            })
+            self._write_health_report(True, existing_path, 0.0)
+            return existing_path
+
+        # 2. State Check & Recovery Logic (Traditional)
         state = self._load_state()
         if state.get("last_ymd") == ymd and state.get("last_tag") == tag and state.get("status") == "SUCCESS":
             logger.info(f"[{tag}] Already successfully executed for this timeslot. Skipping.")
@@ -410,3 +426,42 @@ class SymbolGenerator:
         
         if deleted_count > 0:
             logger.info(f"[{tag}] Cleaned up {deleted_count} old symbol files (7-day policy).")
+
+    def should_collect(self) -> tuple[bool, Optional[str]]:
+        """
+        Check if collection is necessary.
+        Returns (True, None) if collection is needed,
+        Returns (False, path) if valid data (T-0 or T-1) already exists.
+        """
+        tag = self._get_current_tag()
+        today_str = datetime.now().strftime("%Y%m%d")
+        yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
+        
+        # 1. Check Today's file (T-0)
+        # Search for any tag (AM/PM) to see if we have valid data for today
+        today_files = list(self.symbols_dir.glob(f"symbols_{today_str}_*.json"))
+        for f in sorted(today_files, reverse=True):
+            if self._is_file_valid_quality(f):
+                return False, str(f)
+                
+        # 2. Check Yesterday's file (T-1)
+        # In a deployment scenario, T-1 might be sufficient to start
+        yesterday_files = list(self.symbols_dir.glob(f"symbols_{yesterday_str}_*.json"))
+        for f in sorted(yesterday_files, reverse=True):
+            if self._is_file_valid_quality(f):
+                logger.info(f"[{tag}] [CBC] Found valid T-1 data: {f.name}")
+                return False, str(f)
+                
+        return True, None
+
+    def _is_file_valid_quality(self, filepath: Path) -> bool:
+        """Helper to check if a file has sufficient symbol count."""
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                count = data.get("metadata", {}).get("count", 0)
+                if count >= 2500:
+                    return True
+        except Exception:
+            pass
+        return False

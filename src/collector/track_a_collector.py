@@ -84,9 +84,6 @@ class TrackACollector(TimeAwareMixin):
             # Fallback to console/default logger if file setup fails
             log.error(f"Failed to setup swing file logger: {e}")
 
-    # -----------------------------------------------------
-    # Scheduling
-    # -----------------------------------------------------
     async def start(self) -> None:
         """Run every interval during trading hours."""
         log.info("TrackACollector started (interval=%dm)", self.cfg.interval_minutes)
@@ -98,6 +95,14 @@ class TrackACollector(TimeAwareMixin):
         else:
             log.warning("⚠️ DB 연결 실패 - JSONL 파일만 저장됩니다")
         
+        # [Requirement] Bootstrapping - Ensure symbols are ready before main loop
+        log.info("Bootstrapping SymbolGenerator...")
+        try:
+            await self._manager.symbol_gen.execute()
+            log.info("Bootstrapping complete.")
+        except Exception as e:
+            log.warning(f"Bootstrapping failed: {e}. Collector will retry during execution.")
+
         last_in_trading: Optional[bool] = None
         while True:
             now = self._now()

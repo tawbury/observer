@@ -517,8 +517,11 @@ class KISRestProvider:
                 
             # Extract symbols
             output = data.get("output", [])
+            if not output:
+                logger.warning(f"Empty output for market {mkt_code}, response keys: {list(data.keys())}")
             for item in output:
-                code = item.get("pdno") # pdno is often used for product numbers/codes
+                # KIS API uses different field names: stck_shrn_iscd, mksc_shrn_iscd, or pdno
+                code = item.get("stck_shrn_iscd") or item.get("mksc_shrn_iscd") or item.get("pdno")
                 if code and len(code) == 6:
                     symbols.append(code)
             

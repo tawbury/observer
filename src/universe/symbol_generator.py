@@ -200,6 +200,7 @@ class SymbolGenerator:
         
         return str(filepath)
 
+    # [기존 코드]
     async def _collect_symbols_4step(self) -> Set[str]:
         """
         4-Step Collection Strategy (API -> Master File -> Local Backup -> Emergency Fallback).
@@ -207,94 +208,252 @@ class SymbolGenerator:
         tag = self._get_current_tag()
         
         # Step 1: KIS API with Retry
-        symbols = await self._step_api_with_retry()
-        if symbols: return symbols
+        symbols, source_step = await self._step_api_with_retry() # (A) 반환 값 변경 예정
+        if symbols: 
+            logger.info(f"[{tag}] 🚀 4-Step Success: Collected {len(symbols)} symbols from Step 1 (API).") # (A) 추가
+            return symbols
 
         # Step 2: KIS Master File
-        symbols = await self._step_master_file()
-        if symbols: return symbols
+        symbols, source_step = await self._step_master_file() # (A) 반환 값 변경 예정
+        if symbols: 
+            logger.info(f"[{tag}] 🚀 4-Step Success: Collected {len(symbols)} symbols from Step 2 (Master File).") # (A) 추가
+            return symbols
 
         # Step 3: Local Backup (JSON Only)
-        symbols = await self._step_local_backup()
-        if symbols: return symbols
+        symbols, source_step = await self._step_local_backup() # (A) 반환 값 변경 예정
+        if symbols: 
+            logger.info(f"[{tag}] 🚀 4-Step Success: Collected {len(symbols)} symbols from Step 3 (Local Backup).") # (A) 추가
+            return symbols
 
         # Step 4: Emergency Fallback (The Last Resort)
-        symbols = await self._step_emergency_fallback()
-        if symbols: return symbols
-
+        symbols, source_step = await self._step_emergency_fallback() # (A) 반환 값 변경 예정
+        if symbols: 
+            logger.critical(f"[{tag}] ⚠️ 4-Step Fallback Success: Collected {len(symbols)} symbols from Step 4 (Emergency Fallback).") # (A) 추가
+            return symbols
+        
+        # [기존 코드]
         logger.critical(f"[{tag}] [4-STEP FALLBACK] All collection strategies failed: API=FAIL, Master=FAIL, Backup=FAIL, Emergency=FAIL")
         return set()
 
-    async def _step_api_with_retry(self, retries: int = 3) -> Optional[Set[str]]:
+#    async def _collect_symbols_4step(self) -> Set[str]:
+#        """
+#        4-Step Collection Strategy (API -> Master File -> Local Backup -> Emergency Fallback).
+#        """
+#        tag = self._get_current_tag()
+        
+#        # Step 1: KIS API with Retry
+#        symbols = await self._step_api_with_retry()
+#        if symbols: return symbols
+
+#        # Step 2: KIS Master File
+#        symbols = await self._step_master_file()
+#        if symbols: return symbols
+
+#        # Step 3: Local Backup (JSON Only)
+#        symbols = await self._step_local_backup()
+#        if symbols: return symbols
+
+#        # Step 4: Emergency Fallback (The Last Resort)
+#        symbols = await self._step_emergency_fallback()
+#        if symbols: return symbols
+
+#        logger.critical(f"[{tag}] [4-STEP FALLBACK] All collection strategies failed: API=FAIL, Master=FAIL, Backup=FAIL, Emergency=FAIL")
+#        return set()
+
+    # [수정 제안 코드]
+    async def _step_api_with_retry(self, retries: int = 3) -> tuple[Optional[Set[str]], str]:
         """Step 1: Fetch via API with exponential backoff and count validation."""
         tag = self._get_current_tag()
+        source_tag = "API"
         for attempt in range(1, retries + 1):
             try:
                 logger.info(f"[{tag}] Step 1: Attempting KIS API collection (Attempt {attempt}/{retries})...")
                 symbols = await self.engine.fetch_stock_list(market="ALL")
+                
+                count = len(symbols) if symbols else 0 # (A) 추가: 카운트 변수 생성
+                
                 if self._validate_symbols(symbols):
-                    logger.info(f"[{tag}] Step 1 Success: {len(symbols)} symbols fetched via API")
-                    return set(symbols)
+                    logger.info(f"[{tag}] Step 1 Success: {count} symbols fetched via API (Passed Quality Check).")
+                    return set(symbols), source_tag
                 else:
-                    count = len(symbols) if symbols else 0
+                    # [기존 코드] count 정보가 로깅에 포함되지 않음.
+                    # [수정] count 정보를 포함하여 WARNING 로깅 강화
                     logger.warning(f"[{tag}] Step 1 Validation Failed: Insufficient data count ({count} < 2500).")
+                    
             except Exception as e:
                 logger.error(f"[{tag}] Step 1 Attempt {attempt} Failed: {e}")
             
             if attempt < retries:
-                wait_time = 10 * attempt  # Shorter wait for internal retry (10s, 20s)
+                wait_time = 10 * attempt 
                 logger.info(f"[{tag}] Retrying API collection in {wait_time}s...")
                 await asyncio.sleep(wait_time)
-        return None
+                
+        # [수정] 실패 시, None과 Source Tag를 반환
+        return None, source_tag 
 
-    async def _step_master_file(self) -> Optional[Set[str]]:
+#    async def _step_api_with_retry(self, retries: int = 3) -> Optional[Set[str]]:
+#        """Step 1: Fetch via API with exponential backoff and count validation."""
+#        tag = self._get_current_tag()
+#        for attempt in range(1, retries + 1):
+#            try:
+#                logger.info(f"[{tag}] Step 1: Attempting KIS API collection (Attempt {attempt}/{retries})...")
+#                symbols = await self.engine.fetch_stock_list(market="ALL")
+#                if self._validate_symbols(symbols):
+#                    logger.info(f"[{tag}] Step 1 Success: {len(symbols)} symbols fetched via API")
+#                    return set(symbols)
+#                else:
+#                    count = len(symbols) if symbols else 0
+#                    logger.warning(f"[{tag}] Step 1 Validation Failed: Insufficient data count ({count} < 2500).")
+#            except Exception as e:
+#                logger.error(f"[{tag}] Step 1 Attempt {attempt} Failed: {e}")
+            
+#            if attempt < retries:
+#                wait_time = 10 * attempt  # Shorter wait for internal retry (10s, 20s)
+#                logger.info(f"[{tag}] Retrying API collection in {wait_time}s...")
+#                await asyncio.sleep(wait_time)
+#        return None
+
+    # [수정 제안 코드]
+    async def _step_master_file(self) -> tuple[Optional[Set[str]], str]:
         """Step 2: Fetch via KIS Master File."""
         tag = self._get_current_tag()
+        source_tag = "MASTER_FILE"
+        
         if hasattr(self.engine, "_fetch_stock_list_from_file"):
             try:
                 logger.info(f"[{tag}] Step 2: Attempting KIS Master File collection...")
                 symbols = await self.engine._fetch_stock_list_from_file()
+                
+                count = len(symbols) if symbols else 0 # (A) 추가
+                
                 if self._validate_symbols(symbols):
-                    logger.info(f"[{tag}] Step 2 Success: {len(symbols)} symbols from master file")
-                    return set(symbols)
+                    logger.info(f"[{tag}] Step 2 Success: {count} symbols from master file (Passed Quality Check).")
+                    return set(symbols), source_tag
+                else:
+                    # [수정] count 정보를 포함하여 WARNING 로깅 강화
+                    logger.warning(f"[{tag}] Step 2 Validation Failed: Insufficient data count ({count} < 2500).")
+                    
             except Exception as e:
                 logger.error(f"[{tag}] Step 2 Failed: {e}")
-        return None
+        
+        # [수정] 실패 시, None과 Source Tag를 반환
+        return None, source_tag
 
-    async def _step_local_backup(self) -> Optional[Set[str]]:
+#    async def _step_master_file(self) -> Optional[Set[str]]:
+#        """Step 2: Fetch via KIS Master File."""
+#        tag = self._get_current_tag()
+#        if hasattr(self.engine, "_fetch_stock_list_from_file"):
+#            try:
+#                logger.info(f"[{tag}] Step 2: Attempting KIS Master File collection...")
+#                symbols = await self.engine._fetch_stock_list_from_file()
+#                if self._validate_symbols(symbols):
+#                    logger.info(f"[{tag}] Step 2 Success: {len(symbols)} symbols from master file")
+#                    return set(symbols)
+#            except Exception as e:
+#                logger.error(f"[{tag}] Step 2 Failed: {e}")
+#        return None
+
+    # [수정 제안 코드]
+    async def _step_local_backup(self) -> tuple[Optional[Set[str]], str]:
         """Step 3: Fetch via Local Backup snapshots."""
         tag = self._get_current_tag()
+        source_tag = "LOCAL_BACKUP"
         try:
             logger.info(f"[{tag}] Step 3: Attempting local backup collection from {self.backup_dir}...")
             backup_files = sorted(list(self.backup_dir.glob("symbols_*.json")), key=os.path.getmtime, reverse=True)
+            
             if backup_files:
                 latest_backup = backup_files[0]
+                logger.info(f"[{tag}] Step 3 Found latest backup: {latest_backup.name}") # (A) 추가
+                
                 with open(latest_backup, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     symbols = data.get("symbols", [])
-                if self._validate_symbols(symbols):
-                    logger.info(f"[{tag}] Step 3 Success: {len(symbols)} symbols from {latest_backup.name}")
-                    return set(symbols)
+                    
+                    count = len(symbols) if symbols else 0 # (A) 추가
+                    
+                    if self._validate_symbols(symbols):
+                        logger.info(f"[{tag}] Step 3 Success: {count} symbols from {latest_backup.name} (Passed Quality Check).")
+                        return set(symbols), source_tag
+                    else:
+                        # [수정] count 정보를 포함하여 WARNING 로깅 강화
+                        logger.warning(f"[{tag}] Step 3 Validation Failed: Insufficient data count ({count} < 2500) in {latest_backup.name}.")
+                        
+            else:
+                logger.info(f"[{tag}] Step 3 Skip: No backup files found in {self.backup_dir}.") # (A) 추가
+                
         except Exception as e:
             logger.error(f"[{tag}] Step 3 Failed: {e}")
-        return None
+            
+        # [수정] 실패 시, None과 Source Tag를 반환
+        return None, source_tag
 
-    async def _step_emergency_fallback(self) -> Optional[Set[str]]:
+#    async def _step_local_backup(self) -> Optional[Set[str]]:
+#        """Step 3: Fetch via Local Backup snapshots."""
+#        tag = self._get_current_tag()
+#        try:
+#            logger.info(f"[{tag}] Step 3: Attempting local backup collection from {self.backup_dir}...")
+#            backup_files = sorted(list(self.backup_dir.glob("symbols_*.json")), key=os.path.getmtime, reverse=True)
+#            if backup_files:
+#                latest_backup = backup_files[0]
+#                with open(latest_backup, "r", encoding="utf-8") as f:
+#                    data = json.load(f)
+#                    symbols = data.get("symbols", [])
+#                if self._validate_symbols(symbols):
+#                    logger.info(f"[{tag}] Step 3 Success: {len(symbols)} symbols from {latest_backup.name}")
+#                    return set(symbols)
+#        except Exception as e:
+#            logger.error(f"[{tag}] Step 3 Failed: {e}")
+#        return None
+
+    # [수정 제안 코드]
+    async def _step_emergency_fallback(self) -> tuple[Optional[Set[str]], str]:
         """Step 4: Emergency Fallback - Use the most recent symbol file from the symbols directory."""
         tag = self._get_current_tag()
+        source_tag = "EMERGENCY_FALLBACK"
         try:
             logger.warning(f"[{tag}] Step 4: EMERGENCY FALLBACK - Attempting to use latest generated symbols...")
             latest_file = self.get_latest_symbol_file()
+            
             if latest_file:
-                logger.info(f"[{tag}] Found latest valid file: {latest_file}. Using as today's data.")
+                logger.warning(f"[{tag}] Step 4 Found latest valid file: {latest_file}.")
                 with open(latest_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     symbols = data.get("symbols", [])
-                if symbols:
-                    return set(symbols)
+                    
+                    count = len(symbols) if symbols else 0 # (A) 추가
+                    
+                    if symbols:
+                        # [수정] 2500개 미만이어도, Emergency Fallback은 "최후의 수단"이므로 성공으로 간주하고 반환.
+                        logger.warning(f"[{tag}] Step 4 Success: {count} symbols loaded from {Path(latest_file).name} (COUNT={count}).")
+                        return set(symbols), source_tag
+                    else:
+                        logger.critical(f"[{tag}] Step 4 Failed: Latest file {Path(latest_file).name} found but contains 0 symbols.")
+            else:
+                logger.critical(f"[{tag}] Step 4 Failed: No valid symbol file found for fallback.")
+
         except Exception as e:
             logger.critical(f"[{tag}] Step 4 Emergency Fallback Failed: {e}")
-        return None
+            
+        # [수정] 실패 시, None과 Source Tag를 반환
+        return None, source_tag
+
+#    async def _step_emergency_fallback(self) -> Optional[Set[str]]:
+#        """Step 4: Emergency Fallback - Use the most recent symbol file from the symbols directory."""
+#        tag = self._get_current_tag()
+#        try:
+#            logger.warning(f"[{tag}] Step 4: EMERGENCY FALLBACK - Attempting to use latest generated symbols...")
+#            latest_file = self.get_latest_symbol_file()
+#            if latest_file:
+#                logger.info(f"[{tag}] Found latest valid file: {latest_file}. Using as today's data.")
+#                with open(latest_file, "r", encoding="utf-8") as f:
+#                    data = json.load(f)
+#                    symbols = data.get("symbols", [])
+#                if symbols:
+#                    return set(symbols)
+#        except Exception as e:
+#            logger.critical(f"[{tag}] Step 4 Emergency Fallback Failed: {e}")
+#        return None
 
     def _validate_symbols(self, symbols: List[str]) -> bool:
         """

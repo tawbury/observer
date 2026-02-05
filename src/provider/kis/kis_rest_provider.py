@@ -459,13 +459,13 @@ class KISRestProvider:
         """
         특정 시장의 모든 종목 코드를 페이지네이션을 통해 수집합니다.
         
-        API: GET /uapi/domestic-stock/v1/quotations/inquire-search-item
+        API: GET /uapi/domestic-stock/v2/quotations/inquire-search-item
         TR_ID: HHKST01010100
         """
         import time
         import random
 
-        url = f"{self.auth.base_url}/uapi/domestic-stock/v1/quotations/inquire-search-item"
+        url = f"{self.auth.base_url}/uapi/domestic-stock/v2/quotations/inquire-search-item"
         symbols = []
         
         # KIS API pagination usually uses some indicator for next data
@@ -501,6 +501,9 @@ class KISRestProvider:
                                 logger.error(f"API Error (Market {mkt_code}, Attempt {attempt+1}): {error_msg}")
                         elif response.status == 401:
                             await self.auth.emergency_refresh()
+                        elif response.status == 404:
+                            logger.error(f"❌ 404 Not Found (Market {mkt_code}): Endpoint may have been deprecated or moved to v2. TR_ID: HHKST01010100")
+                            raise RuntimeError(f"KIS API 404: {url}")
                         else:
                             logger.error(f"HTTP Error (Market {mkt_code}, Attempt {attempt+1}): {response.status}")
                             

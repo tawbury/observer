@@ -33,6 +33,7 @@ class SymbolGenerator:
         self.symbols_dir = self.base_path / "symbols"
         self.universe_dir = snapshot_dir()  # Align with UniverseManager's snapshot_dir
         self.backup_dir = self.base_path / "backup"
+        self.cache_dir = self.base_path / "cache"  # [Requirement] Fallback to cache
         
         # New state and health file paths
         self.state_file = self.base_path / "last_run_state.json"
@@ -194,6 +195,15 @@ class SymbolGenerator:
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             logger.info(f"[{tag}] Symbols saved to {filepath} ({len(symbols)} items)")
+            
+            # [Requirement] Save to cache for resilience
+            if self.cache_dir:
+                self.cache_dir.mkdir(parents=True, exist_ok=True)
+                cache_path = self.cache_dir / filename
+                with open(cache_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                logger.debug(f"[{tag}] Symbols also cached to {cache_path}")
+                
         except Exception as e:
             logger.error(f"[{tag}] Failed to save symbol file: {e}")
             raise
@@ -362,12 +372,19 @@ class SymbolGenerator:
         tag = self._get_current_tag()
         source_tag = "LOCAL_BACKUP"
         try:
-            logger.info(f"[{tag}] Step 3: Attempting local backup collection from {self.backup_dir}...")
-            backup_files = sorted(list(self.backup_dir.glob("symbols_*.json")), key=os.path.getmtime, reverse=True)
+            # Search in both backup and cache directories
+            search_paths = [self.backup_dir, self.cache_dir]
+            backup_files = []
+            for path in search_paths:
+                if path.exists():
+                    backup_files.extend(list(path.glob("symbols_*.json")))
+            
+            # Sort by modification time, newest first
+            backup_files.sort(key=os.path.getmtime, reverse=True)
             
             if backup_files:
                 latest_backup = backup_files[0]
-                logger.info(f"[{tag}] Step 3 Found latest backup: {latest_backup.name}") # (A) 추가
+                logger.info(f"[{tag}] Step 3 Found latest backup: {latest_backup.name} in {latest_backup.parent}") # (A) 추가
                 
                 with open(latest_backup, "r", encoding="utf-8") as f:
                     data = json.load(f)

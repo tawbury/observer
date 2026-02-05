@@ -113,3 +113,5 @@ mcp-cli/dist/
 **/copilot-instructions.md
 .claude/
 tmpclaude-*
+.agent/
+

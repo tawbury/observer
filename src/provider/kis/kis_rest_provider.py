@@ -53,7 +53,7 @@ class RateLimiter:
     - Using 900 req/min (90% of limit) for safety margin
     """
     
-    def __init__(self, requests_per_second: int = 15, requests_per_minute: int = 900):
+    def __init__(self, requests_per_second: int = 5, requests_per_minute: int = 900):
         """
         Initialize rate limiter with conservative defaults.
         
@@ -509,6 +509,9 @@ class KISRestProvider:
                             
                 except Exception as e:
                     logger.error(f"Request Exception (Market {mkt_code}, Attempt {attempt+1}): {e}")
+                    # [Fast Fail] Propagate 404 immediately
+                    if "404" in str(e):
+                        raise
                 
                 # Exponential backoff
                 wait_time = (2 ** attempt) + random.random()

@@ -295,6 +295,11 @@ class SymbolGenerator:
                     
             except Exception as e:
                 logger.error(f"[{tag}] Step 1 Attempt {attempt} Failed: {e}")
+                
+                # [Fast Fail] If 404 (Endpoint not found), retry is useless. Break immediately.
+                if "404" in str(e):
+                    logger.warning(f"[{tag}] Step 1: 404 Error detected. KIS API endpoint issue. Skipping retries.")
+                    break
             
             if attempt < retries:
                 wait_time = 10 * attempt 

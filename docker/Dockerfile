@@ -36,8 +36,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     OBSERVER_SYSTEM_LOG_DIR=/opt/platform/runtime/observer/logs/system \
     OBSERVER_MAINTENANCE_LOG_DIR=/opt/platform/runtime/observer/logs/maintenance \
     OBSERVER_CONFIG_DIR=/opt/platform/runtime/observer/config \
-    KIS_TOKEN_CACHE_DIR=/opt/platform/runtime/observer/data/cache \
-    BUILTIN_SYMBOL_LIST=/opt/platform/observer/config/symbols/kr_all_symbols.txt
+    KIS_TOKEN_CACHE_DIR=/opt/platform/runtime/observer/data/cache
 
 # Install runtime dependencies (tzdata for timezone support)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -57,10 +56,8 @@ COPY --from=builder /root/.local /home/observer/.local
 # Update PATH to include the local bin directory
 ENV PATH="/home/observer/.local/bin:${PATH}"
 
-# Copy source code and config
-# Note: config is placed in /opt/platform/observer/config for fallback
+# Copy source code
 COPY src /opt/platform/observer/src
-COPY config /opt/platform/observer/config
 
 # Setup permissions for both code and runtime directories
 RUN mkdir -p /opt/platform/runtime/observer && \

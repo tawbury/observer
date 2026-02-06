@@ -14,14 +14,18 @@ docs
 tests
 backups
 
-# Config inclusion
+# Config and secrets (injected at runtime)
+.env
+.env.*
+!config/.env.example
+secrets
 config/
-!config/symbols/
-!config/symbols/kr_all_symbols.txt
-# Exclude runtime-generated or sensitive config sub-items
-config/observer/
-config/**/*.jsonl
-config/universe/*.json
+
+# Logs and data (runtime)
+*.log
+src/observer/logs
+src/observer/data
+src/observer/config
 
 # Legacy (removed after Phase 2)
 app

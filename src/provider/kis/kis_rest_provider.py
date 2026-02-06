@@ -642,25 +642,18 @@ class KISRestProvider:
         """
         logger.info("Attempting fallback: loading from local cache...")
         
-        import os
         from observer.paths import config_dir, project_root
         
-        builtin_env_path = os.environ.get("BUILTIN_SYMBOL_LIST")
-        cache_locations = []
-        if builtin_env_path:
-            cache_locations.append(Path(builtin_env_path))
-            
-        cache_locations.extend([
-            project_root() / "config" / "symbols" / "kr_all_symbols.txt",  # 1. Image Built-in (via /opt/platform/observer)
-            config_dir() / "symbols" / "kr_all_symbols.txt",               # 2. Production K8s Mount (via /opt/platform/runtime)
+        cache_locations = [
+            config_dir() / "symbols" / "kr_all_symbols.txt",               # 1. Production K8s Mount (via /opt/platform/runtime)
+            project_root() / "config" / "symbols" / "kr_all_symbols.txt",  # 2. Local development / Standalone
             Path.cwd() / "kr_all_symbols.txt",                             # 3. Fallback
-        ])
+        ]
         
         for cache_file in cache_locations:
             try:
-                logger.info(f"Checking cache location: {cache_file}")
                 if cache_file.exists():
-                    logger.info(f"✅ Found cache file at: {cache_file}")
+                    logger.info(f"✅ Found symbol cache at: {cache_file}")
                     with open(cache_file, 'r', encoding='utf-8') as f:
                         symbols = [line.strip() for line in f if line.strip()]  # Include all (6-digit AND preferred stocks)
                     

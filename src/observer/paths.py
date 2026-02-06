@@ -421,7 +421,7 @@ def snapshot_dir() -> Path:
     if env_path:
         path = Path(env_path)
     else:
-        path = Path("/opt/platform/runtime/observer/universe")
+        path = data_dir() / "universe"
     
     return path.resolve()
 

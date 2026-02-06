@@ -164,7 +164,7 @@ def run_observer_with_api():
     swing_collector = None
     track_a_enabled = os.environ.get("TRACK_A_ENABLED", "true").lower() in ("true", "1", "yes")
     if track_a_enabled and kis_app_key and kis_app_secret:
-        log.info("scalp Collector will be enabled")
+        log.info("Swing Collector will be enabled")
         try:
             kis_auth_a = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
             provider_engine_a = ProviderEngine(kis_auth_a, is_virtual=kis_is_virtual)
@@ -186,19 +186,19 @@ def run_observer_with_api():
                 provider_engine_a,
                 config=track_a_config,
                 universe_dir=str(universe_dir),
-                on_error=lambda msg: log.warning(f"scalp Error: {msg}")
+                on_error=lambda msg: log.warning(f"Swing Error: {msg}")
             )
-            log.info("scalp Collector configured: 5-minute interval (universe_dir=%s)", universe_dir)
+            log.info("Swing Collector configured: 5-minute interval (universe_dir=%s)", universe_dir)
         except Exception as e:
-            log.error(f"Failed to initialize scalp Collector: {e}")
+            log.error(f"Failed to initialize Swing Collector: {e}")
     else:
-        log.info("scalp Collector disabled (TRACK_A_ENABLED=false or KIS credentials missing)")
+        log.info("Swing Collector disabled (TRACK_A_ENABLED=false or KIS credentials missing)")
 
-    # Start scalp Collector in background if enabled
+    # Start Scalp Collector in background if enabled
     scalp_collector = None
     track_b_enabled = os.environ.get("TRACK_B_ENABLED", "false").lower() in ("true", "1", "yes")
     if track_b_enabled and kis_app_key and kis_app_secret:
-        log.info("scalp Collector will be enabled")
+        log.info("Scalp Collector will be enabled")
         try:
             kis_auth_b = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
             provider_engine_b = ProviderEngine(kis_auth_b, is_virtual=kis_is_virtual)
@@ -222,16 +222,16 @@ def run_observer_with_api():
                 provider_engine_b,
                 trigger_engine=trigger_engine,
                 config=track_b_config,
-                on_error=lambda msg: log.warning(f"scalp Error: {msg}")
+                on_error=lambda msg: log.warning(f"Scalp Error: {msg}")
             )
-            log.info("scalp Collector configured: WebSocket real-time (41 slots)")
+            log.info("Scalp Collector configured: WebSocket real-time (41 slots)")
         except Exception as e:
-            log.error(f"Failed to initialize scalp Collector: {e}")
+            log.error(f"Failed to initialize Scalp Collector: {e}")
     else:
         if not track_b_enabled:
-            log.info("scalp Collector disabled (TRACK_B_ENABLED=false)")
+            log.info("Scalp Collector disabled (TRACK_B_ENABLED=false)")
         else:
-            log.info("scalp Collector disabled (KIS credentials missing)")
+            log.info("Scalp Collector disabled (KIS credentials missing)")
 
     try:
         # Start observer
@@ -243,7 +243,7 @@ def run_observer_with_api():
         log.info("Logs: %s", _log_dir)
         log.info("Starting FastAPI server on 0.0.0.0:8000")
 
-        # Start scalp Collector in background thread
+        # Start Swing/Scalp Collectors in background threads
         track_a_thread = None
         if swing_collector:
             def run_swing_async():

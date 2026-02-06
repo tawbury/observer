@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """
 snapshot.py
-- Observer-Core Phase 2의 "기록 단위"를 정의하는 파일
+- Observer-Core의 "기록 단위"를 정의하는 파일
 - 1 Snapshot = 1 관측 레코드(나중에 JSONL로 1줄 저장)
 
 초보자 가이드

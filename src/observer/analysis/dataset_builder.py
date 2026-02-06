@@ -12,12 +12,12 @@ from .contracts.dataset_contract import ScalpCandidateDatasetContract
 from .stats import ClusterStats
 
 
-class Phase5DatasetBuildError(Exception):
+class ScalpDatasetBuildError(Exception):
     pass
 
 
 # =====================================================================
-# Phase 5 Dataset Builder (UNCHANGED)
+# Scalp Candidate Dataset Builder
 # =====================================================================
 
 def build_scalp_candidate_dataset(
@@ -57,21 +57,21 @@ def build_scalp_candidate_dataset(
 
 
 # =====================================================================
-# Phase 11: Raw Observation Dataset Builder (APPEND-ONLY)
+# Raw Observation Dataset Builder
 # =====================================================================
 
-class Phase11DatasetBuildError(RuntimeError):
-    """Raised when Phase 11 dataset building fails."""
+class ReplayDatasetBuildError(RuntimeError):
+    """Raised when replay dataset building fails."""
 
 
-class Phase11ObservationDataset(dict):
+class ReplayObservationDataset(dict):
     """
-    Phase 11 in-memory dataset representation.
+    In-memory replay dataset representation.
 
     Design notes:
     - intentionally lightweight (dict-based)
     - no persistence, no schema hard-binding
-    - serves as analysis bootstrap asset for Phase 12+
+    - serves as analysis bootstrap asset
 
     Canonical keys:
       - meta
@@ -83,12 +83,12 @@ def build_observation_replay_dataset(
     *,
     time_axis,
     source: Optional[str] = None,
-) -> Phase11ObservationDataset:
+) -> ReplayObservationDataset:
     """
-    Build Phase 11 observation replay dataset.
+    Build observation replay dataset.
 
     Input:
-    - time_axis: Phase11TimeAxis (from time_axis.py)
+    - time_axis: ReplayTimeAxis (from time_axis.py)
     - source: optional human-readable source identifier
 
     Output:
@@ -112,9 +112,8 @@ def build_observation_replay_dataset(
                 }
             )
 
-        dataset = Phase11ObservationDataset(
+        dataset = ReplayObservationDataset(
             meta={
-                "phase": 11,
                 "generated_at": now_kst().isoformat(),
                 "source": source,
                 "total_records": len(records_out),
@@ -125,6 +124,6 @@ def build_observation_replay_dataset(
         return dataset
 
     except Exception as e:
-        raise Phase11DatasetBuildError(
-            f"Failed to build Phase 11 observation dataset: {e}"
+        raise ReplayDatasetBuildError(
+            f"Failed to build observation replay dataset: {e}"
         ) from e

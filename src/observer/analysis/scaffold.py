@@ -11,7 +11,7 @@ from .contracts import PatternRecordContract
 # Exceptions
 # =====================================================================
 
-class Phase5ScaffoldError(RuntimeError):
+class ScaffoldError(RuntimeError):
     """Raised when scaffold dataset generation fails."""
 
 
@@ -38,7 +38,7 @@ class ScaffoldConfig:
 @dataclass
 class ScaffoldDataset:
     """
-    Canonical scaffold dataset for Phase 5 output.
+    Canonical scaffold dataset.
 
     rows: list of normalized dict rows
     """
@@ -73,7 +73,7 @@ def build_scaffold_dataset(
     """
 
     if cluster_result is None:
-        raise Phase5ScaffoldError("ClusterResult is None.")
+        raise ScaffoldError("ClusterResult is None.")
 
     rows: List[Dict[str, Any]] = []
     record_index = 0
@@ -144,7 +144,7 @@ def _row_from_record(
 
     observation = rec.observation or {}
 
-    # timestamp resolution (best-effort, Phase 5 safe)
+    # timestamp resolution (best-effort)
     ts = (
         observation.get("snapshot", {})
         .get("meta", {})

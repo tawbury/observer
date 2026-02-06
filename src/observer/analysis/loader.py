@@ -8,8 +8,8 @@ from typing import Any, Dict, Iterable, List, Optional, Union
 from .contracts.pattern_record_contract import PatternRecordContract
 
 
-class Phase5LoadError(Exception):
-    """Raised when Phase 5 loader cannot read or parse input records."""
+class PatternLoadError(Exception):
+    """Raised when pattern loader cannot read or parse input records."""
 
 
 @dataclass(frozen=True)
@@ -28,10 +28,10 @@ def load_pattern_records(
     encoding: str = "utf-8",
 ) -> LoadResult:
     """
-    Load Phase 4 output into Phase 5 PatternRecordContract.
+    Load output into PatternRecordContract.
 
     Canonical rules:
-    - Phase 4 is treated as external producer.
+    - Source is treated as external producer.
     - metadata is REQUIRED.
     - observation is OPTIONAL:
         * if present, used directly
@@ -41,11 +41,11 @@ def load_pattern_records(
     path = Path(input_path)
 
     if not path.exists():
-        raise Phase5LoadError(f"Input file not found: {path}")
+        raise PatternLoadError(f"Input file not found: {path}")
 
     suffix = path.suffix.lower()
     if suffix not in {".jsonl", ".json"}:
-        raise Phase5LoadError(
+        raise PatternLoadError(
             f"Unsupported input format: {suffix} (expected .jsonl or .json)"
         )
 
@@ -72,7 +72,7 @@ def load_pattern_records(
         else:
             data = _read_json(path, encoding=encoding)
             if not isinstance(data, list):
-                raise Phase5LoadError("JSON input must be a list of records.")
+                raise PatternLoadError("JSON input must be a list of records.")
 
             total_lines = len(data)
 
@@ -87,13 +87,15 @@ def load_pattern_records(
                 if max_records is not None and loaded >= max_records:
                     break
 
-    except Phase5LoadError:
+                    break
+
+    except PatternLoadError:
         raise
     except Exception as e:
-        raise Phase5LoadError(f"Failed to load records from {path}: {e}") from e
+        raise PatternLoadError(f"Failed to load records from {path}: {e}") from e
 
     if strict and loaded == 0:
-        raise Phase5LoadError("No valid records loaded in strict mode.")
+        raise PatternLoadError("No valid records loaded in strict mode.")
 
     return LoadResult(
         records=records,
@@ -104,7 +106,7 @@ def load_pattern_records(
 
 
 # =====================================================================
-# Internal helpers (Phase 5)
+# Internal helpers (Pattern Loader)
 # =====================================================================
 
 def _iter_jsonl(path: Path, *, encoding: str) -> Iterable[Dict[str, Any]]:
@@ -116,12 +118,12 @@ def _iter_jsonl(path: Path, *, encoding: str) -> Iterable[Dict[str, Any]]:
             try:
                 obj = json.loads(text)
             except json.JSONDecodeError as e:
-                raise Phase5LoadError(
+                raise PatternLoadError(
                     f"Invalid JSON at line {line_no}: {e}"
                 ) from e
 
             if not isinstance(obj, dict):
-                raise Phase5LoadError(
+                raise PatternLoadError(
                     f"JSONL record must be an object at line {line_no}"
                 )
             yield obj
@@ -132,7 +134,7 @@ def _read_json(path: Path, *, encoding: str) -> Any:
         try:
             return json.load(f)
         except json.JSONDecodeError as e:
-            raise Phase5LoadError(f"Invalid JSON file: {e}") from e
+            raise PatternLoadError(f"Invalid JSON file: {e}") from e
 
 
 def _parse_one(
@@ -145,23 +147,23 @@ def _parse_one(
 
     if not isinstance(raw, dict):
         if strict:
-            raise Phase5LoadError(prefix + "Record is not an object/dict.")
+            raise PatternLoadError(prefix + "Record is not an object/dict.")
         return None
 
     metadata = raw.get("metadata")
     if not isinstance(metadata, dict):
         if strict:
-            raise Phase5LoadError(prefix + "Missing or invalid 'metadata' dict.")
+            raise PatternLoadError(prefix + "Missing or invalid 'metadata' dict.")
         return None
 
     # --------------------------------------------------
-    # Observation handling (Phase 4 compatible)
+    # Observation handling
     # --------------------------------------------------
     if "observation" in raw:
         observation = raw.get("observation")
         if not isinstance(observation, dict):
             if strict:
-                raise Phase5LoadError(prefix + "Invalid 'observation' field.")
+                raise PatternLoadError(prefix + "Invalid 'observation' field.")
             return None
     else:
         # Synthesize observation from top-level fields
@@ -182,32 +184,32 @@ def _parse_one(
         )
     except Exception as e:
         if strict:
-            raise Phase5LoadError(prefix + f"Failed to parse record: {e}") from e
+            raise PatternLoadError(prefix + f"Failed to parse record: {e}") from e
         return None
 
 
 # =====================================================================
-# Phase 11: Raw Observation Log Loader (append-only)
+# Raw Observation Log Loader (append-only)
 # =====================================================================
 
 from datetime import datetime, timezone
 from typing import Iterator, Tuple
 
 
-class Phase11LoadError(Exception):
-    """Raised when Phase 11 loader cannot read raw observation logs."""
+class RawLoadError(Exception):
+    """Raised when raw loader cannot read raw observation logs."""
 
 
 @dataclass(frozen=True)
-class Phase11RawRecord:
+class RawLogRecord:
     line_no: int
     ts_kst: datetime
     payload: Dict[str, Any]
 
 
 @dataclass(frozen=True)
-class Phase11LoadResult:
-    records: List[Phase11RawRecord]
+class RawLoadResult:
+    records: List[RawLogRecord]
     total_lines: int
     loaded: int
 
@@ -223,17 +225,17 @@ def _parse_iso8601_to_kst(value: str) -> datetime:
     return dt.astimezone(KST or timezone.utc)
 
 
-def _extract_phase11_timestamp(raw: Dict[str, Any]) -> datetime:
+def _extract_raw_timestamp(raw: Dict[str, Any]) -> datetime:
     """
-    Phase 11 timestamp extraction (producer-agnostic, permissive).
+    Raw timestamp extraction (producer-agnostic, permissive).
 
     Priority (expanded after real log inspection):
       1) raw['meta']['captured_at']
       2) raw['meta']['generated_at']
       3) raw['captured_at']
       4) raw['generated_at']
-      5) raw['created_at']                  # ← Phase 7 decision logs
-      6) raw['metadata']['generated_at']    # Phase 4/5 compatibility
+      5) raw['created_at']
+      6) raw['metadata']['generated_at']    # Compatibility
     """
     meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
     metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
@@ -251,7 +253,7 @@ def _extract_phase11_timestamp(raw: Dict[str, Any]) -> datetime:
         if isinstance(c, str) and c.strip():
             return _parse_iso8601_to_kst(c)
 
-    raise Phase11LoadError(
+    raise RawLoadError(
         "timestamp missing: expected one of "
         "meta.captured_at/meta.generated_at/"
         "captured_at/generated_at/created_at/"
@@ -270,15 +272,16 @@ def _iter_jsonl_objects(
             try:
                 obj = json.loads(text)
             except json.JSONDecodeError as e:
-                raise Phase11LoadError(
+                raise RawLoadError(
                     f"Invalid JSON at line {line_no}: {e}"
                 ) from e
 
             if not isinstance(obj, dict):
-                raise Phase11LoadError(
+                raise RawLoadError(
                     f"JSONL record must be an object at line {line_no}"
                 )
             yield line_no, obj
+
 
 
 def load_observation_jsonl_records(
@@ -286,9 +289,9 @@ def load_observation_jsonl_records(
     *,
     max_records: Optional[int] = None,
     encoding: str = "utf-8",
-) -> Phase11LoadResult:
+) -> RawLoadResult:
     """
-    Phase 11:
+    Load raw observation logs.
     - Read observer logs back into code.
     - Does NOT depend on PatternRecordContract.
     - Keeps raw payload intact for later analysis.
@@ -296,21 +299,21 @@ def load_observation_jsonl_records(
     path = Path(input_path)
 
     if not path.exists():
-        raise Phase11LoadError(f"Input file not found: {path}")
+        raise RawLoadError(f"Input file not found: {path}")
 
     if path.suffix.lower() != ".jsonl":
-        raise Phase11LoadError(
+        raise RawLoadError(
             f"Unsupported input format: {path.suffix} (expected .jsonl)"
         )
 
-    records: List[Phase11RawRecord] = []
+    records: List[RawLogRecord] = []
     total_lines = 0
 
     for line_no, raw in _iter_jsonl_objects(path, encoding=encoding):
         total_lines = line_no
-        ts = _extract_phase11_timestamp(raw)
+        ts = _extract_raw_timestamp(raw)
         records.append(
-            Phase11RawRecord(
+            RawLogRecord(
                 line_no=line_no,
                 ts_kst=ts,
                 payload=raw,
@@ -320,7 +323,7 @@ def load_observation_jsonl_records(
         if max_records is not None and len(records) >= max_records:
             break
 
-    return Phase11LoadResult(
+    return RawLoadResult(
         records=records,
         total_lines=total_lines,
         loaded=len(records),

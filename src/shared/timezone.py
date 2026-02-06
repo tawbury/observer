@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 __all__ = ["ZoneInfo", "get_zoneinfo", "now_with_tz", "is_zoneinfo_available", "KST", "now_kst"]
 
 
-KST = get_zoneinfo("Asia/Seoul")
+
 
 
 def now_kst() -> datetime:
@@ -55,6 +55,9 @@ def get_zoneinfo(tz_name: str) -> Optional["ZoneInfoType"]:
         return ZoneInfo(tz_name)
     except Exception:
         return None
+
+
+KST = get_zoneinfo("Asia/Seoul")
 
 
 def now_with_tz(tz_name: Optional[str] = None) -> datetime:

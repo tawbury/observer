@@ -7,12 +7,12 @@ from typing import List, Optional, Tuple
 from .contracts.pattern_record_contract import PatternRecordContract
 
 
-class Phase5TimeAxisError(Exception):
+class TimeAxisError(Exception):
     """Raised when time axis normalization fails."""
 
 
 # =====================================================================
-# Config & View models (Phase 5)
+# Config & View models
 # =====================================================================
 
 @dataclass(frozen=True)
@@ -46,7 +46,7 @@ class TimeSeriesPatternView:
 
 
 # =====================================================================
-# Public API (Phase 5)
+# Public API
 # =====================================================================
 
 def normalize_time_axis(
@@ -57,7 +57,7 @@ def normalize_time_axis(
     """
     Normalize PatternRecordContracts onto a discrete time axis.
 
-    Timestamp policy (Phase 5 canonical):
+    Timestamp policy:
     - Only observation.snapshot.meta timestamps are valid
     - generated_at is NOT used as a fallback
     """
@@ -73,7 +73,7 @@ def normalize_time_axis(
             if cfg.allow_missing_timestamps:
                 unbucketed.append(rec)
                 continue
-            raise Phase5TimeAxisError("Record missing timestamp.")
+            raise TimeAxisError("Record missing timestamp.")
 
         extracted.append((ts, rec))
 
@@ -92,7 +92,7 @@ def normalize_time_axis(
     if cfg.enforce_monotonic:
         for i in range(1, len(extracted)):
             if extracted[i][0] < extracted[i - 1][0]:
-                raise Phase5TimeAxisError("Timestamps are not monotonic.")
+                raise TimeAxisError("Timestamps are not monotonic.")
 
     # Build buckets
     bucket_seconds = cfg.bucket_seconds
@@ -132,12 +132,12 @@ def normalize_time_axis(
 
 
 # =====================================================================
-# Internal helpers (Phase 5)
+# Internal helpers
 # =====================================================================
 
 def _extract_timestamp(rec: PatternRecordContract) -> Optional[float]:
     """
-    Extract timestamp from Phase 4 compatible observation.
+    Extract timestamp from observation.
 
     Priority:
     1. observation.snapshot.meta.timestamp_ms
@@ -169,31 +169,31 @@ def _parse_iso(value: str) -> float:
 
 
 # =====================================================================
-# Phase 11: Raw Observation Time Axis (append-only)
+# Raw Observation Time Axis (append-only)
 # =====================================================================
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    # loader.py에 정의된 Phase11RawRecord를 타입 힌트로만 참조
-    from .loader import Phase11RawRecord
+    # loader.py에 정의된 RawLogRecord 참조
+    from .loader import RawLogRecord
 
 
-class Phase11TimeAxisError(Exception):
-    """Raised when Phase 11 time axis normalization fails."""
+class ReplayTimeAxisError(Exception):
+    """Raised when time axis normalization fails."""
 
 
 @dataclass(frozen=True)
-class Phase11TimeAxis:
+class ReplayTimeAxis:
     """
-    Phase 11 deterministic time axis for raw observation logs.
+    Deterministic time axis for raw observation logs.
 
     Characteristics:
     - operates on raw records (dict payload)
     - no bucketing
     - strictly replay-oriented ordering
     """
-    records: List["Phase11RawRecord"]
+    records: List["RawLogRecord"]
 
     @property
     def total_records(self) -> int:
@@ -209,12 +209,12 @@ class Phase11TimeAxis:
 
 
 def normalize_observation_time_axis(
-    records: List["Phase11RawRecord"],
+    records: List["RawLogRecord"],
     *,
     enforce_monotonic: bool = False,
-) -> Phase11TimeAxis:
+) -> ReplayTimeAxis:
     """
-    Phase 11 time axis normalization.
+    Time axis normalization.
 
     Ordering policy:
     - primary: ts_kst
@@ -229,8 +229,8 @@ def normalize_observation_time_axis(
     if enforce_monotonic:
         for i in range(1, len(ordered)):
             if ordered[i].ts_kst < ordered[i - 1].ts_kst:
-                raise Phase11TimeAxisError(
+                raise ReplayTimeAxisError(
                     "Timestamps are not monotonic after sorting."
                 )
 
-    return Phase11TimeAxis(records=ordered)
+    return ReplayTimeAxis(records=ordered)

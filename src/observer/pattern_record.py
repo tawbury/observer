@@ -30,7 +30,8 @@ from .snapshot import ObservationSnapshot
 @dataclass(frozen=True)
 class PatternRecord:
     """
-    Observer-Core 최종 데이터 자산 단위 (Phase 2 기준)
+    Observer-Core 최종 데이터 자산 단위
+
 
     이 클래스는:
     - Observer가 외부로 내보내는 "최종 산출물"이며
@@ -45,15 +46,15 @@ class PatternRecord:
 
     2) regime_tags
        - 시장 국면 태그 (예: bull / bear / sideway)
-       - Phase 2에서는 사용하지 않으며, 빈 dict가 정상이다.
+       - 사용하지 않으며, 빈 dict가 정상이다.
 
     3) condition_tags
        - 조건 태그 (예: rsi_oversold, breakout 등)
-       - Phase 2에서는 사용하지 않으며, 빈 list가 정상이다.
+       - 사용하지 않으며, 빈 list가 정상이다.
 
     4) outcome_labels
        - 결과 라벨 (예: win / loss / pnl)
-       - Phase 2에서는 사용하지 않으며, 빈 dict가 정상이다.
+       - 사용하지 않으며, 빈 dict가 정상이다.
 
     5) metadata
        - 데이터 관리 및 추적용 정보

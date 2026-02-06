@@ -32,7 +32,7 @@ from .validation import DefaultSnapshotValidator, SnapshotValidator
 from .guard import DefaultGuard
 
 # Record enrichment
-from .phase4_enricher import DefaultRecordEnricher, RecordEnricher
+from .enricher import DefaultRecordEnricher, RecordEnricher
 
 
 class Observer:
@@ -100,12 +100,12 @@ class Observer:
 
     def on_snapshot(self, snapshot: ObservationSnapshot) -> None:
         """
-        Phase 4 호출 흐름:
+        Processing Flow:
         1) Snapshot 수신
         2) Validation
         3) Guard
         4) PatternRecord 생성
-        5) (Phase 4) Enrich
+        5) Enrich
         6) EventBus dispatch
         """
 
@@ -161,7 +161,7 @@ class Observer:
                 return
 
             # --------------------------------------------------
-            # PatternRecord 생성 (Phase 3 기준)
+            # PatternRecord 생성
             # --------------------------------------------------
             with LatencyTimer("record_creation"):
                 record = PatternRecord(
@@ -170,7 +170,7 @@ class Observer:
                     condition_tags=[],
                     outcome_labels={},
                     metadata={
-                        # 기존 메타 유지(Phase 3까지의 계약)
+                        # 기존 메타 유지
                         "schema_version": "v1.0.0",
                         "dataset_version": "v1.0.0",
                         "build_id": "observer_core_v1",
@@ -178,7 +178,7 @@ class Observer:
                         "session_id": self.session_id,
                         "mode": self.mode,
 
-                        # Phase 3 — always-present quality metadata (legacy)
+                        # Always-present quality metadata
                         "quality_flags": [],
 
                         "validation": {
@@ -192,7 +192,7 @@ class Observer:
                 )
 
             # --------------------------------------------------
-            # (Phase 4) Record Enrichment
+            # Record Enrichment
             # --------------------------------------------------
             # - 판단/전략/실행 금지
             # - metadata 네임스페이스(_schema/_quality/_interpretation)만 추가

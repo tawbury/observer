@@ -12,7 +12,7 @@ from shared.timezone import now_kst
 @dataclass(frozen=True)
 class CurrentPriceEvent:
     """
-    Phase 15 raw event envelope.
+    Raw event envelope.
     - raw: KIS에서 받은 원본 payload (그대로)
     - received_at: 수신 시각(KST ISO8601)
     """
@@ -22,7 +22,7 @@ class CurrentPriceEvent:
 
 class CurrentPriceSource(Protocol):
     """
-    Phase 15 Source contract.
+    Source contract.
     - 현재가 이벤트를 "raw dict"로 계속 방출한다.
     - 어떤 방식(REST/WS)이든 상관 없음.
     """
@@ -31,7 +31,7 @@ class CurrentPriceSource(Protocol):
 
 class MockCurrentPriceSource:
     """
-    로컬에서 Phase 15 파이프를 먼저 뚫기 위한 Mock.
+    로컬에서 실시간 파이프를 먼저 뚫기 위한 Mock.
     - 실계좌 연동 전이라도 Observer까지 흐름을 검증 가능.
     """
     def __init__(self, symbol: str = "TEST", interval_sec: float = 1.0) -> None:
@@ -56,7 +56,7 @@ class MockCurrentPriceSource:
 
 class KisCurrentPriceSource:
     """
-    KIS 실계좌 현재가 수신 Source (Phase 15용 슬롯).
+    KIS 실계좌 현재가 수신 Source (실시간용 슬롯).
 
     중요:
     - 여기서는 KIS SDK/HTTP/WS 구체 구현을 강제하지 않는다.
@@ -108,14 +108,14 @@ class KisCurrentPriceSource:
             time.sleep(self._interval_sec)
 
 
-def build_phase15_source(symbol: str, mode: Optional[str] = None) -> CurrentPriceSource:
+def build_current_price_source(symbol: str, mode: Optional[str] = None) -> CurrentPriceSource:
     """
     mode:
       - "mock" (기본): Mock source
       - "kis": KIS 실계좌 source (fetch_current_price_raw 구현 필요)
     """
-    m = (mode or os.getenv("PHASE15_SOURCE_MODE") or "mock").lower().strip()
+    m = (mode or os.getenv("CURRENT_PRICE_SOURCE_MODE") or "mock").lower().strip()
     if m == "kis":
-        interval = float(os.getenv("PHASE15_POLL_INTERVAL_SEC", "1.0"))
+        interval = float(os.getenv("CURRENT_PRICE_POLL_INTERVAL_SEC", "1.0"))
         return KisCurrentPriceSource(symbol=symbol, interval_sec=interval)
     return MockCurrentPriceSource(symbol=symbol, interval_sec=1.0)

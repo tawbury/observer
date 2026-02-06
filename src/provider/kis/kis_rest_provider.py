@@ -643,17 +643,19 @@ class KISRestProvider:
         logger.info("Attempting fallback: loading from local cache...")
         
         # Try multiple cache locations (PRIMARY FIRST)
-        from src.observer.paths import config_dir, project_root
+        from observer.paths import config_dir, project_root
         cache_locations = [
             project_root() / "config" / "symbols" / "kr_all_symbols.txt",  # Local development (PRIMARY)
+            Path("/opt/platform/observer/config/symbols/kr_all_symbols.txt"),  # Image Built-in (EXPLICIT)
             config_dir() / "symbols" / "kr_all_symbols.txt",  # Production K8s path
             Path.cwd() / "kr_all_symbols.txt",  # Current working directory (fallback)
         ]
         
         for cache_file in cache_locations:
             try:
+                logger.info(f"Checking cache location: {cache_file}")
                 if cache_file.exists():
-                    logger.info(f"Loading cache from: {cache_file}")
+                    logger.info(f"✅ Found cache file at: {cache_file}")
                     with open(cache_file, 'r', encoding='utf-8') as f:
                         symbols = [line.strip() for line in f if line.strip()]  # Include all (6-digit AND preferred stocks)
                     

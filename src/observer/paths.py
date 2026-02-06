@@ -57,6 +57,8 @@ def _resolve_project_root(start: Optional[Path] = None) -> Path:
             return parent
         if (parent / "pyproject.toml").exists():
             return parent
+        if (parent / "requirements.txt").exists() and (parent / "src").exists():
+            return parent
         if (parent / "src").exists() and (parent / "tests").exists():
             return parent
 

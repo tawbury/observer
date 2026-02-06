@@ -36,7 +36,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     OBSERVER_SYSTEM_LOG_DIR=/opt/platform/runtime/observer/logs/system \
     OBSERVER_MAINTENANCE_LOG_DIR=/opt/platform/runtime/observer/logs/maintenance \
     OBSERVER_CONFIG_DIR=/opt/platform/runtime/observer/config \
-    KIS_TOKEN_CACHE_DIR=/opt/platform/runtime/observer/data/cache
+    KIS_TOKEN_CACHE_DIR=/opt/platform/runtime/observer/data/cache \
+    BUILTIN_SYMBOL_LIST=/opt/platform/observer/config/symbols/kr_all_symbols.txt
 
 # Install runtime dependencies (tzdata for timezone support)
 RUN apt-get update && apt-get install -y --no-install-recommends \

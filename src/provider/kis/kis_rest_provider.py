@@ -645,7 +645,7 @@ class KISRestProvider:
         from observer.paths import config_dir, project_root
         
         cache_locations = [
-            config_dir() / "symbols" / "kr_all_symbols.txt",               # 1. Production K8s Mount (via /opt/platform/runtime)
+            config_dir() / "symbols" / "kr_all_symbols.txt",               # 1. Production K8s Mount (via PLATFORM_RUNTIME_ROOT)
             project_root() / "config" / "symbols" / "kr_all_symbols.txt",  # 2. Local development / Standalone
             Path.cwd() / "kr_all_symbols.txt",                             # 3. Fallback
         ]

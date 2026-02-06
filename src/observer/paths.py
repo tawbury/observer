@@ -19,7 +19,7 @@ Path Management Strategy:
 - Observer-generated JSON / JSONL files live under data/assets (scalp, swing, system).
 - config/ is for operational config only; logs/ for all log files.
 - Observer assets MUST be resolved via observer_asset_dir(); logs via observer_log_dir().
-- Supports standalone Docker deployment with /opt/platform/observer as project root.
+- Supports standalone Docker deployment with PLATFORM_CODE_ROOT as project root.
 """
 
 from pathlib import Path
@@ -28,6 +28,15 @@ import logging
 import os
 
 logger = logging.getLogger(__name__)
+# ============================================================
+# Canonical Base Paths (Internal Constants)
+# ============================================================
+# In Docker/K8s environments, code and runtime data are separated.
+# Project Root: /opt/platform/observer (Code)
+# Runtime Root: /opt/platform/runtime/observer (Data, Logs, Config)
+# These are used only as fallbacks when environment variables are missing.
+PLATFORM_CODE_ROOT = Path(os.environ.get("PLATFORM_CODE_ROOT", "/opt/platform/observer"))
+PLATFORM_RUNTIME_ROOT = Path(os.environ.get("PLATFORM_RUNTIME_ROOT", "/opt/platform/runtime/observer"))
 
 
 
@@ -62,8 +71,8 @@ def _resolve_project_root(start: Optional[Path] = None) -> Path:
         if (parent / "src").exists() and (parent / "tests").exists():
             return parent
 
-    # 2️⃣ Fallback: Return current working directory (safe for container environments)
-    return Path.cwd()
+    # 2️⃣ Fallback: Return PLATFORM_CODE_ROOT (safe for container environments)
+    return PLATFORM_CODE_ROOT
 
 
 # ============================================================
@@ -184,14 +193,14 @@ def data_dir() -> Path:
     Canonical data root directory.
 
     Environment variable: OBSERVER_DATA_DIR
-    Default: /opt/platform/runtime/observer/data
+    Default: PLATFORM_RUNTIME_ROOT/data
     """
     env_path = os.environ.get("OBSERVER_DATA_DIR")
     if env_path:
         path = Path(env_path)
     else:
         # K8S native mount point as default to avoid Read-only filesystem error
-        path = Path("/opt/platform/runtime/observer/data")
+        path = PLATFORM_RUNTIME_ROOT / "data"
 
     return path.resolve()
 
@@ -202,12 +211,12 @@ def config_dir() -> Path:
 
     Resolution order:
     1. OBSERVER_CONFIG_DIR environment variable
-    2. /opt/platform/runtime/observer/config
+    2. PLATFORM_RUNTIME_ROOT/config
     """
     if os.environ.get("OBSERVER_CONFIG_DIR"):
         path = Path(os.environ["OBSERVER_CONFIG_DIR"])
     else:
-        path = Path("/opt/platform/runtime/observer/config")
+        path = PLATFORM_RUNTIME_ROOT / "config"
     
     return path.resolve()
 
@@ -368,13 +377,13 @@ def log_dir() -> Path:
     Canonical log root directory.
 
     Environment variable: OBSERVER_LOG_DIR
-    Default: /opt/platform/runtime/observer/logs
+    Default: PLATFORM_RUNTIME_ROOT/logs
     """
     env_path = os.environ.get("OBSERVER_LOG_DIR")
     if env_path:
         path = Path(env_path)
     else:
-        path = Path("/opt/platform/runtime/observer/logs")
+        path = PLATFORM_RUNTIME_ROOT / "logs"
     
     return path.resolve()
 

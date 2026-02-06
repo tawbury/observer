@@ -94,7 +94,7 @@ async def run_observer_with_api(
     log_level: str = "info",
 ) -> None:
     """
-    Run Observer with FastAPI server and async Universe/Track A/B collectors (Docker entry point).
+    Run Observer with FastAPI server and async Universe/swing/scalp collectors (Docker entry point).
 
     Starts Observer core, EventBus → JsonlFileSink, FastAPI server (thread), and optionally
     UniverseScheduler, SwingCollector, ScalpCollector as asyncio tasks when KIS credentials
@@ -163,7 +163,7 @@ async def run_observer_with_api(
     if has_creds:
         cred_source = "env vars (K8s/direct)" if not env_files_loaded else "env files and/or env vars"
         log.info(
-            "KIS credentials found from %s - Universe Scheduler and Track A/B will be enabled",
+            "KIS credentials found from %s - Universe Scheduler and swing/scalp will be enabled",
             cred_source,
         )
         try:
@@ -200,7 +200,7 @@ async def run_observer_with_api(
                 _config_dir = get_config_dir()
                 universe_dir = _config_dir / "universe"
                 universe_dir.mkdir(parents=True, exist_ok=True)
-                track_a_config = TrackAConfig(
+                track_a_config = SwingConfig(
                     interval_minutes=5,
                     market="kr_stocks",
                     session_id=session_id,
@@ -210,11 +210,11 @@ async def run_observer_with_api(
                     provider_engine_a,
                     config=track_a_config,
                     universe_dir=str(universe_dir),
-                    on_error=lambda msg: log.warning("Track A Error: %s", msg),
+                    on_error=lambda msg: log.warning("swing Error: %s", msg),
                 )
-                log.info("Track A Collector configured (interval=5m, universe_dir=%s)", universe_dir)
+                log.info("swing Collector configured (interval=5m, universe_dir=%s)", universe_dir)
             except Exception as e:
-                log.error("Failed to initialize Track A Collector: %s", e)
+                log.error("Failed to initialize swing Collector: %s", e)
 
         if track_b_enabled:
             try:
@@ -230,7 +230,7 @@ async def run_observer_with_api(
                     max_candidates=100,
                 )
                 trigger_engine = TriggerEngine(config=trigger_config)
-                track_b_config = TrackBConfig(
+                track_b_config = ScalpConfig(
                     market="kr_stocks",
                     session_id=session_id,
                     mode="DOCKER",
@@ -241,14 +241,14 @@ async def run_observer_with_api(
                     provider_engine_b,
                     trigger_engine=trigger_engine,
                     config=track_b_config,
-                    on_error=lambda msg: log.warning("Track B Error: %s", msg),
+                    on_error=lambda msg: log.warning("scalp Error: %s", msg),
                 )
-                log.info("Track B Collector configured (max_slots=41)")
+                log.info("scalp Collector configured (max_slots=41)")
             except Exception as e:
-                log.error("Failed to initialize Track B Collector: %s", e)
+                log.error("Failed to initialize scalp Collector: %s", e)
     else:
         log.warning(
-            "KIS_APP_KEY and KIS_APP_SECRET not in os.environ - Universe and Track A/B collectors disabled. "
+            "KIS_APP_KEY and KIS_APP_SECRET not in os.environ - Universe and swing/scalp collectors disabled. "
             "Set them in os.environ (e.g. K8s Secret env) or .env file.",
         )
 
@@ -256,7 +256,7 @@ async def run_observer_with_api(
     start_api_server_background(host=host, port=port, log_level=log_level)
     log.info("FastAPI server started on %s:%s | health=%s/health | status=%s/status", host, port, host, host)
 
-    # Async tasks: Universe + Track A/B run in same event loop (no blocking)
+    # Async tasks: Universe + swing/scalp run in same event loop (no blocking)
     shutdown = asyncio.Event()
     tasks: list[asyncio.Task] = []
 
@@ -282,10 +282,10 @@ async def run_observer_with_api(
         log.info("Universe Scheduler task registered")
     if swing_collector:
         tasks.append(asyncio.create_task(swing_collector.start()))
-        log.info("Track A Collector task registered")
+        log.info("swing Collector task registered")
     if scalp_collector:
         tasks.append(asyncio.create_task(scalp_collector.start()))
-        log.info("Track B Collector task registered")
+        log.info("scalp Collector task registered")
 
     log.info("Observer system fully operational (EventBus → JsonlFileSink; data flow logged every 100 dispatches)")
 

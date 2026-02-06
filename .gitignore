@@ -121,7 +121,3 @@ mcp-cli/dist/
 .claude/
 tmpclaude-*
 .agent/
-
-# docs
-**/docs/
-docs/

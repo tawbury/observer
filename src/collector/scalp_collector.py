@@ -1,8 +1,8 @@
 """
 Scalp Collector - Real-time WebSocket data collection for 41 slots
 
-Key Responsibilities (Track A 독립형):
-- Track A 데이터 없이도 자체 부트스트랩 심볼로 즉시 구독
+Key Responsibilities (swing 독립형):
+- swing 데이터 없이도 자체 부트스트랩 심볼로 즉시 구독
 - 41개 슬롯(WebSocket) 동적 관리 (SlotManager)
 - 실시간 2Hz 체결 데이터 수집 및 스캘프 로그 저장
 - data/assets/scalp/YYYYMMDD_HH.jsonl 로깅
@@ -43,8 +43,8 @@ class ScalpConfig:
     max_slots: int = 41  # KIS WebSocket limit
     min_dwell_seconds: int = 120  # 2 minutes minimum slot occupancy
     daily_log_subdir: str = "scalp"  # under config/{subdir}
-    trading_start: time = time(9, 30)  # Track B starts 30min after market open
-    trading_end: time = time(15, 00)   # Track B ends 30min before market close (장마감 변동성 감지)
+    trading_start: time = time(9, 30)  # scalp starts 30min after market open
+    trading_end: time = time(15, 00)   # scalp ends 30min before market close (장마감 변동성 감지)
     trigger_check_interval_seconds: int = 30  # Trigger processing interval
     bootstrap_symbols: List[str] = field(
         default_factory=lambda: ["005930", "000660", "373220", "051910", "068270", "035720"]
@@ -57,7 +57,7 @@ class ScalpCollector(TimeAwareMixin):
     Scalp Collector - WebSocket-based real-time data collector.
     
     Features:
-    - Track A 독립: 부트스트랩 심볼 기반 즉시 구독
+    - swing 독립: 부트스트랩 심볼 기반 즉시 구독
     - Dynamic 41-slot WebSocket subscription management
     - 2Hz real-time price data collection
     - Scalp log partitioning by date
@@ -121,12 +121,12 @@ class ScalpCollector(TimeAwareMixin):
     # -----------------------------------------------------
     async def start(self) -> None:
         """
-        Start Track B collector.
+        Start scalp collector.
         
         Main loop:
         1. Start WebSocket provider (connect to KIS)
         2. Register price update callback
-        3. 부트스트랩 심볼 기반 트리거 생성 (Track A 의존성 제거)
+        3. 부트스트랩 심볼 기반 트리거 생성 (swing 의존성 제거)
         4. Update slots based on trigger candidates
         5. Subscribe/unsubscribe WebSocket symbols
         6. Collect and log real-time data
@@ -161,7 +161,7 @@ class ScalpCollector(TimeAwareMixin):
                 now = self._now()
 
                 # 디버깅 로그 추가
-                log.info(f"Track B 현재 시간: {now} (timezone: {now.tzinfo})")
+                log.info(f"scalp 현재 시간: {now} (timezone: {now.tzinfo})")
                 log.info(f"장중 시간: {self.cfg.trading_start} - {self.cfg.trading_end}")
 
                 # 장 마감 시점이 지나면 즉시 수집을 종료하여 불필요한 로그 생성을 막는다
@@ -198,7 +198,7 @@ class ScalpCollector(TimeAwareMixin):
     # -----------------------------------------------------
     async def _check_triggers(self) -> None:
         """
-        Track A 독립형 트리거 생성 및 슬롯 반영.
+        swing 독립형 트리거 생성 및 슬롯 반영.
 
         Process:
         1. 부트스트랩 심볼 리스트로 SlotCandidate 생성
@@ -212,7 +212,7 @@ class ScalpCollector(TimeAwareMixin):
                 log.debug("No bootstrap candidates available")
                 return
 
-            log.info(f"🎯 Generated {len(candidates)} bootstrap candidates (Track A independent mode)")
+            log.info(f"🎯 Generated {len(candidates)} bootstrap candidates (swing independent mode)")
 
             for candidate in candidates:
                 result = self.slot_manager.assign_slot(candidate)
@@ -237,7 +237,7 @@ class ScalpCollector(TimeAwareMixin):
             log.error(f"Error checking triggers: {e}")
 
     def _generate_bootstrap_candidates(self) -> List[SlotCandidate]:
-        """부트스트랩 심볼 기반 SlotCandidate 생성 (Track A 의존성 제거)."""
+        """부트스트랩 심볼 기반 SlotCandidate 생성 (swing 의존성 제거)."""
         now = self._now()
         candidates: List[SlotCandidate] = []
 
@@ -460,7 +460,7 @@ async def main():
     import argparse
     from provider import KISAuth
     
-    parser = argparse.ArgumentParser(description="Track B Collector Test CLI")
+    parser = argparse.ArgumentParser(description="scalp Collector Test CLI")
     parser.add_argument("--mode", choices=["PROD", "VIRTUAL"], default="VIRTUAL", help="KIS mode")
     parser.add_argument("--run-for", type=int, default=300, help="Run for N seconds (default: 300)")
     parser.add_argument("--bootstrap", default="005930,000660,373220", help="Comma-separated symbols for bootstrap")

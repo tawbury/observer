@@ -160,11 +160,11 @@ def run_observer_with_api():
         scheduler_thread.start()
         log.info("Universe Scheduler thread started")
 
-    # Start Track A Collector in background if enabled
+    # Start scalp Collector in background if enabled
     swing_collector = None
     track_a_enabled = os.environ.get("TRACK_A_ENABLED", "true").lower() in ("true", "1", "yes")
     if track_a_enabled and kis_app_key and kis_app_secret:
-        log.info("Track A Collector will be enabled")
+        log.info("scalp Collector will be enabled")
         try:
             kis_auth_a = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
             provider_engine_a = ProviderEngine(kis_auth_a, is_virtual=kis_is_virtual)
@@ -186,19 +186,19 @@ def run_observer_with_api():
                 provider_engine_a,
                 config=track_a_config,
                 universe_dir=str(universe_dir),
-                on_error=lambda msg: log.warning(f"Track A Error: {msg}")
+                on_error=lambda msg: log.warning(f"scalp Error: {msg}")
             )
-            log.info("Track A Collector configured: 5-minute interval (universe_dir=%s)", universe_dir)
+            log.info("scalp Collector configured: 5-minute interval (universe_dir=%s)", universe_dir)
         except Exception as e:
-            log.error(f"Failed to initialize Track A Collector: {e}")
+            log.error(f"Failed to initialize scalp Collector: {e}")
     else:
-        log.info("Track A Collector disabled (TRACK_A_ENABLED=false or KIS credentials missing)")
+        log.info("scalp Collector disabled (TRACK_A_ENABLED=false or KIS credentials missing)")
 
-    # Start Track B Collector in background if enabled
+    # Start scalp Collector in background if enabled
     scalp_collector = None
     track_b_enabled = os.environ.get("TRACK_B_ENABLED", "false").lower() in ("true", "1", "yes")
     if track_b_enabled and kis_app_key and kis_app_secret:
-        log.info("Track B Collector will be enabled")
+        log.info("scalp Collector will be enabled")
         try:
             kis_auth_b = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
             provider_engine_b = ProviderEngine(kis_auth_b, is_virtual=kis_is_virtual)
@@ -222,16 +222,16 @@ def run_observer_with_api():
                 provider_engine_b,
                 trigger_engine=trigger_engine,
                 config=track_b_config,
-                on_error=lambda msg: log.warning(f"Track B Error: {msg}")
+                on_error=lambda msg: log.warning(f"scalp Error: {msg}")
             )
-            log.info("Track B Collector configured: WebSocket real-time (41 slots)")
+            log.info("scalp Collector configured: WebSocket real-time (41 slots)")
         except Exception as e:
-            log.error(f"Failed to initialize Track B Collector: {e}")
+            log.error(f"Failed to initialize scalp Collector: {e}")
     else:
         if not track_b_enabled:
-            log.info("Track B Collector disabled (TRACK_B_ENABLED=false)")
+            log.info("scalp Collector disabled (TRACK_B_ENABLED=false)")
         else:
-            log.info("Track B Collector disabled (KIS credentials missing)")
+            log.info("scalp Collector disabled (KIS credentials missing)")
 
     try:
         # Start observer
@@ -243,7 +243,7 @@ def run_observer_with_api():
         log.info("Logs: %s", _log_dir)
         log.info("Starting FastAPI server on 0.0.0.0:8000")
 
-        # Start Track A Collector in background thread
+        # Start scalp Collector in background thread
         track_a_thread = None
         if swing_collector:
             def run_swing_async():
@@ -262,7 +262,7 @@ def run_observer_with_api():
             track_a_thread.start()
             log.info("Swing Collector thread started")
 
-        # Start Track B Collector in background thread
+        # Start scalp Collector in background thread
         track_b_thread = None
         if scalp_collector:
             def run_scalp_async():
@@ -279,7 +279,7 @@ def run_observer_with_api():
             
             track_b_thread = threading.Thread(target=run_scalp_async, daemon=True)
             track_b_thread.start()
-            log.info("Track B Collector thread started")
+            log.info("scalp Collector thread started")
 
         # Start API server in background thread
         api_thread = start_api_server_background(host="0.0.0.0", port=8000)

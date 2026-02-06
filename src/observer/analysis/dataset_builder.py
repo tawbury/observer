@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
+from shared.timezone import now_kst
+
 from .contracts.cluster_contract import PatternClusterContract
 from .contracts.dataset_contract import ScalpCandidateDatasetContract
 from .stats import ClusterStats
@@ -45,7 +47,7 @@ def build_scalp_candidate_dataset(
         selected.append(c)
 
     return ScalpCandidateDatasetContract(
-        generated_at=datetime.utcnow().isoformat(),
+        generated_at=now_kst().isoformat(),
         criteria={
             "min_count": float(min_count),
             "min_guard_pass_ratio": float(min_guard_pass_ratio),
@@ -113,7 +115,7 @@ def build_observation_replay_dataset(
         dataset = Phase11ObservationDataset(
             meta={
                 "phase": 11,
-                "generated_at": datetime.utcnow().isoformat(),
+                "generated_at": now_kst().isoformat(),
                 "source": source,
                 "total_records": len(records_out),
             },

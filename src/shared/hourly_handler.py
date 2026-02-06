@@ -11,7 +11,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
 
-from .timezone import get_zoneinfo
+from .timezone import get_zoneinfo, KST
 
 
 class HourlyRotatingFileHandler(logging.FileHandler):
@@ -61,6 +61,8 @@ class HourlyRotatingFileHandler(logging.FileHandler):
         """타임존 인식 현재 시간 반환"""
         if self._tz:
             return datetime.now(self._tz)
+        if KST:
+            return datetime.now(KST)
         return datetime.now(timezone.utc)
 
     def _update_filename(self) -> None:

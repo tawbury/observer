@@ -21,6 +21,7 @@ Principles:
 import logging
 from datetime import datetime, timezone
 
+from shared.timezone import now_kst
 from .snapshot import ObservationSnapshot
 from .pattern_record import PatternRecord
 from .event_bus import EventBus
@@ -173,7 +174,7 @@ class Observer:
                         "schema_version": "v1.0.0",
                         "dataset_version": "v1.0.0",
                         "build_id": "observer_core_v1",
-                        "generated_at": datetime.now(timezone.utc).isoformat(),
+                        "generated_at": now_kst().isoformat(),
                         "session_id": self.session_id,
                         "mode": self.mode,
 

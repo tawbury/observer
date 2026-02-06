@@ -6,13 +6,15 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterator, Optional, Protocol
 
+from shared.timezone import now_kst
+
 
 @dataclass(frozen=True)
 class CurrentPriceEvent:
     """
     Phase 15 raw event envelope.
     - raw: KIS에서 받은 원본 payload (그대로)
-    - received_at: 수신 시각(UTC ISO8601)
+    - received_at: 수신 시각(KST ISO8601)
     """
     raw: Dict[str, Any]
     received_at: str
@@ -47,7 +49,7 @@ class MockCurrentPriceSource:
             }
             yield CurrentPriceEvent(
                 raw=raw,
-                received_at=datetime.now(timezone.utc).isoformat(),
+                received_at=now_kst().isoformat(),
             )
             time.sleep(self._interval_sec)
 
@@ -101,7 +103,7 @@ class KisCurrentPriceSource:
             # raw는 절대 손대지 않는다.
             yield CurrentPriceEvent(
                 raw=raw,
-                received_at=datetime.now(timezone.utc).isoformat(),
+                received_at=now_kst().isoformat(),
             )
             time.sleep(self._interval_sec)
 

@@ -16,6 +16,8 @@ from typing import Any, Dict, Optional
 from datetime import datetime, timezone
 import uuid
 
+from shared.timezone import KST, now_kst
+
 
 # ============================================================
 # Short-term State Cache (module-local, minimal)
@@ -29,20 +31,20 @@ _last_volume: Optional[float] = None
 # Time / ID Utilities
 # ============================================================
 
-def utc_now_iso() -> str:
+def kst_now_iso() -> str:
     """
-    현재 시간을 UTC ISO-8601 문자열로 반환한다.
-    예: '2025-12-25T03:12:45.123Z'
+    현재 시간을 KST ISO-8601 문자열로 반환한다.
+    예: '2025-12-25T12:12:45.123+09:00'
     """
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return now_kst().isoformat(timespec="milliseconds")
 
 
-def utc_now_ms() -> int:
+def kst_now_ms() -> int:
     """
-    현재 시간을 epoch milliseconds(UTC)로 반환한다.
+    현재 시간을 epoch milliseconds(KST)로 반환한다.
     - 스켈프 확장 시 시간 해상도 강화를 위해 유지하는 값
     """
-    return int(datetime.now(timezone.utc).timestamp() * 1000)
+    return int(now_kst().timestamp() * 1000)
 
 
 def new_run_id() -> str:
@@ -77,8 +79,8 @@ class Meta:
     - buffer_depth             : 버퍼 깊이
     - flush_reason             : 플러시 트리거
     """
-    timestamp: str              # ISO-8601 (UTC)
-    timestamp_ms: int           # epoch milliseconds (UTC)
+    timestamp: str              # ISO-8601 (KST)
+    timestamp_ms: int           # epoch milliseconds (KST)
     session_id: str
     run_id: str
     mode: str
@@ -245,8 +247,8 @@ def build_snapshot(
     state = state or {}
 
     meta = Meta(
-        timestamp=utc_now_iso(),
-        timestamp_ms=utc_now_ms(),
+        timestamp=kst_now_iso(),
+        timestamp_ms=kst_now_ms(),
         session_id=session_id,
         run_id=run_id or new_run_id(),
         mode=mode,

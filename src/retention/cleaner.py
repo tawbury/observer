@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 
+from shared.timezone import KST, now_kst
+
 from .policy import RetentionPolicy
 
 
@@ -23,7 +25,7 @@ class RetentionCleaner:
     # -------------------------
 
     def _now(self) -> datetime:
-        return datetime.now(tz=timezone.utc)
+        return now_kst()
 
     def _is_expired(
         self,
@@ -34,7 +36,7 @@ class RetentionCleaner:
         if retention_days is None:
             return False
 
-        mtime = datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.utc)
+        mtime = datetime.fromtimestamp(file_path.stat().st_mtime, tz=KST or timezone.utc)
         expire_at = mtime + timedelta(days=retention_days)
         return now >= expire_at
 

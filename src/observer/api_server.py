@@ -32,6 +32,7 @@ import uvicorn
 
 from observer.performance_metrics import get_metrics
 from observer.paths import observer_asset_dir, observer_log_dir
+from shared.timezone import now_kst
 
 
 # Configure logging
@@ -90,7 +91,7 @@ class ObserverStatusTracker:
         """Initialize the status tracker"""
         self._lock = threading.Lock()
         self._state = "initializing"
-        self._last_update = datetime.utcnow()
+        self._last_update = now_kst()
         self._start_time = time.time()
         self._ready = False
         self._error_count = 0
@@ -106,7 +107,7 @@ class ObserverStatusTracker:
         """
         with self._lock:
             self._state = state
-            self._last_update = datetime.utcnow()
+            self._last_update = now_kst()
             if ready is not None:
                 self._ready = ready
             logger.info(f"Observer state updated to: {state} (ready: {self._ready})")
@@ -357,7 +358,7 @@ async def root():
         "service": "Observer API",
         "version": "1.0.0",
         "status": "running",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": now_kst().isoformat(),
         "endpoints": {
             "health": "/health",
             "readiness": "/ready",
@@ -382,7 +383,7 @@ async def health_check():
     """
     return HealthResponse(
         status="healthy",
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=now_kst().isoformat(),
         uptime_seconds=status_tracker.get_uptime()
     )
 
@@ -405,7 +406,7 @@ async def readiness_check():
     response = ReadinessResponse(
         ready=ready,
         status="ready" if ready else "not_ready",
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=now_kst().isoformat(),
         checks=checks,
     )
     if not ready:
@@ -428,7 +429,7 @@ async def get_status():
 
     return StatusResponse(
         status="running",
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=now_kst().isoformat(),
         uptime_seconds=status_tracker.get_uptime(),
         observer_state=status_tracker.get_state(),
         last_update=status_tracker.get_last_update().isoformat(),
@@ -578,7 +579,7 @@ async def get_observer_metrics():
         })
 
     return MetricsResponse(
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=now_kst().isoformat(),
         uptime_seconds=status_tracker.get_uptime(),
         observer=observer_metrics,
         system=system_metrics

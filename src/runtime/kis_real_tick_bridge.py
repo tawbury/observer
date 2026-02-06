@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Iterator, Protocol
 
+from shared.timezone import now_kst
+
 
 class KisRealTickClient(Protocol):
     """
@@ -34,7 +36,7 @@ class KisRealTickBridge:
         for tick in self._client.stream_ticks():
             yield Phase15TickEnvelope(
                 raw=tick,
-                received_at=datetime.now(timezone.utc).isoformat(),
+                received_at=now_kst().isoformat(),
             )
 
     def to_snapshot_kwargs(self, env: Phase15TickEnvelope) -> Dict[str, Any]:

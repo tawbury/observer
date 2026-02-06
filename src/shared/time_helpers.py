@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from .timezone import get_zoneinfo
+from .timezone import get_zoneinfo, KST
 
 
 __all__ = ["TimeAwareMixin", "now_with_timezone"]
@@ -59,6 +59,8 @@ class TimeAwareMixin:
         """
         if self._tz:
             return datetime.now(self._tz)
+        if KST:
+            return datetime.now(KST)
         return datetime.now(timezone.utc)
 
     def _today(self) -> datetime:
@@ -88,4 +90,6 @@ def now_with_timezone(tz_name: Optional[str] = None) -> datetime:
         tz = get_zoneinfo(tz_name)
         if tz:
             return datetime.now(tz)
+    if KST:
+        return datetime.now(KST)
     return datetime.now(timezone.utc)

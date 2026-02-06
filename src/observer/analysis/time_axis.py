@@ -161,8 +161,11 @@ def _extract_timestamp(rec: PatternRecordContract) -> Optional[float]:
 
 
 def _parse_iso(value: str) -> float:
+    from shared.timezone import KST
     dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return dt.replace(tzinfo=timezone.utc).timestamp()
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=KST or timezone.utc)
+    return dt.timestamp()
 
 
 # =====================================================================
@@ -200,8 +203,8 @@ class Phase11TimeAxis:
         if not self.records:
             return None
 
-        start = self.records[0].ts_utc.timestamp()
-        end = self.records[-1].ts_utc.timestamp()
+        start = self.records[0].ts_kst.timestamp()
+        end = self.records[-1].ts_kst.timestamp()
         return start, end
 
 
@@ -214,18 +217,18 @@ def normalize_observation_time_axis(
     Phase 11 time axis normalization.
 
     Ordering policy:
-    - primary: ts_utc
+    - primary: ts_kst
     - secondary: line_no (stable replay guarantee)
 
     Notes:
     - enforce_monotonic=False by default because raw observer logs
       may legally contain out-of-order timestamps.
     """
-    ordered = sorted(records, key=lambda r: (r.ts_utc, r.line_no))
+    ordered = sorted(records, key=lambda r: (r.ts_kst, r.line_no))
 
     if enforce_monotonic:
         for i in range(1, len(ordered)):
-            if ordered[i].ts_utc < ordered[i - 1].ts_utc:
+            if ordered[i].ts_kst < ordered[i - 1].ts_kst:
                 raise Phase11TimeAxisError(
                     "Timestamps are not monotonic after sorting."
                 )

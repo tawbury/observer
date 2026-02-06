@@ -201,7 +201,7 @@ class Phase11LoadError(Exception):
 @dataclass(frozen=True)
 class Phase11RawRecord:
     line_no: int
-    ts_utc: datetime
+    ts_kst: datetime
     payload: Dict[str, Any]
 
 
@@ -212,14 +212,15 @@ class Phase11LoadResult:
     loaded: int
 
 
-def _parse_iso8601_to_utc(value: str) -> datetime:
+def _parse_iso8601_to_kst(value: str) -> datetime:
+    from shared.timezone import KST
     v = value.strip()
     if v.endswith("Z"):
         v = v[:-1] + "+00:00"
     dt = datetime.fromisoformat(v)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=KST or timezone.utc)
+    return dt.astimezone(KST or timezone.utc)
 
 
 def _extract_phase11_timestamp(raw: Dict[str, Any]) -> datetime:
@@ -248,7 +249,7 @@ def _extract_phase11_timestamp(raw: Dict[str, Any]) -> datetime:
 
     for c in candidates:
         if isinstance(c, str) and c.strip():
-            return _parse_iso8601_to_utc(c)
+            return _parse_iso8601_to_kst(c)
 
     raise Phase11LoadError(
         "timestamp missing: expected one of "
@@ -311,7 +312,7 @@ def load_observation_jsonl_records(
         records.append(
             Phase11RawRecord(
                 line_no=line_no,
-                ts_utc=ts,
+                ts_kst=ts,
                 payload=raw,
             )
         )

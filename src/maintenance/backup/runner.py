@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Optional
 
+from shared.timezone import now_kst
+
 from ops.maintenance._types import BackupResult
 
 
@@ -16,8 +18,8 @@ class BackupPlan:
     backup_root: Path  # where backup folder will be created
 
 
-def _utc_stamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+def _kst_stamp() -> str:
+    return now_kst().strftime("%Y%m%d_%H%M%S")
 
 
 def build_backup_plan(data_root: Path, backup_root: Path, include_globs: Optional[List[str]] = None) -> BackupPlan:
@@ -42,7 +44,7 @@ def run_backup(plan: BackupPlan) -> BackupResult:
     Idempotency: 같은 파일이 이미 백업돼 있으면 덮어쓰되(copy2), 결과는 동일하게 유지.
     """
     try:
-        stamp = _utc_stamp()
+        stamp = _kst_stamp()
         target_root = plan.backup_root / f"backup_{stamp}"
         target_root.mkdir(parents=True, exist_ok=True)
 
@@ -62,7 +64,7 @@ def run_backup(plan: BackupPlan) -> BackupResult:
 
         manifest = {
             "schema_version": "1.0",
-            "captured_at_utc": datetime.now(timezone.utc).isoformat(),
+            "captured_at_kst": now_kst().isoformat(),
             "file_count": len(plan.source_files),
             "copied_files": copied,
         }

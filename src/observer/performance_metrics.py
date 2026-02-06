@@ -44,6 +44,8 @@ from typing import Dict, Any, Optional
 from collections import defaultdict, deque
 import logging
 
+from shared.timezone import now_kst
+
 logger = logging.getLogger(__name__)
 
 
@@ -98,7 +100,7 @@ class PerformanceMetrics:
         with self._lock:
             self._timings[name].append({
                 "duration_ms": duration_ms,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": now_kst().isoformat()
             })
     
     def get_snapshot_count(self) -> int:
@@ -137,7 +139,7 @@ class PerformanceMetrics:
                     }
             
             return {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_kst().isoformat(),
                 "uptime_seconds": self.get_uptime_seconds(),
                 "counters": dict(self._counters),
                 "gauges": dict(self._gauges),

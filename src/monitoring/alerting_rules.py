@@ -340,7 +340,8 @@ def main():
         print(f"{severity_icon} {rule['alert']:<40} [{severity}]")
     
     # Export formats
-    results_dir = Path("d:/development/prj_obs/docs")
+    from observer.paths import project_root
+    results_dir = project_root() / "docs"
     results_dir.mkdir(parents=True, exist_ok=True)
     
     # Export YAML format

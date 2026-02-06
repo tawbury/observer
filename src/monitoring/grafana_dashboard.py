@@ -575,7 +575,8 @@ def main():
     print(f"Refresh Rate: {dashboard['dashboard']['refresh']}")
     
     # Save dashboard
-    dashboard_file = Path("d:/development/prj_obs/docs") / "grafana_dashboard.json"
+    from observer.paths import project_root
+    dashboard_file = project_root() / "docs" / "grafana_dashboard.json"
     builder.save_dashboard(dashboard_file)
     
     print("\n✅ Dashboard generation complete!")

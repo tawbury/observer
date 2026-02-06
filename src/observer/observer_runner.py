@@ -36,66 +36,18 @@ from datetime import datetime, timezone
 import asyncio
 
 def configure_environment():
-    """Set default environment variables for Docker deployment (no .env load here)."""
+    """Load env files via RUN_MODE and set deployment defaults."""
+    from observer.paths import load_env_by_run_mode
+    load_env_by_run_mode()
     os.environ.setdefault("OBSERVER_STANDALONE", "1")
     os.environ.setdefault("OBSERVER_DEPLOYMENT_MODE", "docker")
     os.environ.setdefault("TRACK_A_ENABLED", "true")
     os.environ.setdefault("TRACK_B_ENABLED", "true")
 
 
-def _resolve_env_file_paths():
-    """
-    Resolve .env path(s): OBSERVER_ENV_FILE first, then Docker defaults (/app/secrets/.env, /app/.env), else local.
-    Returns (paths_attempted, path_loaded). Uses load_dotenv(override=False) so system env wins.
-    """
-    paths_attempted = []
-    path_loaded = None
-    explicit = os.environ.get("OBSERVER_ENV_FILE")
-    if explicit:
-        p = Path(explicit).resolve()
-        paths_attempted.append(p)
-        if p.exists():
-            try:
-                from dotenv import load_dotenv
-                load_dotenv(p, override=False)
-                path_loaded = p
-            except ImportError:
-                pass
-            except Exception:
-                pass
-        return (paths_attempted, path_loaded)
-    # Standalone mode: check current working directory for .env
-    for candidate in [Path.cwd() / "secrets" / ".env", Path.cwd() / ".env"]:
-        paths_attempted.append(candidate)
-        if candidate.exists() and path_loaded is None:
-            try:
-                from dotenv import load_dotenv
-                load_dotenv(candidate, override=False)
-                path_loaded = candidate
-            except ImportError:
-                pass
-            except Exception:
-                pass
-    return (paths_attempted, path_loaded)
-    local_root = Path(__file__).resolve().parent
-    for candidate in [local_root / ".env", local_root / "secrets" / ".env"]:
-        paths_attempted.append(candidate)
-        if candidate.exists() and path_loaded is None:
-            try:
-                from dotenv import load_dotenv
-                load_dotenv(candidate, override=False)
-                path_loaded = candidate
-            except ImportError:
-                pass
-            except Exception:
-                pass
-    return (paths_attempted, path_loaded)
-
-
 def run_observer_with_api():
     """Run Observer system with FastAPI server and Universe Scheduler"""
     configure_environment()
-    env_paths_attempted, env_path_loaded = _resolve_env_file_paths()
 
     # Ensure log directory exists (canonical: project_root/logs, legacy app/observer ignored)
     _log_dir = log_dir()
@@ -128,14 +80,6 @@ def run_observer_with_api():
     validate_execution_contract()
 
     log.info("Starting Observer Docker system with API server | session_id=%s", session_id)
-    if env_path_loaded:
-        log.info("Env file loaded from: %s (absolute)", env_path_loaded.resolve())
-    else:
-        log.info(
-            "Env file not loaded; paths attempted (absolute): %s; OBSERVER_ENV_FILE=%s",
-            [str(p.resolve()) for p in env_paths_attempted],
-            os.environ.get("OBSERVER_ENV_FILE", "(not set)"),
-        )
 
     # KIS credentials: ONLY os.environ is checked. .env file load status is IGNORED.
     # If KIS_APP_KEY and KIS_APP_SECRET exist in os.environ (e.g. K8s Secret env), collectors are enabled.
@@ -144,14 +88,9 @@ def run_observer_with_api():
     kis_is_virtual = os.environ.get("KIS_IS_VIRTUAL", "false").lower() in ("true", "1", "yes")
 
     has_creds = bool(kis_app_key and kis_app_secret)
-    if not env_path_loaded and has_creds:
-        log.info(
-            "No .env file loaded; KIS credentials from os.environ (K8s/direct) - collectors enabled",
-        )
 
     universe_scheduler = None
     if has_creds:
-        cred_source = "env vars (K8s/direct)" if not env_path_loaded else "env file and/or env vars"
         log.info("KIS credentials found from %s - Universe Scheduler will be enabled", cred_source)
         try:
             kis_auth = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)

@@ -150,6 +150,10 @@ Examples:
 
 def main():
     """Main entry point."""
+    # Load environment FIRST (before logging — LOG_LEVEL comes from .env)
+    from observer.paths import load_env_by_run_mode
+    load_env_by_run_mode()
+
     # Parse arguments
     parser = create_argument_parser()
     args = parser.parse_args()

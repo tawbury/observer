@@ -29,10 +29,7 @@ from slot.slot_manager import SlotManager, SlotCandidate
 from observer.paths import observer_asset_dir, observer_log_dir
 from db.realtime_writer import RealtimeDBWriter
 
-try:
-    from observer.paths import env_file_path
-except ImportError:
-    env_file_path = None  # type: ignore
+from observer.paths import env_file_path
 
 log = logging.getLogger("TrackBCollector")
 
@@ -470,10 +467,7 @@ async def main():
     args = parser.parse_args()
     
     # Load .env if exists (Docker-compatible)
-    if env_file_path is not None:
-        env_file = env_file_path()
-    else:
-        env_file = Path(__file__).resolve().parents[3] / ".env"
+    env_file = env_file_path()
     if env_file.exists():
         from dotenv import load_dotenv
         load_dotenv(env_file)

@@ -24,8 +24,9 @@ from zoneinfo import ZoneInfo
 # Workspace imports
 import sys
 
-SRC_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SRC_ROOT))
+_src_root = Path(__file__).resolve().parents[1]
+if str(_src_root) not in sys.path:
+    sys.path.insert(0, str(_src_root))
 
 from provider import ProviderEngine, KISAuth
 from observer.paths import observer_asset_dir, env_file_path

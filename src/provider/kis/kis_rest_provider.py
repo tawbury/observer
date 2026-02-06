@@ -640,10 +640,10 @@ class KISRestProvider:
         logger.info("Attempting fallback: loading from local cache...")
         
         # Try multiple cache locations (PRIMARY FIRST)
+        from observer.paths import config_dir
         cache_locations = [
-            Path(__file__).parent.parent.parent.parent / "config" / "symbols" / "kr_all_symbols.txt",  # config/symbols/ (PRIMARY)
-            Path(__file__).parent.parent.parent.parent / "kr_all_symbols.txt",  # repo root (legacy)
-            Path.cwd() / "kr_all_symbols.txt",  # Current working directory
+            config_dir() / "symbols" / "kr_all_symbols.txt",  # config/symbols/ (PRIMARY)
+            Path.cwd() / "kr_all_symbols.txt",  # Current working directory (fallback)
         ]
         
         for cache_file in cache_locations:

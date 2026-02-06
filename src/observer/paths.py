@@ -64,6 +64,64 @@ def _resolve_project_root(start: Optional[Path] = None) -> Path:
 
 
 # ============================================================
+# Environment Loader (RUN_MODE-based)
+# ============================================================
+
+def load_env_by_run_mode() -> dict:
+    """
+    RUN_MODE 환경변수를 기반으로 .env 파일을 레이어링 로드.
+
+    로딩 순서 (override=False, 즉 먼저 로드된 값이 우선):
+      1. OS 환경변수 (항상 최우선 — load_dotenv가 덮어쓰지 않음)
+      2. config/.env.{RUN_MODE}  (환경별 경로/설정)
+      3. config/.env.shared       (공통 설정)
+      4. config/.env              (시크릿, local 모드만)
+
+    RUN_MODE 값:
+      "local"     → .env.local + .env.shared + config/.env (기본값)
+      "container" → .env.container + .env.shared
+
+    Returns:
+        dict with keys: run_mode, files_loaded, files_skipped
+    """
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        logger.warning("python-dotenv not installed; skipping .env file loading")
+        return {"run_mode": os.environ.get("RUN_MODE", "local"), "files_loaded": [], "files_skipped": []}
+
+    run_mode = os.environ.get("RUN_MODE", "local")
+    config_base = _resolve_project_root() / "config"
+
+    result = {"run_mode": run_mode, "files_loaded": [], "files_skipped": []}
+
+    # 레이어 순서: 환경별 → 공통 → 시크릿 (override=False이므로 먼저 로드된 값 우선)
+    layers = [
+        config_base / f".env.{run_mode}",   # 환경별 (경로, DB_HOST 등)
+        config_base / ".env.shared",         # 공통 (TZ, MARKET_CODE 등)
+    ]
+
+    # local 모드: 시크릿 파일도 로드
+    if run_mode == "local":
+        secrets_file = config_base / ".env"
+        if secrets_file.exists():
+            layers.append(secrets_file)
+
+    for env_file in layers:
+        if env_file.exists():
+            load_dotenv(env_file, override=False)
+            result["files_loaded"].append(str(env_file))
+        else:
+            result["files_skipped"].append(str(env_file))
+
+    logger.info(
+        "Environment loaded: RUN_MODE=%s | loaded=%s | skipped=%s",
+        run_mode, result["files_loaded"], result["files_skipped"],
+    )
+    return result
+
+
+# ============================================================
 # Canonical Observer Paths (Single Source of Truth)
 # ============================================================
 
@@ -357,7 +415,10 @@ def kis_token_cache_dir() -> Path:
 
 def env_file_path() -> Path:
     """
-    Get .env file path.
+    Get .env file path (legacy).
+
+    .. deprecated::
+        Use load_env_by_run_mode() instead for layered env loading.
 
     Environment variable: OBSERVER_ENV_FILE
     Default: searches common locations

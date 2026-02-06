@@ -45,7 +45,6 @@ import asyncio
 import logging
 import os
 import signal
-from pathlib import Path
 from uuid import uuid4
 
 # Core classes
@@ -89,56 +88,6 @@ def _configure_deployment_env() -> None:
     os.environ.setdefault("TRACK_B_ENABLED", "true")
 
 
-def _resolve_env_file_paths() -> tuple[list[Path], Path | None]:
-    """
-    Resolve .env file path(s) to try: OBSERVER_ENV_FILE first, then Docker/local defaults.
-    Returns (paths_attempted, path_loaded). Uses load_dotenv(override=False) so system env wins.
-    """
-    paths_attempted: list[Path] = []
-    path_loaded: Path | None = None
-    explicit = os.environ.get("OBSERVER_ENV_FILE")
-    if explicit:
-        p = Path(explicit).resolve()
-        paths_attempted.append(p)
-        if p.exists():
-            try:
-                from dotenv import load_dotenv
-                load_dotenv(p, override=False)
-                path_loaded = p
-            except ImportError:
-                pass
-            except Exception:
-                pass
-        return (paths_attempted, path_loaded)
-    # Standalone mode: check current working directory for .env
-    for candidate in [Path.cwd() / "secrets" / ".env", Path.cwd() / ".env"]:
-        paths_attempted.append(candidate)
-        if candidate.exists() and path_loaded is None:
-            try:
-                from dotenv import load_dotenv
-                load_dotenv(candidate, override=False)
-                path_loaded = candidate
-            except ImportError:
-                pass
-            except Exception:
-                pass
-    return (paths_attempted, path_loaded)
-    # Local: project root .env (package __file__ -> parent.parent.parent = repo root)
-    project_root = Path(__file__).resolve().parent.parent.parent
-    for candidate in [project_root / ".env", project_root / "secrets" / ".env"]:
-        paths_attempted.append(candidate)
-        if candidate.exists() and path_loaded is None:
-            try:
-                from dotenv import load_dotenv
-                load_dotenv(candidate, override=False)
-                path_loaded = candidate
-            except ImportError:
-                pass
-            except Exception:
-                pass
-    return (paths_attempted, path_loaded)
-
-
 async def run_observer_with_api(
     host: str = "0.0.0.0",
     port: int = 8000,
@@ -157,7 +106,8 @@ async def run_observer_with_api(
         log_level: Logging level (default: info)
     """
     _configure_deployment_env()
-    env_paths_attempted, env_path_loaded = _resolve_env_file_paths()
+    from observer.paths import load_env_by_run_mode
+    env_result = load_env_by_run_mode()
 
     logging.basicConfig(
         level=getattr(logging, log_level.upper(), logging.INFO),
@@ -167,14 +117,10 @@ async def run_observer_with_api(
     session_id = f"observer-{uuid4()}"
 
     log.info("Starting Observer Docker system with API server | session_id=%s", session_id)
-    if env_path_loaded:
-        log.info("Env file loaded from: %s (absolute)", env_path_loaded.resolve())
-    else:
-        log.info(
-            "Env file not loaded; paths attempted (absolute): %s; OBSERVER_ENV_FILE=%s",
-            [str(p.resolve()) for p in env_paths_attempted],
-            os.environ.get("OBSERVER_ENV_FILE", "(not set)"),
-        )
+    log.info(
+        "Environment: RUN_MODE=%s | files_loaded=%s",
+        env_result["run_mode"], env_result["files_loaded"],
+    )
 
     # Ensure log and data dirs exist (canonical paths; legacy app/observer ignored)
     from observer.paths import log_dir as get_log_dir, observer_data_dir as get_observer_data_dir
@@ -204,9 +150,10 @@ async def run_observer_with_api(
     track_b_enabled = os.environ.get("TRACK_B_ENABLED", "false").lower() in ("true", "1", "yes")
 
     has_creds = bool(kis_app_key and kis_app_secret)
-    if not env_path_loaded and has_creds:
+    env_files_loaded = env_result["files_loaded"]
+    if not env_files_loaded and has_creds:
         log.info(
-            "No .env file loaded; KIS credentials from os.environ (K8s/direct) - collectors enabled",
+            "No .env files loaded; KIS credentials from os.environ (K8s/direct) - collectors enabled",
         )
 
     universe_scheduler = None
@@ -214,7 +161,7 @@ async def run_observer_with_api(
     track_b_collector = None
 
     if has_creds:
-        cred_source = "env vars (K8s/direct)" if not env_path_loaded else "env file and/or env vars"
+        cred_source = "env vars (K8s/direct)" if not env_files_loaded else "env files and/or env vars"
         log.info(
             "KIS credentials found from %s - Universe Scheduler and Track A/B will be enabled",
             cred_source,

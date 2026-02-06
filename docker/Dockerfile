@@ -29,6 +29,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     TZ=Asia/Seoul \
     OBSERVER_STANDALONE=1 \
+    RUN_MODE=container \
     PYTHONPATH=/app/src \
     OBSERVER_DATA_DIR=/opt/platform/runtime/observer/data \
     OBSERVER_LOG_DIR=/opt/platform/runtime/observer/logs \

@@ -20,10 +20,7 @@ from zoneinfo import ZoneInfo
 
 from shared.time_helpers import TimeAwareMixin
 
-try:
-    from observer.paths import env_file_path
-except ImportError:
-    env_file_path = None  # type: ignore
+from observer.paths import env_file_path
 
 from provider import KISAuth, ProviderEngine
 
@@ -329,10 +326,7 @@ async def main():
     args = parser.parse_args()
     
     # Load .env if exists (Docker-compatible)
-    if env_file_path is not None:
-        env_file = env_file_path()
-    else:
-        env_file = Path(__file__).resolve().parents[3] / ".env"
+    env_file = env_file_path()
     if env_file.exists():
         load_dotenv(env_file)
     

@@ -25,11 +25,12 @@ secrets
 src/observer/logs
 src/observer/data
 src/observer/config
+# Config inclusion
 config/observer
 config/**/*.jsonl
 config/universe/*.json
+!config/symbols
 !config/symbols/kr_all_symbols.txt
-# config/symbols/kr_all_symbols.*  <-- Keep as comment for reference
 
 # Legacy (removed after Phase 2)
 app

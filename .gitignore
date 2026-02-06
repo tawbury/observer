@@ -33,6 +33,9 @@ secrets/
 
 # Exception: config schema should be committed
 !config/.env.example
+!config/.env.container
+!config/.env.local
+!config/.env.shared
 
 *.pem
 *.key
@@ -79,6 +82,10 @@ Desktop.ini
 backups/
 *.backup
 .github/workflows/*.backup
+
+# docs
+docs/
+
 # Allow source code under src/backup/
 !src/backup/
 

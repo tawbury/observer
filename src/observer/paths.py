@@ -50,7 +50,6 @@ def _resolve_project_root(start: Optional[Path] = None) -> Path:
     current = start.resolve() if start else Path(__file__).resolve()
 
     for parent in [current] + list(current.parents):
-        # Skip app/observer so we resolve to repo root, not a nested app folder
         if parent.name == "observer" and parent.parent.name == "app":
             continue
         if (parent / ".git").exists():

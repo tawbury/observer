@@ -67,7 +67,7 @@ class SwingCollector(TimeAwareMixin):
         """Setup specialized file logger for swing strategy"""
         try:
             # logs/swing/YYYYMMDD.log
-            today_str = datetime.now().strftime("%Y%m%d")
+            today_str = self._now().strftime("%Y%m%d")
             log_dir = observer_log_dir() / self.cfg.daily_log_subdir
             log_dir.mkdir(parents=True, exist_ok=True)
             

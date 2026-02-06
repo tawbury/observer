@@ -23,7 +23,7 @@ class SchedulerConfig:
     pm_hour: int = 16
     pm_minute: int = 5
     min_price: int = 4000
-    min_count: int = 100
+    min_count: int = 1000
     market: str = "kr_stocks"
     anomaly_ratio: float = 0.30  # 30% deviation from previous count triggers alert
 
@@ -92,8 +92,7 @@ class UniverseScheduler:
             now = datetime.now(self._tz)
             wait_s = (next_run - now).total_seconds()
             
-            tag = "AM" if next_run.hour < 12 else "PM"
-            log.info("[%s] Next universe generation at %s (in %.0fs)", tag, next_run.isoformat(), wait_s)
+            log.info("[SCHEDULED] Next universe generation at %s (in %.0fs)", next_run.isoformat(), wait_s)
             
             if wait_s > 0:
                 await asyncio.sleep(wait_s)
@@ -101,16 +100,16 @@ class UniverseScheduler:
             try:
                 await self._run_once_internal()
             except asyncio.CancelledError:
-                log.info("[%s] Scheduler loop cancelled, exiting gracefully", tag)
+                log.info("[SCHEDULED] Scheduler loop cancelled, exiting gracefully")
                 raise  # Re-raise to allow proper shutdown
             except KeyboardInterrupt:
-                log.info("[%s] Keyboard interrupt received, exiting", tag)
+                log.info("[SCHEDULED] Keyboard interrupt received, exiting")
                 raise
             except Exception as e:
                 # Catch-all to prevent the loop from dying
-                log.error("[%s] [FATAL] Unexpected loop error: %s (type=%s). Continuing to next schedule.",
-                          tag, e, type(e).__name__, exc_info=True)
-                self._emit_alert("scheduler_loop_error", {"error": str(e), "type": type(e).__name__, "tag": tag})
+                log.error("[SCHEDULED] [FATAL] Unexpected loop error: %s (type=%s). Continuing to next schedule.",
+                          e, type(e).__name__, exc_info=True)
+                self._emit_alert("scheduler_loop_error", {"error": str(e), "type": type(e).__name__})
                 await asyncio.sleep(60)  # Prevent tight error loops
 
     async def run_once(self) -> Dict[str, Any]:
@@ -138,7 +137,7 @@ class UniverseScheduler:
         return am_tomorrow
 
     async def _run_once_internal(self) -> Dict[str, Any]:
-        tag = "AM" if datetime.now(self._tz).hour < 12 else "PM"
+        tag = "DAILY"
         today = date.today()
         # UniverseManager internals will use its own time-aware previous day logic
         

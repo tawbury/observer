@@ -63,10 +63,6 @@ class SymbolGenerator:
         
         logger.info(f"[INIT] SymbolGenerator initialized at {self.symbols_dir}")
 
-    def _get_current_tag(self) -> str:
-        """Helper to get AM/PM tag for logging."""
-        return "AM" if datetime.now().hour < 12 else "PM"
-
     async def execute(self, force: bool = False) -> Optional[str]:
         """
         High-level controller for symbol generation.
@@ -75,7 +71,7 @@ class SymbolGenerator:
         :param force: If True, bypass history/file checks and force collection.
         """
         start_time = time.time()
-        tag = self._get_current_tag()
+        tag = "DAILY"
         ymd = datetime.now().strftime("%Y%m%d")
         
         logger.info(f"[{tag}] Starting SymbolGenerator execution (force={force})...")
@@ -247,7 +243,7 @@ class SymbolGenerator:
         """
         4-Step Collection Strategy (API -> Master File -> Local Backup -> Emergency Fallback).
         """
-        tag = self._get_current_tag()
+        tag = "DAILY"
         
         # Step 1: KIS API with Retry
         symbols, source_step = await self._step_api_with_retry() # (A) 반환 값 변경 예정
@@ -281,7 +277,7 @@ class SymbolGenerator:
 #        """
 #        4-Step Collection Strategy (API -> Master File -> Local Backup -> Emergency Fallback).
 #        """
-#        tag = self._get_current_tag()
+#        tag = "DAILY"
         
 #        # Step 1: KIS API with Retry
 #        symbols = await self._step_api_with_retry()
@@ -305,7 +301,7 @@ class SymbolGenerator:
     # [수정 제안 코드]
     async def _step_api_with_retry(self, retries: int = 3) -> tuple[Optional[Set[str]], str]:
         """Step 1: Fetch via API with exponential backoff and count validation."""
-        tag = self._get_current_tag()
+        tag = "DAILY"
         source_tag = "API"
         for attempt in range(1, retries + 1):
             try:
@@ -340,7 +336,7 @@ class SymbolGenerator:
 
 #    async def _step_api_with_retry(self, retries: int = 3) -> Optional[Set[str]]:
 #        """Step 1: Fetch via API with exponential backoff and count validation."""
-#        tag = self._get_current_tag()
+#        tag = "DAILY"
 #        for attempt in range(1, retries + 1):
 #            try:
 #                logger.info(f"[{tag}] Step 1: Attempting KIS API collection (Attempt {attempt}/{retries})...")
@@ -363,7 +359,7 @@ class SymbolGenerator:
     # [수정 제안 코드]
     async def _step_master_file(self) -> tuple[Optional[Set[str]], str]:
         """Step 2: Fetch via KIS Master File."""
-        tag = self._get_current_tag()
+        tag = "DAILY"
         source_tag = "MASTER_FILE"
         
         if hasattr(self.engine, "_fetch_stock_list_from_file"):
@@ -388,7 +384,7 @@ class SymbolGenerator:
 
 #    async def _step_master_file(self) -> Optional[Set[str]]:
 #        """Step 2: Fetch via KIS Master File."""
-#        tag = self._get_current_tag()
+#        tag = "DAILY"
 #        if hasattr(self.engine, "_fetch_stock_list_from_file"):
 #            try:
 #                logger.info(f"[{tag}] Step 2: Attempting KIS Master File collection...")
@@ -403,7 +399,7 @@ class SymbolGenerator:
     # [수정 제안 코드]
     async def _step_local_backup(self) -> tuple[Optional[Set[str]], str]:
         """Step 3: Fetch via Local Backup snapshots."""
-        tag = self._get_current_tag()
+        tag = "DAILY"
         source_tag = "LOCAL_BACKUP"
         try:
             # Search in both backup and cache directories
@@ -444,7 +440,7 @@ class SymbolGenerator:
 
 #    async def _step_local_backup(self) -> Optional[Set[str]]:
 #        """Step 3: Fetch via Local Backup snapshots."""
-#        tag = self._get_current_tag()
+#        tag = "DAILY"
 #        try:
 #            logger.info(f"[{tag}] Step 3: Attempting local backup collection from {self.backup_dir}...")
 #            backup_files = sorted(list(self.backup_dir.glob("symbols_*.json")), key=os.path.getmtime, reverse=True)
@@ -463,7 +459,7 @@ class SymbolGenerator:
     # [수정 제안 코드]
     async def _step_emergency_fallback(self) -> tuple[Optional[Set[str]], str]:
         """Step 4: Emergency Fallback - Use the most recent symbol file from the symbols directory."""
-        tag = self._get_current_tag()
+        tag = "DAILY"
         source_tag = "EMERGENCY_FALLBACK"
         try:
             logger.warning(f"[{tag}] Step 4: EMERGENCY FALLBACK - Attempting to use latest generated symbols...")
@@ -494,7 +490,7 @@ class SymbolGenerator:
 
 #    async def _step_emergency_fallback(self) -> Optional[Set[str]]:
 #        """Step 4: Emergency Fallback - Use the most recent symbol file from the symbols directory."""
-#        tag = self._get_current_tag()
+#        tag = "DAILY"
 #        try:
 #            logger.warning(f"[{tag}] Step 4: EMERGENCY FALLBACK - Attempting to use latest generated symbols...")
 #            latest_file = self.get_latest_symbol_file()
@@ -572,7 +568,7 @@ class SymbolGenerator:
 
     async def _log_diff(self, new_symbols: Set[str]):
         """Compare with current latest symbol file and log detailed changes."""
-        tag = self._get_current_tag()
+        tag = "DAILY"
         latest_file = self.get_latest_symbol_file()
         if not latest_file:
             logger.info(f"[{tag}] No previous symbol file found for comparison.")
@@ -627,7 +623,7 @@ class SymbolGenerator:
         Delete symbol files older than 7 days.
         [Requirement] Prioritize filename-based date (YYYYMMDD) parsing.
         """
-        tag = self._get_current_tag()
+        tag = "DAILY"
         # [Requirement] Keep files for at least 5 business days. 
         # Using 14 calendar days to safely cover weekends and long public holidays.
         cutoff_date = (datetime.now() - timedelta(days=14)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -690,7 +686,7 @@ class SymbolGenerator:
         if force:
             return True, None
             
-        tag = self._get_current_tag()
+        tag = "DAILY"
         today_str = datetime.now().strftime("%Y%m%d")
         yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
         

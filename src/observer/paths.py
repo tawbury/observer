@@ -19,7 +19,7 @@ Path Management Strategy:
 - Observer-generated JSON / JSONL files live under data/assets (scalp, swing, system).
 - config/ is for operational config only; logs/ for all log files.
 - Observer assets MUST be resolved via observer_asset_dir(); logs via observer_log_dir().
-- Supports standalone Docker deployment with /app as project root.
+- Supports standalone Docker deployment with /opt/platform/observer as project root.
 """
 
 from pathlib import Path
@@ -50,7 +50,8 @@ def _resolve_project_root(start: Optional[Path] = None) -> Path:
     current = start.resolve() if start else Path(__file__).resolve()
 
     for parent in [current] + list(current.parents):
-        if parent.name == "observer" and parent.parent.name == "app":
+        # Ignore if we are inside the 'observer' package itself while searching upwards
+        if parent.name == "observer" and (parent / "__init__.py").exists():
             continue
         if (parent / ".git").exists():
             return parent

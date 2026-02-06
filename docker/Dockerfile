@@ -30,7 +30,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     TZ=Asia/Seoul \
     OBSERVER_STANDALONE=1 \
     RUN_MODE=container \
-    PYTHONPATH=/app/src \
+    PYTHONPATH=/opt/platform/observer/src \
     OBSERVER_DATA_DIR=/opt/platform/runtime/observer/data \
     OBSERVER_LOG_DIR=/opt/platform/runtime/observer/logs \
     OBSERVER_SYSTEM_LOG_DIR=/opt/platform/runtime/observer/logs/system \
@@ -45,11 +45,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Security: Create a non-root user with a specific UID/GID
-# Using 1000:1000 as a standard non-privileged user.
 RUN groupadd -g 1000 observer && \
     useradd -u 1000 -g observer -m -s /bin/bash observer
 
-WORKDIR /app
+# Set working directory to the observer platform root
+WORKDIR /opt/platform/observer
 
 # Copy installed dependencies from builder
 COPY --from=builder /root/.local /home/observer/.local
@@ -57,14 +57,13 @@ COPY --from=builder /root/.local /home/observer/.local
 ENV PATH="/home/observer/.local/bin:${PATH}"
 
 # Copy source code and config
-COPY src /app/src
-COPY config /app/config
+# Note: config is placed in /opt/platform/observer/config for fallback
+COPY src /opt/platform/observer/src
+COPY config /opt/platform/observer/config
 
-# Setup PVC mount point permissions
-# Note: Since this is often a mount point, we just ensure the parent directory
-# has the correct ownership for the observer user.
+# Setup permissions for both code and runtime directories
 RUN mkdir -p /opt/platform/runtime/observer && \
-    chown -R observer:observer /app /opt/platform/runtime/observer /home/observer/.local
+    chown -R observer:observer /opt/platform /home/observer/.local
 
 # Switch to non-root user
 USER observer
@@ -78,8 +77,9 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     except: \
     exit(1)"
 
-# Expose port (metadata only, K8s will use Service/Ingress)
+# Expose port
 EXPOSE 8000
 
 # Execution Command
+# Using -m observer to run the package correctly from PYTHONPATH
 CMD ["python", "-m", "observer"]

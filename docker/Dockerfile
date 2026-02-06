@@ -61,6 +61,8 @@ ENV PATH="/home/observer/.local/bin:${PATH}"
 # Note: config is placed in /opt/platform/observer/config for fallback
 COPY src /opt/platform/observer/src
 COPY config /opt/platform/observer/config
+# Double-safety: Copy symbols directly to root for easy fallback discovery
+COPY config/symbols/kr_all_symbols.txt /opt/platform/observer/kr_all_symbols.txt
 
 # Setup permissions for both code and runtime directories
 RUN mkdir -p /opt/platform/runtime/observer && \

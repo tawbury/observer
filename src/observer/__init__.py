@@ -44,6 +44,7 @@ __version__ = "1.0.0"
 import asyncio
 import logging
 import os
+import sys
 import signal
 from uuid import uuid4
 

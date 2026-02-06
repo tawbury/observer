@@ -196,10 +196,6 @@ async def run_observer_with_api(
 
                 kis_auth_a = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
                 provider_engine_a = ProviderEngine(kis_auth_a, is_virtual=kis_is_virtual)
-                from observer.paths import config_dir as get_config_dir
-                _config_dir = get_config_dir()
-                universe_dir = _config_dir / "universe"
-                universe_dir.mkdir(parents=True, exist_ok=True)
                 track_a_config = SwingConfig(
                     interval_minutes=5,
                     market="kr_stocks",
@@ -209,10 +205,9 @@ async def run_observer_with_api(
                 swing_collector = SwingCollector(
                     provider_engine_a,
                     config=track_a_config,
-                    universe_dir=str(universe_dir),
                     on_error=lambda msg: log.warning("swing Error: %s", msg),
                 )
-                log.info("swing Collector configured (interval=5m, universe_dir=%s)", universe_dir)
+                log.info("swing Collector configured (interval=5m)")
             except Exception as e:
                 log.error("Failed to initialize swing Collector: %s", e)
 

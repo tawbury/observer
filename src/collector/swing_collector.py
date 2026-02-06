@@ -15,7 +15,6 @@ from shared.trading_hours import in_trading_hours
 
 from provider import ProviderEngine, KISAuth
 from universe.universe_manager import UniverseManager
-from universe.universe_manager import UniverseManager
 from observer.paths import observer_asset_dir, observer_log_dir
 from db.realtime_writer import RealtimeDBWriter
 

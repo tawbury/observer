@@ -56,9 +56,9 @@ COPY --from=builder /root/.local /home/observer/.local
 # Update PATH to include the local bin directory
 ENV PATH="/home/observer/.local/bin:${PATH}"
 
-# Copy source code
-# We copy to /app/src as per requirement
+# Copy source code and config
 COPY src /app/src
+COPY config /app/config
 
 # Setup PVC mount point permissions
 # Note: Since this is often a mount point, we just ensure the parent directory

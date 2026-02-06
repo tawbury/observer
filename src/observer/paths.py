@@ -114,6 +114,28 @@ def load_env_by_run_mode() -> dict:
         else:
             result["files_skipped"].append(str(env_file))
 
+    # [로컬 모드] 상대 경로를 절대 경로로 변환
+    if run_mode == "local":
+        project_root = _resolve_project_root()
+        path_vars = [
+            "OBSERVER_DATA_DIR",
+            "OBSERVER_LOG_DIR",
+            "OBSERVER_SYSTEM_LOG_DIR",
+            "OBSERVER_MAINTENANCE_LOG_DIR",
+            "OBSERVER_CONFIG_DIR",
+            "OBSERVER_SNAPSHOT_DIR",
+            "KIS_TOKEN_CACHE_DIR",
+        ]
+        
+        for var in path_vars:
+            value = os.environ.get(var)
+            if value and value.startswith("./"):
+                # 상대 경로를 절대 경로로 변환
+                abs_path = (project_root / value[2:]).resolve()
+                os.environ[var] = str(abs_path)
+                # 디렉토리 생성
+                abs_path.mkdir(parents=True, exist_ok=True)
+
     logger.info(
         "Environment loaded: RUN_MODE=%s | loaded=%s | skipped=%s",
         run_mode, result["files_loaded"], result["files_skipped"],

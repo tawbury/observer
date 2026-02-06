@@ -427,33 +427,36 @@ class KISRestProvider:
     
     async def fetch_stock_list(self, market: str = "ALL") -> List[str]:
         """
-        시장 세그먼트별(KOSPI, KOSDAQ)로 주식 종목 리스트를 가져와 병합합니다.
+        주식 종목 리스트를 가져옵니다.
+        
+        [중요] KIS API의 종목 전체 조회 엔드포인트(inquire-search-item, TR_ID: HHKST01010100)는
+        더 이상 존재하지 않으며 404 에러를 반환합니다.
+        
+        현재 전략:
+        1. 로컬 캐시 파일에서 로드 (Primary - 가장 안정적)
+        2. KIS 마스터 파일(CSV) 다운로드 시도 (Secondary)
         
         Args:
-            market: 시장 구분 - "KOSPI", "KOSDAQ", 또는 "ALL" (기본값)
+            market: 시장 구분 - "KOSPI", "KOSDAQ", 또는 "ALL" (기본값, 현재 미사용)
             
         Returns:
-            병합된 주식 코드 리스트
+            주식 코드 리스트
         """
         logger.info(f"Fetching stock list for market: {market}")
         
-        targets = []
-        if market == "KOSPI":
-            targets = ["J"]
-        elif market == "KOSDAQ":
-            targets = ["Q"]
-        else:
-            targets = ["J", "Q"]
-            
-        all_symbols = []
-        for mkt_code in targets:
-            symbols = await self._fetch_market_symbols(mkt_code)
-            all_symbols.extend(symbols)
-            
-        # 중복 제거 및 정렬
-        unique_symbols = sorted(list(set(all_symbols)))
-        logger.info(f"✅ Successfully fetched total {len(unique_symbols)} symbols")
-        return unique_symbols
+        # [전략 변경] 잘못된 API 호출 제거 - 바로 파일 기반 방식 사용
+        # KIS API의 inquire-search-item (HHKST01010100) 엔드포인트는 404 반환
+        # 따라서 파일 기반 방식으로 직접 진행
+        
+        symbols = await self._fetch_stock_list_from_file()
+        
+        if symbols:
+            unique_symbols = sorted(list(set(symbols)))
+            logger.info(f"✅ Successfully fetched total {len(unique_symbols)} symbols (file-based)")
+            return unique_symbols
+        
+        logger.error("Failed to fetch stock list from any source")
+        return []
 
     async def _fetch_market_symbols(self, mkt_code: str) -> List[str]:
         """
@@ -640,9 +643,10 @@ class KISRestProvider:
         logger.info("Attempting fallback: loading from local cache...")
         
         # Try multiple cache locations (PRIMARY FIRST)
-        from observer.paths import config_dir
+        from src.observer.paths import config_dir, project_root
         cache_locations = [
-            config_dir() / "symbols" / "kr_all_symbols.txt",  # config/symbols/ (PRIMARY)
+            project_root() / "config" / "symbols" / "kr_all_symbols.txt",  # Local development (PRIMARY)
+            config_dir() / "symbols" / "kr_all_symbols.txt",  # Production K8s path
             Path.cwd() / "kr_all_symbols.txt",  # Current working directory (fallback)
         ]
         

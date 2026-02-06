@@ -5,12 +5,28 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from dotenv import load_dotenv
 
 # 프로젝트 루트 경로 추가 (d:\development\prj_obs)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.append(str(PROJECT_ROOT))
 sys.path.append(str(PROJECT_ROOT / "src")) # [Fix] Add src to path for 'observer' module import
+
+# ✅ RUN_MODE 설정 (load_env_by_run_mode가 호출되기 전에 설정)
+os.environ["RUN_MODE"] = "local"
+
+# ✅ paths.py의 load_env_by_run_mode() 사용
+# 이 함수가 자동으로 .env.local, .env.shared, config/.env를 순서대로 로드
+from src.observer.paths import load_env_by_run_mode
+env_result = load_env_by_run_mode()
+
+print(f"✅ Environment loaded: RUN_MODE={env_result['run_mode']}")
+print(f"📁 Files loaded: {env_result['files_loaded']}")
+print(f"⚠️  Files skipped: {env_result['files_skipped']}")
+
+# 경로 확인
+print(f"📂 OBSERVER_DATA_DIR: {os.environ.get('OBSERVER_DATA_DIR')}")
+print(f"📂 OBSERVER_SNAPSHOT_DIR: {os.environ.get('OBSERVER_SNAPSHOT_DIR')}")
+print(f"📂 KIS_TOKEN_CACHE_DIR: {os.environ.get('KIS_TOKEN_CACHE_DIR')}")
 
 # 이제 src 모듈 임포트 가능
 from src.provider.kis.kis_auth import KISAuth
@@ -26,7 +42,9 @@ logging.basicConfig(
 )
 
 # 파일 로깅 추가
-file_handler = logging.FileHandler('full_flow_debug.log', encoding='utf-8', mode='w')
+log_file = PROJECT_ROOT / "logs" / "full_flow_debug.log"
+log_file.parent.mkdir(parents=True, exist_ok=True)
+file_handler = logging.FileHandler(log_file, encoding='utf-8', mode='w')
 file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s'))
 logging.getLogger().addHandler(file_handler)
 
@@ -39,24 +57,24 @@ logging.getLogger("KISAuth").setLevel(logging.INFO)
 
 async def main():
     logger.info("🚀 Starting Manual KIS Flow Test")
+    logger.info(f"📂 Project Root: {PROJECT_ROOT}")
+    logger.info(f"📂 Data Dir: {os.environ.get('OBSERVER_DATA_DIR')}")
+    logger.info(f"📂 Snapshot Dir: {os.environ.get('OBSERVER_SNAPSHOT_DIR')}")
+    logger.info(f"📂 Token Cache Dir: {os.environ.get('KIS_TOKEN_CACHE_DIR')}")
 
-    # 1. 환경 변수 로드
-    # .env 파일 위치 확인
-    env_path = PROJECT_ROOT / ".env"
-    if env_path.exists():
-        logger.info(f"✅ Found .env at {env_path}")
-        load_dotenv(env_path)
-    else:
-        logger.warning(f"⚠️ .env not found at {env_path}. Relying on OS env vars.")
-    
+    # 1. 환경 변수 확인
     app_key = os.getenv("KIS_APP_KEY")
     app_secret = os.getenv("KIS_APP_SECRET")
     
     if not app_key or not app_secret:
         logger.error("❌ KIS_APP_KEY or KIS_APP_SECRET is missing!")
+        logger.error(f"   KIS_APP_KEY: {'SET' if app_key else 'NOT SET'}")
+        logger.error(f"   KIS_APP_SECRET: {'SET' if app_secret else 'NOT SET'}")
         return
     else:
         logger.info("✅ KIS Credentials found.")
+        logger.info(f"   KIS_APP_KEY: {app_key[:10]}...")
+
 
     # 2. 인증 및 프로바이더 초기화
     try:

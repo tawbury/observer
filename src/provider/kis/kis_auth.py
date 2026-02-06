@@ -92,7 +92,7 @@ class KISAuth:
         self.approval_key: Optional[str] = None
 
         # Token cache configuration (uses canonical path from paths.py, no /tmp fallback)
-        from observer.paths import kis_token_cache_dir
+        from src.observer.paths import kis_token_cache_dir
         self.cache_dir = kis_token_cache_dir()
         self.cache_file = self.cache_dir / "token_cache.json"
 

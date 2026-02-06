@@ -35,6 +35,10 @@ class SymbolGenerator:
         self.backup_dir = self.base_path / "backup"
         self.cache_dir = self.base_path / "cache"  # [Requirement] Fallback to cache
         
+        # [Requirement] Market code management
+        market_code = os.getenv("MARKET_CODE", "kr")
+        self.market_suffix = f"{market_code}_stocks"
+        
         # New state and health file paths
         self.state_file = self.base_path / "last_run_state.json"
         self.health_file = self.base_path / "symbol_health.json"
@@ -140,8 +144,8 @@ class SymbolGenerator:
         Execute the 4-step collection strategy and save the result.
         Returns the path to the generated symbol file.
         """
-        tag = self._get_current_tag()
-        logger.info(f"[{tag}] Starting daily symbol generation process...")
+        tag = "DAILY"
+        logger.info(f"[{tag}] Starting daily symbol generation process (Single File Strategy)...")
         
         symbols = await self._collect_symbols_4step()
         
@@ -149,69 +153,94 @@ class SymbolGenerator:
             logger.error(f"[{tag}] [CRITICAL] Failed to collect symbols after all steps.")
             raise RuntimeError("Failed to collect symbols.")
 
-        # Determine version (AM/PM)
+        # Determine filename (YYYYMMDD_kr_stocks.json)
         now = datetime.now()
         ymd = now.strftime("%Y%m%d")
-        filename = f"symbols_{ymd}_{tag}.json"
+        filename = f"{ymd}_{self.market_suffix}.json"
         filepath = self.symbols_dir / filename
         
-        # [Requirement] AM/PM File Management & Diff Update
-        # Load existing today's file if it exists to compare/merge
+        # [Requirement] Diff Update Logic
+        # Load existing today's file if it exists to compare
         existing_symbols: Set[str] = set()
         if filepath.exists():
             try:
                 with open(filepath, "r", encoding="utf-8") as f:
                     old_data = json.load(f)
-                    existing_symbols = set(old_data.get("symbols", []))
+                    # Support both list and dict formats
+                    if isinstance(old_data, list):
+                        existing_list = old_data
+                    else:
+                        existing_list = old_data.get("symbols", [])
+                    
+                    existing_symbols = set(item['code'] if isinstance(item, dict) else item for item in existing_list)
                     logger.info(f"[{tag}] Existing today's file found ({len(existing_symbols)} symbols)")
-            except json.JSONDecodeError as e:
-                logger.warning(f"[{tag}] Existing file {filepath} contains invalid JSON: line {e.lineno}, col {e.colno}")
-            except (IOError, OSError) as e:
-                logger.warning(f"[{tag}] Cannot read existing file {filepath}: {e} (type={type(e).__name__})")
             except Exception as e:
-                logger.warning(f"[{tag}] Unexpected error reading {filepath}: {e} (type={type(e).__name__})")
+                logger.warning(f"[{tag}] Failed to read existing file for diff: {e}")
 
-        # Track Diff before saving
-        await self._log_diff(symbols)
+        # Calculate Diff
+        current_symbols_set = self._ensure_set(symbols)
+        new_symbols = current_symbols_set - existing_symbols
+        removed_symbols = existing_symbols - current_symbols_set
         
-        # If new symbols are fewer than existing, keep existing ones to be safe (unless emergency)
-        if len(symbols) < len(existing_symbols) and len(symbols) < 2500:
-            logger.warning(f"[{tag}] New symbol count ({len(symbols)}) is less than existing ({len(existing_symbols)}). Merging with existing data for stability.")
-            symbols.update(existing_symbols)
+        diff_msg = f"[DIFF] New: {len(new_symbols)}, Removed: {len(removed_symbols)}, Total: {len(current_symbols_set)}"
+        if new_symbols:
+            diff_msg += f", New Examples: {list(new_symbols)[:3]}..."
+        logger.info(f"[{tag}] {diff_msg}")
+
+        # [Safety Logic] If fetched count is suspiciously low compared to existing, keep existing
+        if len(current_symbols_set) < len(existing_symbols) * 0.5: # e.g. dropped by 50%
+             logger.warning(f"[{tag}] [WARNING] New symbol count ({len(current_symbols_set)}) dropped significantly from existing ({len(existing_symbols)}). Merging to preserve data.")
+             current_symbols_set.update(existing_symbols)
 
         # Save to JSON
+        final_list = sorted(list(current_symbols_set))
         data = {
             "metadata": {
                 "date": ymd,
-                "version": tag,
                 "generated_at": now.isoformat(),
-                "count": len(symbols),
-                "source_strategy": "4-Step-Strategy"
+                "count": len(final_list),
+                "source_strategy": "4-Step-Strategy (SingleFile)"
             },
-            "symbols": sorted(list(symbols))
+            "symbols": final_list
         }
         
         try:
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-            logger.info(f"[{tag}] Symbols saved to {filepath} ({len(symbols)} items)")
+            logger.info(f"[{tag}] Symbols saved to {filepath} ({len(final_list)} items)")
             
-            # [Requirement] Save to cache for resilience
-            if self.cache_dir:
+            # Save backup immediately
+            self._save_backup(data, ymd, tag)
+            
+            return str(filepath)
+            
+        except Exception as e:
+            logger.error(f"[{tag}] Failed to save symbol file: {e}")
+            raise
+
+    # Helper for saving backup in step 3 friendly format
+    def _save_backup(self, data: dict, ymd: str, tag: str):
+        # We keep using the specific backup naming convention if needed, or unify.
+        # Let's align with main file pattern.
+        filename = f"{ymd}_kr_stocks.json"
+        
+        # Save to local backup dir
+        try:
+            backup_path = self.backup_dir / filename
+            with open(backup_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+            
+        # Save to cache dir (for resilience)
+        if self.cache_dir:
+            try:
                 self.cache_dir.mkdir(parents=True, exist_ok=True)
                 cache_path = self.cache_dir / filename
                 with open(cache_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2)
-                logger.debug(f"[{tag}] Symbols also cached to {cache_path}")
-                
-        except Exception as e:
-            logger.error(f"[{tag}] Failed to save symbol file: {e}")
-            raise
-        
-        # Cleanup old files
-        self._cleanup_old_files()
-        
-        return str(filepath)
+            except Exception:
+                pass
 
     # [기존 코드]
     async def _collect_symbols_4step(self) -> Set[str]:
@@ -571,7 +600,7 @@ class SymbolGenerator:
 
     def get_latest_symbol_file(self) -> Optional[str]:
         """Find the most recent valid symbol file in symbols directory."""
-        files = list(self.symbols_dir.glob("symbols_*.json"))
+        files = list(self.symbols_dir.glob(f"*_{self.market_suffix}.json"))
         if not files:
             return None
         
@@ -597,40 +626,48 @@ class SymbolGenerator:
         """
         Delete symbol files older than 7 days.
         [Requirement] Prioritize filename-based date (YYYYMMDD) parsing.
-        Use modification time (mtime) only as a fallback.
         """
         tag = self._get_current_tag()
-        cutoff_date = (datetime.now() - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        # [Requirement] Keep files for at least 5 business days. 
+        # Using 14 calendar days to safely cover weekends and long public holidays.
+        cutoff_date = (datetime.now() - timedelta(days=14)).replace(hour=0, minute=0, second=0, microsecond=0)
         cutoff_ts = cutoff_date.timestamp()
         
-        files = list(self.symbols_dir.glob("symbols_*.json"))
-        
+        # Support both new and legacy patterns
+        files = list(self.symbols_dir.glob("*.json"))
         deleted_count = 0
+        
         for filepath in files:
             should_delete = False
             
             # 1. Filename-based check (Priority)
-            # Pattern: symbols_YYYYMMDD_TAG.json
+            # Pattern: YYYYMMDD_{market}_stocks.json or symbols_YYYYMMDD_TAG.json
             try:
                 parts = filepath.stem.split("_")
-                if len(parts) >= 2:
+                date_str = None
+                
+                # New pattern: 20260204_{market}_stocks
+                if len(parts) >= 1 and len(parts[0]) == 8 and parts[0].isdigit():
+                    date_str = parts[0]
+                # Legacy pattern: symbols_20260204_AM
+                elif len(parts) >= 2 and len(parts[1]) == 8 and parts[1].isdigit():
                     date_str = parts[1]
+                    
+                if date_str:
                     file_date = datetime.strptime(date_str, "%Y%m%d")
                     if file_date < cutoff_date:
                         should_delete = True
                         logger.info(f"[{tag}] Cleanup: File {filepath.name} is older than 7 days based on filename date.")
-            except (IndexError, ValueError) as parse_err:
-                # Filename doesn't match expected pattern (symbols_YYYYMMDD_*.json)
-                logger.debug("[%s] Cleanup: File %s doesn't match date pattern, using mtime fallback (parse error: %s)", tag, filepath.name, parse_err)
+            except Exception:
+                pass # Fallback to mtime
+
+            if not should_delete and not date_str:
                 try:
                     mtime = filepath.stat().st_mtime
                     if mtime < cutoff_ts:
                         should_delete = True
-                        logger.info(f"[{tag}] Cleanup: File {filepath.name} is older than 7 days based on mtime fallback (mtime={datetime.fromtimestamp(mtime).isoformat()}).")
-                except OSError as stat_err:
-                    logger.warning("[%s] Cleanup: Cannot stat file %s: %s", tag, filepath.name, stat_err)
-                except Exception as e:
-                    logger.warning("[%s] Cleanup: Unexpected error checking mtime for %s: %s (type=%s)", tag, filepath.name, e, type(e).__name__)
+                except Exception:
+                    pass
 
             if should_delete:
                 try:
@@ -658,19 +695,15 @@ class SymbolGenerator:
         yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
         
         # 1. Check Today's file (T-0)
-        # Search for any tag (AM/PM) to see if we have valid data for today
-        today_files = list(self.symbols_dir.glob(f"symbols_{today_str}_*.json"))
-        for f in sorted(today_files, reverse=True):
-            if self._is_file_valid_quality(f):
-                return False, str(f)
+        today_file = self.symbols_dir / f"{today_str}_{self.market_suffix}.json"
+        if today_file.exists() and self._is_file_valid_quality(today_file):
+            return False, str(today_file)
                 
         # 2. Check Yesterday's file (T-1)
-        # In a deployment scenario, T-1 might be sufficient to start
-        yesterday_files = list(self.symbols_dir.glob(f"symbols_{yesterday_str}_*.json"))
-        for f in sorted(yesterday_files, reverse=True):
-            if self._is_file_valid_quality(f):
-                logger.info(f"[{tag}] [CBC] Found valid T-1 data: {f.name}")
-                return False, str(f)
+        yesterday_file = self.symbols_dir / f"{yesterday_str}_{self.market_suffix}.json"
+        if yesterday_file.exists() and self._is_file_valid_quality(yesterday_file):
+            logger.info(f"[{tag}] [CBC] Found valid T-1 data: {yesterday_file.name}")
+            return False, str(yesterday_file)
                 
         return True, None
 
@@ -692,3 +725,19 @@ class SymbolGenerator:
         except Exception as e:
             logger.debug("File %s failed quality check: unexpected error %s", filepath.name, type(e).__name__)
         return False
+    def _ensure_set(self, symbols: Any) -> Set[str]:
+        """Convert various symbol formats (list, list of dicts) to a set of strings."""
+        if isinstance(symbols, set):
+            return set(str(s) for s in symbols)
+        if not symbols:
+            return set()
+        
+        result = set()
+        for item in symbols:
+            if isinstance(item, dict):
+                code = item.get('code') or item.get('symbol')
+                if code:
+                    result.add(str(code))
+            else:
+                result.add(str(item))
+        return result

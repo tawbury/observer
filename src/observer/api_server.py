@@ -35,11 +35,7 @@ from observer.paths import observer_asset_dir, observer_log_dir
 from shared.timezone import now_kst
 
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Logger for this module
 logger = logging.getLogger(__name__)
 
 
@@ -644,5 +640,10 @@ def start_api_server_background(host: str = "0.0.0.0", port: int = 8000, log_lev
 
 
 if __name__ == "__main__":
+    # Configure logging for direct execution
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     # Run the server directly when the module is executed
     run_api_server()

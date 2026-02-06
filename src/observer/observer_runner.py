@@ -91,6 +91,7 @@ def run_observer_with_api():
 
     universe_scheduler = None
     if has_creds:
+        cred_source = "environment variables"
         log.info("KIS credentials found from %s - Universe Scheduler will be enabled", cred_source)
         try:
             kis_auth = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)

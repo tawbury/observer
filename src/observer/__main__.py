@@ -31,7 +31,7 @@ import argparse
 import logging
 import asyncio
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 # Add src (parent of observer package) to path for imports
 _src_root = Path(__file__).resolve().parent.parent
@@ -54,11 +54,26 @@ def setup_logging(log_level: str = "INFO", mode: DeploymentModeType = Deployment
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         mode: Deployment mode
     """
+    from observer.paths import system_log_dir
+    from shared.hourly_handler import HourlyRotatingFileHandler
+    
     level = getattr(logging, log_level.upper(), logging.INFO)
 
+    handlers: List[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+
     if mode == DeploymentModeType.DOCKER or mode == DeploymentModeType.KUBERNETES:
-        # Docker/Kubernetes: structured logging to stdout
+        # Docker/Kubernetes: structured logging to stdout + system file logging
         format_string = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+        
+        # Add system log file handler
+        try:
+            _system_log_dir = system_log_dir()
+            file_handler = HourlyRotatingFileHandler(_system_log_dir)
+            file_handler.setFormatter(logging.Formatter(format_string))
+            file_handler.setLevel(level)
+            handlers.append(file_handler)
+        except Exception as e:
+            print(f"Failed to setup system log file handler: {e}", file=sys.stderr)
     else:
         # CLI/Development: human-readable format
         format_string = "%(levelname)-8s | %(name)s | %(message)s"
@@ -66,9 +81,8 @@ def setup_logging(log_level: str = "INFO", mode: DeploymentModeType = Deployment
     logging.basicConfig(
         level=level,
         format=format_string,
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
+        handlers=handlers,
+        force=True
     )
 
     return logging.getLogger(__name__)

@@ -106,12 +106,27 @@ async def run_observer_with_api(
         log_level: Logging level (default: info)
     """
     _configure_deployment_env()
-    from observer.paths import load_env_by_run_mode
+    from observer.paths import load_env_by_run_mode, system_log_dir
+    from shared.hourly_handler import HourlyRotatingFileHandler
     env_result = load_env_by_run_mode()
+
+    # Configure logging with hourly rotation for system logs
+    _system_log_dir = system_log_dir()
+    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+    
+    try:
+        file_handler = HourlyRotatingFileHandler(_system_log_dir)
+        file_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s"))
+        file_handler.setLevel(logging.INFO)
+        handlers.append(file_handler)
+    except Exception as e:
+        print(f"Failed to setup system log file handler: {e}", file=sys.stderr)
 
     logging.basicConfig(
         level=getattr(logging, log_level.upper(), logging.INFO),
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        handlers=handlers,
+        force=True
     )
     log = logging.getLogger("ObserverDocker")
     session_id = f"observer-{uuid4()}"

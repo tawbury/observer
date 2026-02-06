@@ -296,7 +296,7 @@ class UniverseManager:
         """
         Delete universe files older than 14 days based on YYYYMMDD filename pattern.
         """
-        tag = self._get_tag()
+        tag = "DAILY"
         cutoff_date = (datetime.now() - timedelta(days=14)).replace(hour=0, minute=0, second=0, microsecond=0)
         
         # Match any market identifier *_stocks.json
@@ -332,7 +332,7 @@ class UniverseManager:
         return None
 
     def _load_universe_list_from_path(self, path: Path | str) -> List[str]:
-        tag = self._get_tag()
+        tag = "DAILY"
         try:
             with open(path, "r", encoding="utf-8") as f:
                 payload = json.load(f)
@@ -388,7 +388,7 @@ class UniverseManager:
 
     def _extract_prev_close(self, payload: Any, symbol: Optional[str] = None) -> Optional[int]:
         """Defensive extraction of close price with detailed error logging."""
-        tag = self._get_tag()
+        tag = "DAILY"
         if not isinstance(payload, list) or not payload:
             return None
         try:

@@ -111,14 +111,7 @@ def data_dir() -> Path:
         # K8S native mount point as default to avoid Read-only filesystem error
         path = Path("/opt/platform/runtime/observer/data")
 
-    path = path.resolve()
-    # In read-only filesystem, mkdir might fail if the path is not a volume mount.
-    # We attempt it but catch exceptions if it's already present or read-only.
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        logger.debug(f"Could not create data_dir {path} (might be read-only): {e}")
-    return path
+    return path.resolve()
 
 
 def config_dir() -> Path:
@@ -134,12 +127,7 @@ def config_dir() -> Path:
     else:
         path = Path("/opt/platform/runtime/observer/config")
     
-    path = path.resolve()
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        logger.debug(f"Could not create config_dir {path}: {e}")
-    return path
+    return path.resolve()
 
 
 # ------------------------------------------------------------
@@ -185,9 +173,7 @@ def observer_asset_dir() -> Path:
         data/assets/swing/*.jsonl   - Track A interval data
         data/assets/system/*.jsonl  - Gap/overflow logs
     """
-    path = data_dir() / "assets"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    return data_dir() / "assets"
 
 
 def observer_asset_file(filename: str) -> Path:
@@ -308,12 +294,7 @@ def log_dir() -> Path:
     else:
         path = Path("/opt/platform/runtime/observer/logs")
     
-    path = path.resolve()
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        logger.debug(f"Could not create log_dir {path}: {e}")
-    return path
+    return path.resolve()
 
 
 def system_log_dir() -> Path:
@@ -328,12 +309,7 @@ def system_log_dir() -> Path:
         path = Path(env_path)
     else:
         path = log_dir() / "system"
-    path = path.resolve()
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        logger.debug(f"Could not create system_log_dir {path}: {e}")
-    return path
+    return path.resolve()
 
 
 def maintenance_log_dir() -> Path:
@@ -348,12 +324,7 @@ def maintenance_log_dir() -> Path:
         path = Path(env_path)
     else:
         path = log_dir() / "maintenance"
-    path = path.resolve()
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        logger.debug(f"Could not create maintenance_log_dir {path}: {e}")
-    return path
+    return path.resolve()
 
 
 def snapshot_dir() -> Path:
@@ -370,12 +341,7 @@ def snapshot_dir() -> Path:
     else:
         path = Path("/opt/platform/runtime/observer/universe")
     
-    path = path.resolve()
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        logger.debug(f"Could not create snapshot_dir {path}: {e}")
-    return path
+    return path.resolve()
 
 
 def kis_token_cache_dir() -> Path:
@@ -387,12 +353,7 @@ def kis_token_cache_dir() -> Path:
         path = Path(env_path)
     else:
         path = data_dir() / "cache"
-    path = path.resolve()
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        logger.debug(f"Could not create kis_token_cache_dir {path}: {e}")
-    return path
+    return path.resolve()
 
 
 def env_file_path() -> Path:
@@ -421,3 +382,66 @@ def env_file_path() -> Path:
 
     # Default (even if not exists)
     return project_root() / ".env"
+
+
+# ============================================================
+# Execution Contract Validator
+# ============================================================
+
+def validate_execution_contract() -> None:
+    """
+    Validate execution contract at app startup (call once).
+
+    Must be called AFTER logging setup is complete.
+    Verifies all mount points exist and are writable, then creates
+    required subdirectories.
+
+    Failure: logging.critical() -> RuntimeError -> process exit
+    -> Pod CrashLoopBackOff -> cause visible in logs + kubectl describe.
+    """
+    # Step 1: Mount point existence check (K8s must provide these)
+    mount_points = {
+        "data": data_dir(),
+        "logs": log_dir(),
+        "config": config_dir(),
+        "universe": snapshot_dir(),
+    }
+    for name, path in mount_points.items():
+        if not path.exists():
+            msg = (
+                f"FATAL: Mount point '{name}' not found at {path}. "
+                f"K8s volumeMount misconfiguration."
+            )
+            logger.critical(msg)
+            raise RuntimeError(msg)
+
+    # Step 2: Write probe test (actual file write/delete per mount point)
+    for name, path in mount_points.items():
+        probe_file = path / ".write_probe"
+        try:
+            probe_file.write_text("probe")
+            probe_file.unlink()
+        except OSError as e:
+            msg = (
+                f"FATAL: Mount point '{name}' at {path} is not writable. "
+                f"Write probe failed: {e}. Check fsGroup/securityContext."
+            )
+            logger.critical(msg)
+            raise RuntimeError(msg) from e
+
+    # Step 3: Create required subdirectories (fatal on failure)
+    subdirs = [
+        system_log_dir(),
+        maintenance_log_dir(),
+        kis_token_cache_dir(),
+        observer_asset_dir(),
+    ]
+    for subdir in subdirs:
+        try:
+            subdir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            msg = f"FATAL: Cannot create subdirectory {subdir}: {e}"
+            logger.critical(msg)
+            raise RuntimeError(msg) from e
+
+    logger.info("Execution contract validated: all mount points exist and writable")

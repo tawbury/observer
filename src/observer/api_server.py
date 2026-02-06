@@ -17,6 +17,7 @@ Author: Observer Team
 License: MIT
 """
 
+import asyncio
 import logging
 import os
 import psutil
@@ -242,7 +243,65 @@ def get_system_metrics() -> Dict[str, Any]:
         }
 
 
-def perform_readiness_checks() -> Dict[str, bool]:
+# DB readiness flapping prevention cache
+_db_check_cache: Dict[str, float] = {
+    "last_success_time": 0.0,
+    "grace_window_seconds": 30.0,
+}
+
+
+async def _db_ping() -> bool:
+    """Lightweight DB connectivity test using asyncpg direct connection."""
+    try:
+        import asyncpg
+    except ImportError:
+        logger.warning("asyncpg not available, skipping DB readiness check")
+        return True  # Don't fail readiness if asyncpg not installed
+
+    db_host = os.environ.get("DB_HOST", "postgres")
+    db_port = int(os.environ.get("DB_PORT", "5432"))
+    db_user = os.environ.get("DB_USER", "postgres")
+    db_password = os.environ.get("DB_PASSWORD", "")
+    db_name = os.environ.get("DB_NAME", "observer")
+
+    conn = await asyncpg.connect(
+        host=db_host,
+        port=db_port,
+        user=db_user,
+        password=db_password,
+        database=db_name,
+        timeout=2.0,
+    )
+    try:
+        await conn.fetchval("SELECT 1")
+        return True
+    finally:
+        await conn.close()
+
+
+async def _check_db_connectivity(timeout_seconds: float = 3.0) -> bool:
+    """
+    DB connectivity check with explicit timeout and flapping prevention.
+
+    - timeout_seconds must be < readinessProbe timeoutSeconds (5s)
+    - On failure, grace window allows recent success to sustain READY
+    """
+    try:
+        result = await asyncio.wait_for(
+            _db_ping(),
+            timeout=timeout_seconds,
+        )
+        if result:
+            _db_check_cache["last_success_time"] = time.monotonic()
+        return result
+    except (asyncio.TimeoutError, Exception):
+        elapsed = time.monotonic() - _db_check_cache["last_success_time"]
+        if _db_check_cache["last_success_time"] > 0 and elapsed < _db_check_cache["grace_window_seconds"]:
+            return True
+        return False
+
+
+async def perform_readiness_checks() -> Dict[str, bool]:
     """
     Perform readiness checks
 
@@ -279,6 +338,9 @@ def perform_readiness_checks() -> Dict[str, bool]:
         checks["disk_available"] = disk.percent < 95  # Less than 95% used
     except Exception:
         checks["disk_available"] = False
+
+    # DB connectivity check (timeout=3s, grace_window=30s for flapping prevention)
+    checks["db_connectable"] = await _check_db_connectivity(timeout_seconds=3.0)
 
     return checks
 
@@ -337,15 +399,18 @@ async def readiness_check():
     Returns:
         Readiness status and check results
     """
-    checks = perform_readiness_checks()
+    checks = await perform_readiness_checks()
     ready = all(checks.values())
 
-    return ReadinessResponse(
+    response = ReadinessResponse(
         ready=ready,
         status="ready" if ready else "not_ready",
         timestamp=datetime.utcnow().isoformat(),
-        checks=checks
+        checks=checks,
     )
+    if not ready:
+        return JSONResponse(status_code=503, content=response.model_dump())
+    return response
 
 
 @app.get("/status", response_model=StatusResponse)

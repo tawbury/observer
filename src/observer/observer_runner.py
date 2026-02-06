@@ -25,7 +25,7 @@ if str(_src_root) not in sys.path:
 from observer.observer import Observer
 from observer.event_bus import EventBus, JsonlFileSink
 from observer.api_server import start_api_server_background, get_status_tracker
-from observer.paths import log_dir, system_log_dir, observer_data_dir
+from observer.paths import log_dir, system_log_dir, observer_data_dir, validate_execution_contract
 from universe.universe_scheduler import UniverseScheduler, SchedulerConfig
 from provider import KISAuth, ProviderEngine
 from collector.track_a_collector import TrackACollector, TrackAConfig
@@ -123,6 +123,9 @@ def run_observer_with_api():
 
     log = logging.getLogger("ObserverDocker")
     session_id = f"observer-{uuid4()}"
+
+    # Validate execution contract (logging is ready, fatal errors will be recorded)
+    validate_execution_contract()
 
     log.info("Starting Observer Docker system with API server | session_id=%s", session_id)
     if env_path_loaded:

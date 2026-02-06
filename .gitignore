@@ -122,3 +122,6 @@ mcp-cli/dist/
 tmpclaude-*
 .agent/
 
+# docs
+**/docs/
+docs/

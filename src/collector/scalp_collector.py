@@ -1,5 +1,5 @@
 """
-Track B Collector - Real-time WebSocket data collection for 41 slots
+Scalp Collector - Real-time WebSocket data collection for 41 slots
 
 Key Responsibilities (Track A 독립형):
 - Track A 데이터 없이도 자체 부트스트랩 심볼로 즉시 구독
@@ -31,11 +31,11 @@ from db.realtime_writer import RealtimeDBWriter
 
 from observer.paths import env_file_path
 
-log = logging.getLogger("TrackBCollector")
+log = logging.getLogger("ScalpCollector")
 
 
 @dataclass
-class TrackBConfig:
+class ScalpConfig:
     tz_name: str = "Asia/Seoul"
     market: str = "kr_stocks"
     session_id: str = "track_b_session"
@@ -52,9 +52,9 @@ class TrackBConfig:
     bootstrap_priority: float = 0.95
 
 
-class TrackBCollector(TimeAwareMixin):
+class ScalpCollector(TimeAwareMixin):
     """
-    Track B Collector - WebSocket-based real-time data collector.
+    Scalp Collector - WebSocket-based real-time data collector.
     
     Features:
     - Track A 독립: 부트스트랩 심볼 기반 즉시 구독
@@ -67,12 +67,12 @@ class TrackBCollector(TimeAwareMixin):
         self,
         engine: ProviderEngine,
         trigger_engine: Optional[TriggerEngine] = None,
-        config: Optional[TrackBConfig] = None,
+        config: Optional[ScalpConfig] = None,
         on_error: Optional[Callable[[str], None]] = None,
     ) -> None:
         self.engine = engine
         self.trigger_engine = trigger_engine or TriggerEngine()
-        self.cfg = config or TrackBConfig()
+        self.cfg = config or ScalpConfig()
         self._tz_name = self.cfg.tz_name
         self._init_timezone()
 
@@ -131,7 +131,7 @@ class TrackBCollector(TimeAwareMixin):
         5. Subscribe/unsubscribe WebSocket symbols
         6. Collect and log real-time data
         """
-        log.info("TrackBCollector started (max_slots=%d)", self.cfg.max_slots)
+        log.info("ScalpCollector started (max_slots=%d)", self.cfg.max_slots)
         self._running = True
 
         # DB 연결 초기화
@@ -166,7 +166,7 @@ class TrackBCollector(TimeAwareMixin):
 
                 # 장 마감 시점이 지나면 즉시 수집을 종료하여 불필요한 로그 생성을 막는다
                 if not debug_mode and now.time() > self.cfg.trading_end:
-                    log.info("장 마감 시간을 초과했습니다. TrackBCollector를 종료합니다.")
+                    log.info("장 마감 시간을 초과했습니다. ScalpCollector를 종료합니다.")
                     self._running = False
                     break
 
@@ -182,7 +182,7 @@ class TrackBCollector(TimeAwareMixin):
                 await asyncio.sleep(self.cfg.trigger_check_interval_seconds)
                 
         except Exception as e:
-            log.error(f"TrackBCollector error: {e}", exc_info=True)
+            log.error(f"ScalpCollector error: {e}", exc_info=True)
             if self._on_error:
                 self._on_error(str(e))
         finally:
@@ -190,7 +190,7 @@ class TrackBCollector(TimeAwareMixin):
     
     def stop(self) -> None:
         """Stop the collector"""
-        log.info("TrackBCollector stopping...")
+        log.info("ScalpCollector stopping...")
         self._running = False
     
     # -----------------------------------------------------
@@ -456,7 +456,7 @@ class TrackBCollector(TimeAwareMixin):
 # ---- CLI for Testing ----
 
 async def main():
-    """CLI for testing TrackBCollector"""
+    """CLI for testing ScalpCollector"""
     import argparse
     from provider import KISAuth
     
@@ -480,15 +480,15 @@ async def main():
     
     bootstrap_symbols = [s.strip().zfill(6) for s in args.bootstrap.split(',') if s.strip()]
 
-    cfg = TrackBConfig(bootstrap_symbols=bootstrap_symbols)
+    cfg = ScalpConfig(bootstrap_symbols=bootstrap_symbols)
 
-    collector = TrackBCollector(
+    collector = ScalpCollector(
         engine=engine,
         trigger_engine=trigger_engine,
         config=cfg
     )
     
-    print(f"🚀 Starting TrackBCollector (mode={args.mode}, duration={args.run_for}s)")
+    print(f"🚀 Starting ScalpCollector (mode={args.mode}, duration={args.run_for}s)")
     print()
     
     # Run collector for specified duration

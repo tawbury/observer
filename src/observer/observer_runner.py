@@ -28,8 +28,8 @@ from observer.api_server import start_api_server_background, get_status_tracker
 from observer.paths import log_dir, system_log_dir, observer_data_dir, validate_execution_contract
 from universe.universe_scheduler import UniverseScheduler, SchedulerConfig
 from provider import KISAuth, ProviderEngine
-from collector.track_a_collector import TrackACollector, TrackAConfig
-from collector.track_b_collector import TrackBCollector, TrackBConfig
+from collector.swing_collector import SwingCollector, SwingConfig
+from collector.scalp_collector import ScalpCollector, ScalpConfig
 from trigger.trigger_engine import TriggerEngine, TriggerConfig
 from slot.slot_manager import SlotManager
 from datetime import datetime, timezone
@@ -161,7 +161,7 @@ def run_observer_with_api():
         log.info("Universe Scheduler thread started")
 
     # Start Track A Collector in background if enabled
-    track_a_collector = None
+    swing_collector = None
     track_a_enabled = os.environ.get("TRACK_A_ENABLED", "true").lower() in ("true", "1", "yes")
     if track_a_enabled and kis_app_key and kis_app_secret:
         log.info("Track A Collector will be enabled")
@@ -175,14 +175,14 @@ def run_observer_with_api():
             universe_dir = _config_dir / "universe"
             universe_dir.mkdir(parents=True, exist_ok=True)
             
-            track_a_config = TrackAConfig(
+            track_a_config = SwingConfig(
                 interval_minutes=5,
                 market="kr_stocks",
                 session_id=session_id,
                 mode="DOCKER"
             )
             
-            track_a_collector = TrackACollector(
+            swing_collector = SwingCollector(
                 provider_engine_a,
                 config=track_a_config,
                 universe_dir=str(universe_dir),
@@ -195,7 +195,7 @@ def run_observer_with_api():
         log.info("Track A Collector disabled (TRACK_A_ENABLED=false or KIS credentials missing)")
 
     # Start Track B Collector in background if enabled
-    track_b_collector = None
+    scalp_collector = None
     track_b_enabled = os.environ.get("TRACK_B_ENABLED", "false").lower() in ("true", "1", "yes")
     if track_b_enabled and kis_app_key and kis_app_secret:
         log.info("Track B Collector will be enabled")
@@ -210,7 +210,7 @@ def run_observer_with_api():
             )
             trigger_engine = TriggerEngine(config=trigger_config)
             
-            track_b_config = TrackBConfig(
+            track_b_config = ScalpConfig(
                 market="kr_stocks",
                 session_id=session_id,
                 mode="DOCKER",
@@ -218,7 +218,7 @@ def run_observer_with_api():
                 trigger_check_interval_seconds=30
             )
             
-            track_b_collector = TrackBCollector(
+            scalp_collector = ScalpCollector(
                 provider_engine_b,
                 trigger_engine=trigger_engine,
                 config=track_b_config,
@@ -245,39 +245,39 @@ def run_observer_with_api():
 
         # Start Track A Collector in background thread
         track_a_thread = None
-        if track_a_collector:
-            def run_track_a_async():
-                """Run Track A in asyncio event loop"""
+        if swing_collector:
+            def run_swing_async():
+                """Run Swing Collector in asyncio event loop"""
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    log.info("Starting Track A Collector background task...")
-                    loop.run_until_complete(track_a_collector.start())
+                    log.info("Starting Swing Collector background task...")
+                    loop.run_until_complete(swing_collector.start())
                 except Exception as e:
-                    log.error(f"Track A Collector error: {e}")
+                    log.error(f"Swing Collector error: {e}")
                 finally:
                     loop.close()
             
-            track_a_thread = threading.Thread(target=run_track_a_async, daemon=True)
+            track_a_thread = threading.Thread(target=run_swing_async, daemon=True)
             track_a_thread.start()
-            log.info("Track A Collector thread started")
+            log.info("Swing Collector thread started")
 
         # Start Track B Collector in background thread
         track_b_thread = None
-        if track_b_collector:
-            def run_track_b_async():
-                """Run Track B in asyncio event loop"""
+        if scalp_collector:
+            def run_scalp_async():
+                """Run Scalp Collector in asyncio event loop"""
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    log.info("Starting Track B Collector background task...")
-                    loop.run_until_complete(track_b_collector.start())
+                    log.info("Starting Scalp Collector background task...")
+                    loop.run_until_complete(scalp_collector.start())
                 except Exception as e:
-                    log.error(f"Track B Collector error: {e}")
+                    log.error(f"Scalp Collector error: {e}")
                 finally:
                     loop.close()
             
-            track_b_thread = threading.Thread(target=run_track_b_async, daemon=True)
+            track_b_thread = threading.Thread(target=run_scalp_async, daemon=True)
             track_b_thread.start()
             log.info("Track B Collector thread started")
 
@@ -293,11 +293,11 @@ def run_observer_with_api():
         def signal_handler(sig, frame):
             log.info("Received shutdown signal, stopping Observer system...")
             status_tracker.update_state("stopping")
-            if track_a_collector:
-                log.info("Stopping Track A Collector...")
-            if track_b_collector:
-                log.info("Stopping Track B Collector...")
-                track_b_collector.stop()
+            if swing_collector:
+                log.info("Stopping Swing Collector...")
+            if scalp_collector:
+                log.info("Stopping Scalp Collector...")
+                scalp_collector.stop()
             observer.stop()
             status_tracker.update_state("stopped", ready=False)
             log.info("Observer system stopped")

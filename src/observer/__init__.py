@@ -97,7 +97,7 @@ async def run_observer_with_api(
     Run Observer with FastAPI server and async Universe/Track A/B collectors (Docker entry point).
 
     Starts Observer core, EventBus → JsonlFileSink, FastAPI server (thread), and optionally
-    UniverseScheduler, TrackACollector, TrackBCollector as asyncio tasks when KIS credentials
+    UniverseScheduler, SwingCollector, ScalpCollector as asyncio tasks when KIS credentials
     are present. API and core do not block each other.
 
     Args:
@@ -157,8 +157,8 @@ async def run_observer_with_api(
         )
 
     universe_scheduler = None
-    track_a_collector = None
-    track_b_collector = None
+    swing_collector = None
+    scalp_collector = None
 
     if has_creds:
         cred_source = "env vars (K8s/direct)" if not env_files_loaded else "env files and/or env vars"
@@ -192,7 +192,7 @@ async def run_observer_with_api(
         if track_a_enabled:
             try:
                 from provider import KISAuth, ProviderEngine
-                from collector.track_a_collector import TrackACollector, TrackAConfig
+                from collector.swing_collector import SwingCollector, SwingConfig
 
                 kis_auth_a = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
                 provider_engine_a = ProviderEngine(kis_auth_a, is_virtual=kis_is_virtual)
@@ -206,7 +206,7 @@ async def run_observer_with_api(
                     session_id=session_id,
                     mode="DOCKER",
                 )
-                track_a_collector = TrackACollector(
+                swing_collector = SwingCollector(
                     provider_engine_a,
                     config=track_a_config,
                     universe_dir=str(universe_dir),
@@ -219,7 +219,7 @@ async def run_observer_with_api(
         if track_b_enabled:
             try:
                 from provider import KISAuth, ProviderEngine
-                from collector.track_b_collector import TrackBCollector, TrackBConfig
+                from collector.scalp_collector import ScalpCollector, ScalpConfig
                 from trigger.trigger_engine import TriggerEngine, TriggerConfig
 
                 kis_auth_b = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
@@ -237,7 +237,7 @@ async def run_observer_with_api(
                     max_slots=41,
                     trigger_check_interval_seconds=30,
                 )
-                track_b_collector = TrackBCollector(
+                scalp_collector = ScalpCollector(
                     provider_engine_b,
                     trigger_engine=trigger_engine,
                     config=track_b_config,
@@ -280,11 +280,11 @@ async def run_observer_with_api(
     if universe_scheduler:
         tasks.append(asyncio.create_task(universe_scheduler.run_forever()))
         log.info("Universe Scheduler task registered")
-    if track_a_collector:
-        tasks.append(asyncio.create_task(track_a_collector.start()))
+    if swing_collector:
+        tasks.append(asyncio.create_task(swing_collector.start()))
         log.info("Track A Collector task registered")
-    if track_b_collector:
-        tasks.append(asyncio.create_task(track_b_collector.start()))
+    if scalp_collector:
+        tasks.append(asyncio.create_task(scalp_collector.start()))
         log.info("Track B Collector task registered")
 
     log.info("Observer system fully operational (EventBus → JsonlFileSink; data flow logged every 100 dispatches)")
@@ -295,8 +295,8 @@ async def run_observer_with_api(
         pass
     finally:
         log.info("Shutting down Observer system...")
-        if track_b_collector:
-            track_b_collector.stop()
+        if scalp_collector:
+            scalp_collector.stop()
         for t in tasks:
             t.cancel()
         if tasks:

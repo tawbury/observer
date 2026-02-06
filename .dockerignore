@@ -28,7 +28,7 @@ src/observer/config
 config/observer
 config/**/*.jsonl
 config/universe/*.json
-config/symbols/kr_all_symbols.*
+# config/symbols/kr_all_symbols.*  <-- REMOVED to allow inclusion in image as fallback
 
 # Legacy (removed after Phase 2)
 app

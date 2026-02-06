@@ -645,10 +645,9 @@ class KISRestProvider:
         # Try multiple cache locations (PRIMARY FIRST)
         from observer.paths import config_dir, project_root
         cache_locations = [
-            project_root() / "config" / "symbols" / "kr_all_symbols.txt",  # Local development (PRIMARY)
-            Path("/opt/platform/observer/config/symbols/kr_all_symbols.txt"),  # Image Built-in (EXPLICIT)
-            config_dir() / "symbols" / "kr_all_symbols.txt",  # Production K8s path
-            Path.cwd() / "kr_all_symbols.txt",  # Current working directory (fallback)
+            project_root() / "config" / "symbols" / "kr_all_symbols.txt",  # 1. Image Built-in (via /opt/platform/observer)
+            config_dir() / "symbols" / "kr_all_symbols.txt",               # 2. Production K8s Mount (via /opt/platform/runtime)
+            Path.cwd() / "kr_all_symbols.txt",                             # 3. Fallback
         ]
         
         for cache_file in cache_locations:

@@ -546,12 +546,13 @@ class KISRestProvider:
     
     async def _fetch_stock_list_from_file(self) -> List[str]:
         """
-        Download and parse stock information from official sources.
+        Download and parse stock information from multiple official sources.
         
-        APPROACH: Try multiple sources in order:
-        1. GitHub official KIS repository
-        2. KIS API portal CSV
-        3. Alternative public data sources
+        APPROACH: Try multiple sources with validation and diff comparison:
+        1. KRX (Korea Exchange) - pykrx library (PRIMARY - most authoritative)
+        2. GitHub official KIS repository
+        3. KIS API portal CSV
+        4. Local cache fallback
         
         Returns:
             List of 6-digit stock codes (symbols)
@@ -559,17 +560,27 @@ class KISRestProvider:
         import csv
         import io
         
-        # URLs to try in order of preference
-        urls = [
-            # GitHub - Official KIS repository  
-            "https://raw.githubusercontent.com/koreainvestment/open-trading-api/main/stock_info/stock_codes.csv",
-            # KIS official portal
-            "https://www.koreainvestment.com/web/contents/down/openapi/stock-code.csv",
+        collected_sources: dict[str, set[str]] = {}
+        
+        # ============================================================
+        # Source 1: KRX (Korea Exchange) via pykrx - PRIMARY SOURCE
+        # ============================================================
+        krx_symbols = await self._fetch_from_krx()
+        if krx_symbols:
+            collected_sources["KRX"] = set(krx_symbols)
+            logger.info(f"✅ [KRX] Collected {len(krx_symbols)} symbols")
+        
+        # ============================================================
+        # Source 2 & 3: GitHub / KIS Portal CSV
+        # ============================================================
+        csv_urls = [
+            ("GitHub", "https://raw.githubusercontent.com/koreainvestment/open-trading-api/main/stock_info/stock_codes.csv"),
+            ("KIS_Portal", "https://www.koreainvestment.com/web/contents/down/openapi/stock-code.csv"),
         ]
         
-        for file_url in urls:
+        for source_name, file_url in csv_urls:
             try:
-                logger.info(f"Downloading from: {file_url}")
+                logger.info(f"[{source_name}] Downloading from: {file_url}")
                 
                 async with aiohttp.ClientSession() as session:
                     async with session.get(
@@ -579,54 +590,223 @@ class KISRestProvider:
                     ) as response:
                         if response.status == 200:
                             content = await response.text(errors='ignore')
-                            logger.info(f"Downloaded {len(content)} bytes")
                             
-                            # Parse CSV
-                            symbols = []
-                            try:
-                                reader = csv.DictReader(io.StringIO(content))
-                                
-                                for row in reader:
-                                    if not row:
-                                        continue
-                                    
-                                    # Try multiple field names
-                                    code = (
-                                        row.get('종목코드') or 
-                                        row.get('Code') or 
-                                        row.get('code') or
-                                        row.get('Symbol') or
-                                        row.get('symbol') or
-                                        row.get('SYMBOL') or
-                                        row.get('stck_shrn_iscd')
-                                    )
-                                    
-                                    if code and len(str(code).strip()) == 6:
-                                        symbols.append(code.strip())
-                                
-                                if symbols:
-                                    logger.info(f"✅ Parsed {len(symbols)} symbols from {file_url}")
-                                    return list(set(symbols))  # Remove duplicates
-                                    
-                            except csv.Error as e:
-                                logger.warning(f"CSV parse error: {e}")
-                                continue
+                            symbols = self._parse_csv_symbols(content)
+                            if symbols:
+                                collected_sources[source_name] = set(symbols)
+                                logger.info(f"✅ [{source_name}] Parsed {len(symbols)} symbols")
                         else:
-                            logger.warning(f"HTTP {response.status} from {file_url}")
+                            logger.warning(f"[{source_name}] HTTP {response.status}")
                             
             except asyncio.TimeoutError:
-                logger.warning(f"Timeout downloading from {file_url}")
-                continue
+                logger.warning(f"[{source_name}] Timeout")
             except aiohttp.ClientError as e:
-                logger.warning(f"Network error from {file_url}: {e}")
-                continue
+                logger.warning(f"[{source_name}] Network error: {e}")
             except Exception as e:
-                logger.warning(f"Error downloading from {file_url}: {e}")
-                continue
+                logger.warning(f"[{source_name}] Error: {e}")
         
-        # All URLs failed, try fallback
-        logger.warning("All primary URLs failed, trying fallback...")
+        # ============================================================
+        # Diff Comparison & Validation
+        # ============================================================
+        if collected_sources:
+            final_symbols = self._validate_and_merge_sources(collected_sources)
+            if final_symbols:
+                return final_symbols
+        
+        # All sources failed, try local fallback
+        logger.warning("All online sources failed, trying local fallback...")
         return await self._fetch_stock_list_from_alternative_source()
+    
+    async def _fetch_from_krx(self) -> List[str]:
+        """
+        Fetch stock list from KRX (Korea Exchange) using pykrx library.
+        
+        pykrx provides direct access to KRX official data:
+        - KOSPI market stocks
+        - KOSDAQ market stocks
+        
+        Returns:
+            List of 6-digit stock codes
+        """
+        try:
+            from pykrx import stock as pykrx_stock
+            from datetime import datetime
+            
+            today = datetime.now().strftime("%Y%m%d")
+            symbols = []
+            
+            # Get KOSPI tickers
+            try:
+                kospi_tickers = pykrx_stock.get_market_ticker_list(today, market="KOSPI")
+                if kospi_tickers:
+                    symbols.extend(kospi_tickers)
+                    logger.info(f"[KRX] KOSPI: {len(kospi_tickers)} symbols")
+            except Exception as e:
+                logger.warning(f"[KRX] KOSPI fetch failed: {e}")
+            
+            # Get KOSDAQ tickers
+            try:
+                kosdaq_tickers = pykrx_stock.get_market_ticker_list(today, market="KOSDAQ")
+                if kosdaq_tickers:
+                    symbols.extend(kosdaq_tickers)
+                    logger.info(f"[KRX] KOSDAQ: {len(kosdaq_tickers)} symbols")
+            except Exception as e:
+                logger.warning(f"[KRX] KOSDAQ fetch failed: {e}")
+            
+            # Filter to 6-digit codes only (exclude ETF, ETN with different formats)
+            filtered = [s for s in symbols if len(str(s)) == 6 and str(s).isdigit()]
+            
+            if filtered:
+                logger.info(f"[KRX] Total: {len(filtered)} valid stock symbols")
+                return list(set(filtered))
+            
+        except ImportError:
+            logger.warning("[KRX] pykrx library not installed - skipping KRX source")
+        except Exception as e:
+            logger.error(f"[KRX] Unexpected error: {e}")
+        
+        return []
+    
+    def _parse_csv_symbols(self, content: str) -> List[str]:
+        """Parse CSV content and extract 6-digit stock codes."""
+        import csv
+        import io
+        
+        symbols = []
+        try:
+            reader = csv.DictReader(io.StringIO(content))
+            
+            for row in reader:
+                if not row:
+                    continue
+                
+                # Try multiple field names
+                code = (
+                    row.get('종목코드') or 
+                    row.get('Code') or 
+                    row.get('code') or
+                    row.get('Symbol') or
+                    row.get('symbol') or
+                    row.get('SYMBOL') or
+                    row.get('stck_shrn_iscd')
+                )
+                
+                if code and len(str(code).strip()) == 6:
+                    symbols.append(code.strip())
+            
+        except csv.Error as e:
+            logger.warning(f"CSV parse error: {e}")
+        
+        return list(set(symbols))
+    
+    def _validate_and_merge_sources(self, sources: dict[str, set[str]]) -> List[str]:
+        """
+        Validate and merge symbols from multiple sources with diff logging.
+        
+        Strategy:
+        1. If KRX is available and has 2000+ symbols, use as primary
+        2. Cross-validate with other sources
+        3. Log differences for monitoring
+        4. Return merged/validated set
+        
+        Args:
+            sources: Dict of source_name -> set of symbols
+            
+        Returns:
+            Validated list of symbols
+        """
+        source_names = list(sources.keys())
+        logger.info(f"[DIFF] Validating {len(source_names)} sources: {source_names}")
+        
+        # Log counts per source
+        for name, symbols in sources.items():
+            logger.info(f"[DIFF] {name}: {len(symbols)} symbols")
+        
+        # Priority: KRX > GitHub > KIS_Portal
+        primary_source = None
+        primary_symbols = set()
+        
+        priority_order = ["KRX", "GitHub", "KIS_Portal"]
+        for src in priority_order:
+            if src in sources and len(sources[src]) >= 2000:
+                primary_source = src
+                primary_symbols = sources[src]
+                break
+        
+        if not primary_source:
+            # Use largest source if none meet threshold
+            primary_source = max(sources.keys(), key=lambda k: len(sources[k]))
+            primary_symbols = sources[primary_source]
+        
+        logger.info(f"[DIFF] Primary source selected: {primary_source} ({len(primary_symbols)} symbols)")
+        
+        # Diff comparison with other sources
+        for name, symbols in sources.items():
+            if name == primary_source:
+                continue
+            
+            only_in_primary = primary_symbols - symbols
+            only_in_other = symbols - primary_symbols
+            common = primary_symbols & symbols
+            
+            logger.info(
+                f"[DIFF] {primary_source} vs {name}: "
+                f"common={len(common)}, only_{primary_source}={len(only_in_primary)}, only_{name}={len(only_in_other)}"
+            )
+            
+            # Log sample differences (for debugging)
+            if only_in_primary and len(only_in_primary) <= 20:
+                logger.debug(f"[DIFF] Only in {primary_source}: {sorted(only_in_primary)[:10]}")
+            if only_in_other and len(only_in_other) <= 20:
+                logger.debug(f"[DIFF] Only in {name}: {sorted(only_in_other)[:10]}")
+        
+        # Merge strategy: Union of all sources (inclusive)
+        # But primary source must be the base
+        merged = set(primary_symbols)
+        
+        # Optionally add symbols from other sources that might be missing
+        for name, symbols in sources.items():
+            if name != primary_source:
+                # Add any symbols that are in other sources but not primary
+                # (could be new listings not yet in KRX but in KIS)
+                merged.update(symbols)
+        
+        logger.info(f"[DIFF] Final merged count: {len(merged)} (from {len(sources)} sources)")
+        
+        # Cache the result for future diff comparison
+        self._cache_symbol_list(sorted(merged), primary_source)
+        
+        return sorted(merged)
+    
+    def _cache_symbol_list(self, symbols: List[str], source: str) -> None:
+        """Cache the downloaded symbol list for future comparison."""
+        try:
+            from observer.paths import config_dir
+            from datetime import datetime
+            import json
+            
+            cache_dir = config_dir() / "symbols"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Save as txt (simple format)
+            txt_path = cache_dir / "kr_all_symbols.txt"
+            with open(txt_path, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(symbols))
+            
+            # Save metadata
+            meta_path = cache_dir / "kr_all_symbols_meta.json"
+            meta = {
+                "source": source,
+                "count": len(symbols),
+                "updated_at": datetime.now().isoformat(),
+            }
+            with open(meta_path, 'w', encoding='utf-8') as f:
+                json.dump(meta, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"[CACHE] Saved {len(symbols)} symbols to {txt_path}")
+            
+        except Exception as e:
+            logger.warning(f"[CACHE] Failed to cache symbols: {e}")
     
     async def _fetch_stock_list_from_alternative_source(self) -> List[str]:
         """

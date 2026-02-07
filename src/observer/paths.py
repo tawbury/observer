@@ -10,10 +10,17 @@ used across the Observer project, including:
 - pytest
 - local scripts
 
-Design principles:
+Design Principles:
 - Resilient to folder restructuring
 - No relative depth assumptions (no parents[n])
 - Project-level, not package-level
+
+Kubernetes Contract:
+- APP DOES NOT CREATE DIRECTORIES
+- All directories are created by K8s initContainer
+- App only resolves paths and validates existence
+- OBSERVER_CONFIG_DIR is read-only (hostPath or ConfigMap)
+- All writable paths must be PVC-mounted
 
 Path Management Strategy:
 - Observer-generated JSON / JSONL files live under data/assets (scalp, swing, system).
@@ -28,6 +35,7 @@ import logging
 import os
 
 logger = logging.getLogger(__name__)
+
 # ============================================================
 # Canonical Base Paths (Internal Constants)
 # ============================================================
@@ -93,6 +101,10 @@ def load_env_by_run_mode() -> dict:
       "local"     → .env.local + .env.shared + config/.env (기본값)
       "container" → .env.container + .env.shared
 
+    NOTE:
+      - 디렉토리 생성은 수행하지 않음 (K8s initContainer 책임)
+      - 상대 경로 → 절대 경로 변환만 수행
+
     Returns:
         dict with keys: run_mode, files_loaded, files_skipped
     """
@@ -126,7 +138,7 @@ def load_env_by_run_mode() -> dict:
         else:
             result["files_skipped"].append(str(env_file))
 
-    # [로컬 모드] 상대 경로를 절대 경로로 변환
+    # [로컬 모드] 상대 경로를 절대 경로로 변환 (디렉토리 생성 없음)
     if run_mode == "local":
         project_root = _resolve_project_root()
         path_vars = [
@@ -142,11 +154,9 @@ def load_env_by_run_mode() -> dict:
         for var in path_vars:
             value = os.environ.get(var)
             if value and value.startswith("./"):
-                # 상대 경로를 절대 경로로 변환
+                # 상대 경로를 절대 경로로 변환 (디렉토리 생성 없음 - read-only)
                 abs_path = (project_root / value[2:]).resolve()
                 os.environ[var] = str(abs_path)
-                # 디렉토리 생성
-                abs_path.mkdir(parents=True, exist_ok=True)
 
     logger.info(
         "Environment loaded: RUN_MODE=%s | loaded=%s | skipped=%s",
@@ -165,7 +175,7 @@ def project_root() -> Path:
 
 
 # ------------------------------------------------------------
-# Core directories
+# Core directories (read-only resolution, no creation)
 # ------------------------------------------------------------
 
 def src_dir() -> Path:
@@ -194,6 +204,9 @@ def data_dir() -> Path:
 
     Environment variable: OBSERVER_DATA_DIR
     Default: PLATFORM_RUNTIME_ROOT/data
+
+    NOTE: Directory creation is NOT performed.
+          K8s initContainer is responsible for directory creation.
     """
     env_path = os.environ.get("OBSERVER_DATA_DIR")
     if env_path:
@@ -212,6 +225,9 @@ def config_dir() -> Path:
     Resolution order:
     1. OBSERVER_CONFIG_DIR environment variable
     2. PLATFORM_RUNTIME_ROOT/config
+
+    NOTE: This directory is READ-ONLY in K8s (hostPath or ConfigMap mount).
+          App must NOT attempt to write to this directory.
     """
     if os.environ.get("OBSERVER_CONFIG_DIR"):
         path = Path(os.environ["OBSERVER_CONFIG_DIR"])
@@ -222,7 +238,7 @@ def config_dir() -> Path:
 
 
 # ------------------------------------------------------------
-# Ops subdomains
+# Ops subdomains (read-only, source code paths)
 # ------------------------------------------------------------
 
 def ops_observer_dir() -> Path:
@@ -249,7 +265,7 @@ def ops_backup_dir() -> Path:
 
 
 # ------------------------------------------------------------
-# Observer-specific canonical paths
+# Observer-specific canonical paths (read-only resolution)
 # ------------------------------------------------------------
 
 def observer_asset_dir() -> Path:
@@ -263,6 +279,9 @@ def observer_asset_dir() -> Path:
         data/assets/scalp/*.jsonl   - Track B real-time data
         data/assets/swing/*.jsonl   - Track A interval data
         data/assets/system/*.jsonl  - Gap/overflow logs
+
+    NOTE: Directory is pre-created by K8s initContainer.
+          App does NOT create this directory.
     """
     return data_dir() / "assets"
 
@@ -281,6 +300,8 @@ def observer_data_dir() -> Path:
     Structure (simplified):
         data/scalp/   - Ephemeral scalp data
         data/swing/   - Ephemeral swing data
+
+    NOTE: Directory is pre-created by K8s initContainer.
     """
     # Return data_dir() directly (no /observer subdirectory)
     return data_dir()
@@ -292,6 +313,8 @@ def observer_log_dir() -> Path:
 
     Returns the log directory for Observer system.
     Uses log_dir() as base.
+
+    NOTE: Directory is pre-created by K8s initContainer.
     """
     return log_dir()
 
@@ -317,7 +340,7 @@ def tests_ops_observation_dir() -> Path:
 
 
 # ============================================================
-# Schema / Asset canonical paths
+# Schema / Asset canonical paths (read-only)
 # ============================================================
 
 def schema_dir() -> Path:
@@ -367,9 +390,8 @@ def google_credentials_path() -> Path:
 
 
 # ============================================================
-# Docker-compatible paths (Environment variable overrides)
+# Docker/K8s-compatible paths (Environment variable overrides)
 # ============================================================
-
 
 
 def log_dir() -> Path:
@@ -378,6 +400,9 @@ def log_dir() -> Path:
 
     Environment variable: OBSERVER_LOG_DIR
     Default: PLATFORM_RUNTIME_ROOT/logs
+
+    NOTE: Directory is pre-created by K8s initContainer.
+          App does NOT create this directory.
     """
     env_path = os.environ.get("OBSERVER_LOG_DIR")
     if env_path:
@@ -394,6 +419,8 @@ def system_log_dir() -> Path:
 
     Environment variable: OBSERVER_SYSTEM_LOG_DIR
     Default: {log_dir}/system
+
+    NOTE: Directory is pre-created by K8s initContainer.
     """
     env_path = os.environ.get("OBSERVER_SYSTEM_LOG_DIR")
     if env_path:
@@ -409,6 +436,8 @@ def maintenance_log_dir() -> Path:
 
     Environment variable: OBSERVER_MAINTENANCE_LOG_DIR
     Default: {log_dir}/maintenance
+
+    NOTE: Directory is pre-created by K8s initContainer.
     """
     env_path = os.environ.get("OBSERVER_MAINTENANCE_LOG_DIR")
     if env_path:
@@ -425,6 +454,8 @@ def snapshot_dir() -> Path:
     Resolution:
     1. OBSERVER_SNAPSHOT_DIR env
     2. {data_dir()}/universe
+
+    NOTE: Directory is pre-created by K8s initContainer.
     """
     env_path = os.environ.get("OBSERVER_SNAPSHOT_DIR")
     if env_path:
@@ -438,6 +469,8 @@ def snapshot_dir() -> Path:
 def kis_token_cache_dir() -> Path:
     """
     KIS API token cache directory.
+
+    NOTE: Directory is pre-created by K8s initContainer.
     """
     env_path = os.environ.get("KIS_TOKEN_CACHE_DIR")
     if env_path:
@@ -487,55 +520,82 @@ def validate_execution_contract() -> None:
     Validate execution contract at app startup (call once).
 
     Must be called AFTER logging setup is complete.
-    Verifies all mount points exist and are writable, then creates
-    required subdirectories.
+    Verifies all mount points exist and are writable.
+
+    CONTRACT:
+    - App does NOT create directories
+    - K8s initContainer must create all required directories BEFORE app starts
+    - This function only VALIDATES, never CREATES
+
+    Mount Points Validated:
+    - data: OBSERVER_DATA_DIR (PVC)
+    - logs: OBSERVER_LOG_DIR (PVC)
+    - config: OBSERVER_CONFIG_DIR (hostPath/ConfigMap, may be read-only)
+    - universe: OBSERVER_SNAPSHOT_DIR (under data PVC)
 
     Failure: logging.critical() -> RuntimeError -> process exit
     -> Pod CrashLoopBackOff -> cause visible in logs + kubectl describe.
     """
-    # Step 1: Mount point existence check (K8s must provide these)
+    # Step 1: Mount point existence check (K8s initContainer must provide these)
     mount_points = {
         "data": data_dir(),
         "logs": log_dir(),
         "config": config_dir(),
         "universe": snapshot_dir(),
     }
+    
     for name, path in mount_points.items():
         if not path.exists():
             msg = (
                 f"FATAL: Mount point '{name}' not found at {path}. "
-                f"K8s volumeMount misconfiguration."
+                f"K8s volumeMount misconfiguration or initContainer did not run."
             )
             logger.critical(msg)
             raise RuntimeError(msg)
+        logger.debug("Mount point '%s' exists: %s", name, path)
 
-    # Step 2: Write probe test (actual file write/delete per mount point)
-    for name, path in mount_points.items():
+    # Step 2: Write probe test for writable mount points
+    # Note: config may be read-only (hostPath/ConfigMap), so we skip write test for it
+    writable_mounts = {
+        "data": data_dir(),
+        "logs": log_dir(),
+        "universe": snapshot_dir(),
+    }
+    
+    for name, path in writable_mounts.items():
         probe_file = path / ".write_probe"
         try:
             probe_file.write_text("probe")
             probe_file.unlink()
+            logger.debug("Mount point '%s' is writable: %s", name, path)
         except OSError as e:
             msg = (
                 f"FATAL: Mount point '{name}' at {path} is not writable. "
-                f"Write probe failed: {e}. Check fsGroup/securityContext."
+                f"Write probe failed: {e}. Check fsGroup/securityContext or PVC binding."
             )
             logger.critical(msg)
             raise RuntimeError(msg) from e
 
-    # Step 3: Create required subdirectories (fatal on failure)
-    subdirs = [
-        system_log_dir(),
-        maintenance_log_dir(),
-        kis_token_cache_dir(),
-        observer_asset_dir(),
-    ]
-    for subdir in subdirs:
-        try:
-            subdir.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            msg = f"FATAL: Cannot create subdirectory {subdir}: {e}"
+    # Step 3: Verify subdirectories exist (created by initContainer)
+    # App does NOT create these - only validates existence
+    required_subdirs = {
+        "system_log": system_log_dir(),
+        "maintenance_log": maintenance_log_dir(),
+        "token_cache": kis_token_cache_dir(),
+        "assets": observer_asset_dir(),
+    }
+    
+    for name, subdir in required_subdirs.items():
+        if not subdir.exists():
+            msg = (
+                f"FATAL: Required subdirectory '{name}' not found at {subdir}. "
+                f"K8s initContainer must create this directory before app starts."
+            )
             logger.critical(msg)
-            raise RuntimeError(msg) from e
+            raise RuntimeError(msg)
+        logger.debug("Subdirectory '%s' exists: %s", name, subdir)
 
-    logger.info("Execution contract validated: all mount points exist and writable")
+    logger.info(
+        "✅ Execution contract validated: all mount points exist and writable "
+        "(directories created by initContainer, app is read-only)"
+    )

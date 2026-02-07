@@ -43,11 +43,18 @@ class SymbolGenerator:
         self.state_file = self.base_path / "last_run_state.json"
         self.health_file = self.base_path / "symbol_health.json"
         
-        # [Requirement] Hard-fail on directory creation issues with specific message
+        # [Requirement] Validate directory existence and write permission
+        # NOTE: Directory creation is handled by K8s initContainer
+        # App does NOT create directories - only validates existence
         try:
-            self.symbols_dir.mkdir(parents=True, exist_ok=True)
-            self.universe_dir.mkdir(parents=True, exist_ok=True)
-            self.backup_dir.mkdir(parents=True, exist_ok=True)
+            for dir_name, dir_path in [
+                ("symbols", self.symbols_dir),
+                ("universe", self.universe_dir),
+                ("backup", self.backup_dir),
+            ]:
+                if not dir_path.exists():
+                    logger.critical(f"[FATAL] 디렉토리 없음: {dir_path}. K8s initContainer가 생성해야 합니다.")
+                    sys.exit(1)
             
             # Check write permission explicitly by creating a temporary file
             test_file = self.symbols_dir / ".write_test"

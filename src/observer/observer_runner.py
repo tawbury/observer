@@ -174,7 +174,8 @@ def run_observer_with_api():
             from observer.paths import config_dir as get_config_dir
             _config_dir = get_config_dir()
             universe_dir = _config_dir / "universe"
-            universe_dir.mkdir(parents=True, exist_ok=True)
+            # NOTE: Directory creation is handled by K8s initContainer
+            # App does NOT create directories - only validates existence
             
             track_a_config = SwingConfig(
                 interval_minutes=5,

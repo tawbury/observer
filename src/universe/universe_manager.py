@@ -48,9 +48,14 @@ class UniverseManager:
         else:
             self.universe_dir = snapshot_dir()
         
-        # [Requirement] Hard-fail on directory creation issues with specific message
+        # [Requirement] Validate directory existence and write permission
+        # NOTE: Directory creation is handled by K8s initContainer
+        # App does NOT create directories - only validates existence
         try:
-            self.universe_dir.mkdir(parents=True, exist_ok=True)
+            if not self.universe_dir.exists():
+                logger.critical(f"[FATAL] 디렉토리 없음: {self.universe_dir}. K8s initContainer가 생성해야 합니다.")
+                sys.exit(1)
+            
             # Explicit check for write permissions
             test_file = self.universe_dir / ".write_test"
             test_file.touch()

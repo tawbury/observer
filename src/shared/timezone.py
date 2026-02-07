@@ -19,7 +19,19 @@ if TYPE_CHECKING:
     from zoneinfo import ZoneInfo as ZoneInfoType
 
 
-__all__ = ["ZoneInfo", "get_zoneinfo", "now_with_tz", "is_zoneinfo_available"]
+__all__ = ["ZoneInfo", "get_zoneinfo", "now_with_tz", "is_zoneinfo_available", "KST", "now_kst"]
+
+
+
+
+
+def now_kst() -> datetime:
+    """Get current datetime in KST (Asia/Seoul)."""
+    if KST:
+        return datetime.now(KST)
+    # Conservative fallback if ZoneInfo is unavailable
+    # (Though in container/prod it should always be available)
+    return datetime.now(timezone.utc)
 
 
 def is_zoneinfo_available() -> bool:
@@ -45,6 +57,9 @@ def get_zoneinfo(tz_name: str) -> Optional["ZoneInfoType"]:
         return None
 
 
+KST = get_zoneinfo("Asia/Seoul")
+
+
 def now_with_tz(tz_name: Optional[str] = None) -> datetime:
     """
     Get current datetime with optional timezone.
@@ -61,4 +76,8 @@ def now_with_tz(tz_name: Optional[str] = None) -> datetime:
             return datetime.now(ZoneInfo(tz_name))
         except Exception:
             pass
+    
+    # [Requirement] Default to KST (Asia/Seoul) for all datetime.now() calls
+    if KST:
+        return datetime.now(KST)
     return datetime.now(timezone.utc)

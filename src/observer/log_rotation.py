@@ -9,8 +9,10 @@ from dataclasses import dataclass
 from typing import Optional
 from pathlib import Path
 
-from .snapshot import utc_now_ms
+from .snapshot import kst_now_ms
 from observer.paths import observer_asset_dir
+
+from shared.timezone import KST
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +45,7 @@ class TimeWindow:
             timestamp_ms: Timestamp to calculate window for (defaults to current time)
         """
         self.window_ms = window_ms
-        self.timestamp_ms = timestamp_ms or utc_now_ms()
+        self.timestamp_ms = timestamp_ms or kst_now_ms()
         
         # Calculate window start time (floor to window boundary)
         self.start_ms = (self.timestamp_ms // window_ms) * window_ms
@@ -63,7 +65,7 @@ class TimeWindow:
     
     def to_datetime(self) -> datetime:
         """Convert window start to datetime object."""
-        return datetime.fromtimestamp(self.start_ms / 1000.0, tz=timezone.utc)
+        return datetime.fromtimestamp(self.start_ms / 1000.0, tz=KST or timezone.utc)
     
     def to_filename(self, base_filename: str) -> str:
         """
@@ -114,7 +116,7 @@ class RotationManager:
         if not self._config.enable_rotation:
             return False
         
-        timestamp = timestamp_ms or utc_now_ms()
+        timestamp = timestamp_ms or kst_now_ms()
         current_window = TimeWindow(self._config.window_ms, timestamp)
         
         # If we haven't established a current window, or if the timestamp
@@ -137,7 +139,7 @@ class RotationManager:
         Returns:
             Path object for the appropriate log file
         """
-        timestamp = timestamp_ms or utc_now_ms()
+        timestamp = timestamp_ms or kst_now_ms()
         new_window = TimeWindow(self._config.window_ms, timestamp)
         
         # Check if we need to rotate
@@ -159,7 +161,7 @@ class RotationManager:
     
     def get_rotation_stats(self) -> dict:
         """Get current rotation statistics for monitoring."""
-        current_time_ms = utc_now_ms()
+        current_time_ms = kst_now_ms()
         
         if self._current_window is None:
             return {

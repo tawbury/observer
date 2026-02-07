@@ -91,11 +91,10 @@ class KISAuth:
         self.token_expires_at: Optional[datetime] = None
         self.approval_key: Optional[str] = None
 
-        # Token cache configuration
-        cache_dir_str = os.getenv("KIS_TOKEN_CACHE_DIR", "/tmp/kis_cache")
-        self.cache_dir = Path(cache_dir_str)
+        # Token cache configuration (uses canonical path from paths.py, no /tmp fallback)
+        from src.observer.paths import kis_token_cache_dir
+        self.cache_dir = kis_token_cache_dir()
         self.cache_file = self.cache_dir / "token_cache.json"
-        self._ensure_cache_dir()
 
         # Session state (Singleton Session)
         self._session: Optional[aiohttp.ClientSession] = None
@@ -113,14 +112,6 @@ class KISAuth:
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession()
         return self._session
-
-    def _ensure_cache_dir(self) -> None:
-        """Ensure cache directory exists."""
-        try:
-            self.cache_dir.mkdir(parents=True, exist_ok=True)
-            logger.debug(f"Token cache directory ready: {self.cache_dir}")
-        except Exception as e:
-            logger.warning(f"Failed to create cache directory {self.cache_dir}: {e}")
 
     def _load_cached_token(self) -> Optional[Dict[str, str]]:
         """Load cached token from file if valid."""

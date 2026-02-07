@@ -5,11 +5,13 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+from shared.timezone import KST, now_kst
+
 from .execution_mode import ExecutionMode
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return now_kst()
 
 
 def _uuid_hex() -> str:
@@ -104,7 +106,7 @@ class ExecutionContext:
         return {
             # legacy
             "request_id": self.request_id,
-            "created_at": self.created_at.astimezone(timezone.utc).isoformat(),
+            "created_at": self.created_at.astimezone(KST or timezone.utc).isoformat(),
             "broker": self.broker,
             "account": self.account,
             "metadata": self.metadata,

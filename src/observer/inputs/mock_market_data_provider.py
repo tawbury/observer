@@ -6,6 +6,8 @@ import random
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+from shared.timezone import now_kst
+
 from .imarket_data_provider import IMarketDataProvider, MarketDataContract
 
 
@@ -22,7 +24,7 @@ class MockMarketDataProvider(IMarketDataProvider):
         self._market = market
 
     def fetch(self) -> Optional[MarketDataContract]:
-        now = datetime.now(timezone.utc)
+        now = now_kst()
         o = round(random.uniform(100, 105), 2)
         h = round(o + random.uniform(0, 5), 2)
         l = round(o - random.uniform(0, 5), 2)

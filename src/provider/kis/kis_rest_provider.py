@@ -53,7 +53,7 @@ class RateLimiter:
     - Using 900 req/min (90% of limit) for safety margin
     """
     
-    def __init__(self, requests_per_second: int = 15, requests_per_minute: int = 900):
+    def __init__(self, requests_per_second: int = 5, requests_per_minute: int = 900):
         """
         Initialize rate limiter with conservative defaults.
         
@@ -427,45 +427,48 @@ class KISRestProvider:
     
     async def fetch_stock_list(self, market: str = "ALL") -> List[str]:
         """
-        시장 세그먼트별(KOSPI, KOSDAQ)로 주식 종목 리스트를 가져와 병합합니다.
+        주식 종목 리스트를 가져옵니다.
+        
+        [중요] KIS API의 종목 전체 조회 엔드포인트(inquire-search-item, TR_ID: HHKST01010100)는
+        더 이상 존재하지 않으며 404 에러를 반환합니다.
+        
+        현재 전략:
+        1. 로컬 캐시 파일에서 로드 (Primary - 가장 안정적)
+        2. KIS 마스터 파일(CSV) 다운로드 시도 (Secondary)
         
         Args:
-            market: 시장 구분 - "KOSPI", "KOSDAQ", 또는 "ALL" (기본값)
+            market: 시장 구분 - "KOSPI", "KOSDAQ", 또는 "ALL" (기본값, 현재 미사용)
             
         Returns:
-            병합된 주식 코드 리스트
+            주식 코드 리스트
         """
         logger.info(f"Fetching stock list for market: {market}")
         
-        targets = []
-        if market == "KOSPI":
-            targets = ["J"]
-        elif market == "KOSDAQ":
-            targets = ["Q"]
-        else:
-            targets = ["J", "Q"]
-            
-        all_symbols = []
-        for mkt_code in targets:
-            symbols = await self._fetch_market_symbols(mkt_code)
-            all_symbols.extend(symbols)
-            
-        # 중복 제거 및 정렬
-        unique_symbols = sorted(list(set(all_symbols)))
-        logger.info(f"✅ Successfully fetched total {len(unique_symbols)} symbols")
-        return unique_symbols
+        # [전략 변경] 잘못된 API 호출 제거 - 바로 파일 기반 방식 사용
+        # KIS API의 inquire-search-item (HHKST01010100) 엔드포인트는 404 반환
+        # 따라서 파일 기반 방식으로 직접 진행
+        
+        symbols = await self._fetch_stock_list_from_file()
+        
+        if symbols:
+            unique_symbols = sorted(list(set(symbols)))
+            logger.info(f"✅ Successfully fetched total {len(unique_symbols)} symbols (file-based)")
+            return unique_symbols
+        
+        logger.error("Failed to fetch stock list from any source")
+        return []
 
     async def _fetch_market_symbols(self, mkt_code: str) -> List[str]:
         """
         특정 시장의 모든 종목 코드를 페이지네이션을 통해 수집합니다.
         
-        API: GET /uapi/domestic-stock/v1/quotations/inquire-search-item
+        API: GET /uapi/domestic-stock/v2/quotations/inquire-search-item
         TR_ID: HHKST01010100
         """
         import time
         import random
 
-        url = f"{self.auth.base_url}/uapi/domestic-stock/v1/quotations/inquire-search-item"
+        url = f"{self.auth.base_url}/uapi/domestic-stock/v2/quotations/inquire-search-item"
         symbols = []
         
         # KIS API pagination usually uses some indicator for next data
@@ -501,11 +504,17 @@ class KISRestProvider:
                                 logger.error(f"API Error (Market {mkt_code}, Attempt {attempt+1}): {error_msg}")
                         elif response.status == 401:
                             await self.auth.emergency_refresh()
+                        elif response.status == 404:
+                            logger.error(f"❌ 404 Not Found (Market {mkt_code}): Endpoint may have been deprecated or moved to v2. TR_ID: HHKST01010100")
+                            raise RuntimeError(f"KIS API 404: {url}")
                         else:
                             logger.error(f"HTTP Error (Market {mkt_code}, Attempt {attempt+1}): {response.status}")
                             
                 except Exception as e:
                     logger.error(f"Request Exception (Market {mkt_code}, Attempt {attempt+1}): {e}")
+                    # [Fast Fail] Propagate 404 immediately
+                    if "404" in str(e):
+                        raise
                 
                 # Exponential backoff
                 wait_time = (2 ** attempt) + random.random()
@@ -633,17 +642,18 @@ class KISRestProvider:
         """
         logger.info("Attempting fallback: loading from local cache...")
         
-        # Try multiple cache locations (PRIMARY FIRST)
+        from observer.paths import config_dir, project_root
+        
         cache_locations = [
-            Path(__file__).parent.parent.parent.parent / "config" / "symbols" / "kr_all_symbols.txt",  # config/symbols/ (PRIMARY)
-            Path(__file__).parent.parent.parent.parent / "kr_all_symbols.txt",  # repo root (legacy)
-            Path.cwd() / "kr_all_symbols.txt",  # Current working directory
+            config_dir() / "symbols" / "kr_all_symbols.txt",               # 1. Production K8s Mount (via PLATFORM_RUNTIME_ROOT)
+            project_root() / "config" / "symbols" / "kr_all_symbols.txt",  # 2. Local development / Standalone
+            Path.cwd() / "kr_all_symbols.txt",                             # 3. Fallback
         ]
         
         for cache_file in cache_locations:
             try:
                 if cache_file.exists():
-                    logger.info(f"Loading cache from: {cache_file}")
+                    logger.info(f"✅ Found symbol cache at: {cache_file}")
                     with open(cache_file, 'r', encoding='utf-8') as f:
                         symbols = [line.strip() for line in f if line.strip()]  # Include all (6-digit AND preferred stocks)
                     

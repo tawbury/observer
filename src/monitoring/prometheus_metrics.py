@@ -596,7 +596,8 @@ async def main():
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     
     # Save to files
-    results_dir = Path("d:/development/prj_obs/docs/test_monitoring")
+    from observer.paths import project_root
+    results_dir = project_root() / "docs" / "test_monitoring"
     results_dir.mkdir(parents=True, exist_ok=True)
     
     collector.save_to_file(results_dir / "metrics_prometheus.txt", format_type="prometheus")

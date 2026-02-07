@@ -11,7 +11,7 @@ from .cluster_contract import PatternClusterContract
 @dataclass(frozen=True)
 class ScalpCandidateDatasetContract:
     """
-    Output artifact of Phase 5.
+    Output artifact of Analysis.
     Pure data structure – no logic.
     """
 

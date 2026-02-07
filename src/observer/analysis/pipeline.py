@@ -8,13 +8,14 @@ from typing import Optional, Dict, Any
 from .loader import (
     load_pattern_records,
     load_observation_jsonl_records,
-    Phase11LoadResult,
+    load_observation_jsonl_records,
+    RawLoadResult,
 )
 from .time_axis import (
     TimeAxisConfig,
     normalize_time_axis,
     normalize_observation_time_axis,
-    Phase11TimeAxis,
+    ReplayTimeAxis,
 )
 from .clustering import cluster_patterns
 from .stats import aggregate_cluster_stats
@@ -22,17 +23,17 @@ from .dataset_builder import build_scalp_candidate_dataset
 
 
 # =====================================================================
-# Phase 5: Offline Pattern Analysis Pipeline (UNCHANGED)
+# Offline Pattern Analysis Pipeline
 # =====================================================================
 
-def run_phase5_pipeline(
+def run_offline_pattern_analysis(
     input_path: Path,
     *,
     bucket_seconds: float = 1.0,
     max_records: Optional[int] = None,
 ):
     """
-    Execute Phase 5 Offline Analysis Pipeline.
+    Execute Offline Analysis Pipeline.
 
     Order is fixed and must not be altered.
     """
@@ -69,23 +70,23 @@ def run_phase5_pipeline(
 
 
 # =====================================================================
-# Phase 11: Observation Replay & Analysis Bootstrap Pipeline (APPEND-ONLY)
+# Observation Replay & Analysis Bootstrap Pipeline
 # =====================================================================
 
-class Phase11PipelineError(RuntimeError):
-    """Raised when Phase 11 pipeline execution fails."""
+class ReplayPipelineError(RuntimeError):
+    """Raised when replay pipeline execution fails."""
 
 
-def run_phase11_pipeline(
+def run_replay_analysis(
     input_path: Path,
     *,
     max_records: Optional[int] = None,
     enforce_monotonic: bool = False,
 ) -> Dict[str, Any]:
     """
-    Execute Phase 11 Analysis & Discovery Pipeline.
+    Execute Analysis & Discovery Pipeline.
 
-    Phase 11 definition:
+    Definition:
     - Read observer logs back into code
     - Normalize into deterministic time axis
     - DO NOT perform clustering, stats, or dataset materialization
@@ -96,24 +97,23 @@ def run_phase11_pipeline(
 
     try:
         # 1) Load raw observation logs
-        load_result: Phase11LoadResult = load_observation_jsonl_records(
+        load_result: RawLoadResult = load_observation_jsonl_records(
             input_path,
             max_records=max_records,
         )
 
         # 2) Deterministic time ordering (replay axis)
-        time_axis: Phase11TimeAxis = normalize_observation_time_axis(
+        time_axis: ReplayTimeAxis = normalize_observation_time_axis(
             load_result.records,
             enforce_monotonic=enforce_monotonic,
         )
 
     except Exception as e:
-        raise Phase11PipelineError(
-            f"Phase 11 pipeline failed for input={input_path}: {e}"
+        raise ReplayPipelineError(
+            f"Replay pipeline failed for input={input_path}: {e}"
         ) from e
 
     return {
-        "phase": 11,
         "input_path": input_path,
         "load": load_result,
         "time_axis": time_axis,

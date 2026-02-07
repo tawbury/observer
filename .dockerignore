@@ -19,16 +19,13 @@ backups
 .env.*
 !config/.env.example
 secrets
+config/
 
 # Logs and data (runtime)
 *.log
 src/observer/logs
 src/observer/data
 src/observer/config
-config/observer
-config/**/*.jsonl
-config/universe/*.json
-config/symbols/kr_all_symbols.*
 
 # Legacy (removed after Phase 2)
 app

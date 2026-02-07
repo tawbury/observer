@@ -15,15 +15,14 @@ from shared.trading_hours import in_trading_hours
 
 from provider import ProviderEngine, KISAuth
 from universe.universe_manager import UniverseManager
-from universe.universe_manager import UniverseManager
 from observer.paths import observer_asset_dir, observer_log_dir
 from db.realtime_writer import RealtimeDBWriter
 
-log = logging.getLogger("TrackACollector")
+log = logging.getLogger("SwingCollector")
 
 
 @dataclass
-class TrackAConfig:
+class SwingConfig:
     tz_name: str = "Asia/Seoul"
     interval_minutes: int = 5
     market: str = f"{os.getenv('MARKET_CODE', 'kr')}_stocks"
@@ -35,16 +34,16 @@ class TrackAConfig:
     trading_end: time = time(15, 30)
 
 
-class TrackACollector(TimeAwareMixin):
+class SwingCollector(TimeAwareMixin):
     def __init__(
         self,
         engine: ProviderEngine,
-        config: Optional[TrackAConfig] = None,
+        config: Optional[SwingConfig] = None,
         universe_dir: Optional[str] = None,
         on_error: Optional[Callable[[str], None]] = None,
     ) -> None:
         self.engine = engine
-        self.cfg = config or TrackAConfig()
+        self.cfg = config or SwingConfig()
         self._tz_name = self.cfg.tz_name
         self._init_timezone()
         self._manager = UniverseManager(
@@ -61,14 +60,14 @@ class TrackACollector(TimeAwareMixin):
 
         self._setup_logger()
 
-        log.info("TrackACollector initialized: market=%s, interval=%dm, semaphore=%d",
+        log.info("SwingCollector initialized: market=%s, interval=%dm, semaphore=%d",
                  self.cfg.market, self.cfg.interval_minutes, self.cfg.semaphore_limit)
 
     def _setup_logger(self) -> None:
         """Setup specialized file logger for swing strategy"""
         try:
             # logs/swing/YYYYMMDD.log
-            today_str = datetime.now().strftime("%Y%m%d")
+            today_str = self._now().strftime("%Y%m%d")
             log_dir = observer_log_dir() / self.cfg.daily_log_subdir
             log_dir.mkdir(parents=True, exist_ok=True)
             
@@ -89,7 +88,7 @@ class TrackACollector(TimeAwareMixin):
 
     async def start(self) -> None:
         """Run every interval during trading hours with initial bootstrapping."""
-        log.info("TrackACollector started (interval=%dm)", self.cfg.interval_minutes)
+        log.info("SwingCollector started (interval=%dm)", self.cfg.interval_minutes)
         
         # 0. DB 연결 초기화 (Best effort)
         db_connected = await self._db_writer.connect()
@@ -313,7 +312,7 @@ async def _run_cli(run_once: bool = False) -> None:
     auth = KISAuth(app_key, app_secret, is_virtual=False)
     engine = ProviderEngine(auth, is_virtual=False)
 
-    collector = TrackACollector(engine)
+    collector = SwingCollector(engine)
     try:
         if run_once:
             result = await collector.collect_once()

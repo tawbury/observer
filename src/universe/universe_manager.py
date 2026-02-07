@@ -27,7 +27,7 @@ class UniverseManager:
         provider_engine,
         market: str = "kr_stocks",
         min_price: int = 4000,
-        min_count: int = 100,
+        min_count: int = 1000,
         data_dir: Optional[str] = None,
     ) -> None:
         self.engine = provider_engine
@@ -66,21 +66,52 @@ class UniverseManager:
         # This will also perform its own path check
         self.symbol_gen = SymbolGenerator(self.engine, base_dir=str(self.base_path))
         
-        # [Requirement] Cleanup old universe files (7 days)
+        # [Requirement] Cleanup old universe files (14 days to cover 5 business days)
         self._cleanup_old_universe_files()
+        
+        # [Requirement] Setup logging to file
+        self._setup_logger()
         
         logger.info(f"UniverseManager initialized at {self.universe_dir}")
         print(f"[UniverseManager] initialized. universe_dir={self.universe_dir}")
         sys.stdout.flush()
+
+    def _setup_logger(self) -> None:
+        """Setup file logger for UniverseManager and SymbolGenerator"""
+        try:
+            from observer.paths import observer_log_dir
+            
+            # logs/universe/YYYYMMDD.log
+            today_str = datetime.now().strftime("%Y%m%d")
+            log_dir = observer_log_dir() / "universe"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            
+            log_file = log_dir / f"{today_str}.log"
+            
+            handler = logging.FileHandler(log_file, encoding='utf-8')
+            handler.setFormatter(logging.Formatter(
+                "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+            ))
+            
+            # Attach to UniverseManager logger
+            logger.addHandler(handler)
+            
+            # Attach to SymbolGenerator logger as well (tightly coupled)
+            logging.getLogger("SymbolGenerator").addHandler(handler)
+            
+            logger.info(f"Universe file logger initialized: {log_file}")
+            
+        except Exception as e:
+            logger.error(f"Failed to setup universe file logger: {e}")
 
     # ----------------------- Public APIs -----------------------
     def get_current_universe(self) -> List[str]:
         """Load today's universe list; falls back up to 7 days in reverse (Holiday support)."""
         today = date.today()
         
-        # [Requirement] Scan up to 7 days reverse to find the most recent valid universe file
+        # [Requirement] Scan up to 14 days reverse to find the most recent valid universe file
         # This handles weekends and long public holidays (e.g., Chu-seok).
-        for i in range(8):  # 0 to 7 days
+        for i in range(15):  # 0 to 14 days
             scan_date = today - timedelta(days=i)
             date_str = scan_date.strftime("%Y%m%d")
             
@@ -101,7 +132,7 @@ class UniverseManager:
         # Priority 4: Final Fallback - Find the absolute latest valid snapshot regardless of date
         latest_snapshot = self._find_latest_snapshot()
         if latest_snapshot:
-            logger.warning(f"Universe data missing for last 7 days. Falling back to absolute latest snapshot: {latest_snapshot}")
+            logger.warning(f"Universe data missing for last 14 days. Falling back to absolute latest snapshot: {latest_snapshot}")
             return self._load_universe_list_from_path(latest_snapshot)
             
         return []
@@ -165,8 +196,8 @@ class UniverseManager:
 
         # Log aggregated failure summary
         if failed_symbols:
-            logger.warning("[%s] Universe build completed with %d/%d symbols failed. Sample failures: %s",
-                           self._get_tag(), len(failed_symbols), total_candidates, failed_symbols[:5])
+            logger.warning("[DAILY] Universe build completed with %d/%d symbols failed. Sample failures: %s",
+                           len(failed_symbols), total_candidates, failed_symbols[:5])
 
         # Check size constraint
         if len(selected) < self.min_count:
@@ -197,15 +228,10 @@ class UniverseManager:
         return str(path)
 
     # ----------------------- Internals -----------------------
-    def _get_tag(self) -> str:
-        """Helper to get current time tag."""
-        now = datetime.now()
-        if now.hour < 12: return "AM"
-        return "PM"
 
     async def _load_robust_candidates(self) -> List[str]:
         """Load symbols from today's collection or fallback to most recent valid file."""
-        tag = self._get_tag()
+        tag = "DAILY"
         
         # [Requirement] 1단계: 심볼 데이터가 아예 없으면 SymbolGenerator를 직접 await 하여 강제 생성
         should_collect, existing_symbol_path = self.symbol_gen.should_collect()
@@ -268,10 +294,10 @@ class UniverseManager:
 
     def _cleanup_old_universe_files(self):
         """
-        Delete universe files older than 7 days based on YYYYMMDD filename pattern.
+        Delete universe files older than 14 days based on YYYYMMDD filename pattern.
         """
-        tag = self._get_tag()
-        cutoff_date = (datetime.now() - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        tag = "DAILY"
+        cutoff_date = (datetime.now() - timedelta(days=14)).replace(hour=0, minute=0, second=0, microsecond=0)
         
         # Match any market identifier *_stocks.json
         files = list(self.universe_dir.glob("*_stocks.json"))
@@ -292,7 +318,7 @@ class UniverseManager:
                 continue
                 
         if deleted_count > 0:
-            logger.info(f"[{tag}] Cleaned up {deleted_count} old universe files (7-day policy).")
+            logger.info(f"[{tag}] Cleaned up {deleted_count} old universe files (14-day policy).")
 
     def _snapshot_path(self, day: date) -> Path:
         ymd = day.strftime("%Y%m%d")
@@ -306,7 +332,7 @@ class UniverseManager:
         return None
 
     def _load_universe_list_from_path(self, path: Path | str) -> List[str]:
-        tag = self._get_tag()
+        tag = "DAILY"
         try:
             with open(path, "r", encoding="utf-8") as f:
                 payload = json.load(f)
@@ -362,7 +388,7 @@ class UniverseManager:
 
     def _extract_prev_close(self, payload: Any, symbol: Optional[str] = None) -> Optional[int]:
         """Defensive extraction of close price with detailed error logging."""
-        tag = self._get_tag()
+        tag = "DAILY"
         if not isinstance(payload, list) or not payload:
             return None
         try:

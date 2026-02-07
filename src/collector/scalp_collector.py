@@ -1,8 +1,8 @@
 """
-Track B Collector - Real-time WebSocket data collection for 41 slots
+Scalp Collector - Real-time WebSocket data collection for 41 slots
 
-Key Responsibilities (Track A 독립형):
-- Track A 데이터 없이도 자체 부트스트랩 심볼로 즉시 구독
+Key Responsibilities (swing 독립형):
+- swing 데이터 없이도 자체 부트스트랩 심볼로 즉시 구독
 - 41개 슬롯(WebSocket) 동적 관리 (SlotManager)
 - 실시간 2Hz 체결 데이터 수집 및 스캘프 로그 저장
 - data/assets/scalp/YYYYMMDD_HH.jsonl 로깅
@@ -29,16 +29,13 @@ from slot.slot_manager import SlotManager, SlotCandidate
 from observer.paths import observer_asset_dir, observer_log_dir
 from db.realtime_writer import RealtimeDBWriter
 
-try:
-    from observer.paths import env_file_path
-except ImportError:
-    env_file_path = None  # type: ignore
+from observer.paths import env_file_path
 
-log = logging.getLogger("TrackBCollector")
+log = logging.getLogger("ScalpCollector")
 
 
 @dataclass
-class TrackBConfig:
+class ScalpConfig:
     tz_name: str = "Asia/Seoul"
     market: str = "kr_stocks"
     session_id: str = "track_b_session"
@@ -46,8 +43,8 @@ class TrackBConfig:
     max_slots: int = 41  # KIS WebSocket limit
     min_dwell_seconds: int = 120  # 2 minutes minimum slot occupancy
     daily_log_subdir: str = "scalp"  # under config/{subdir}
-    trading_start: time = time(9, 30)  # Track B starts 30min after market open
-    trading_end: time = time(15, 00)   # Track B ends 30min before market close (장마감 변동성 감지)
+    trading_start: time = time(9, 30)  # scalp starts 30min after market open
+    trading_end: time = time(15, 00)   # scalp ends 30min before market close (장마감 변동성 감지)
     trigger_check_interval_seconds: int = 30  # Trigger processing interval
     bootstrap_symbols: List[str] = field(
         default_factory=lambda: ["005930", "000660", "373220", "051910", "068270", "035720"]
@@ -55,12 +52,12 @@ class TrackBConfig:
     bootstrap_priority: float = 0.95
 
 
-class TrackBCollector(TimeAwareMixin):
+class ScalpCollector(TimeAwareMixin):
     """
-    Track B Collector - WebSocket-based real-time data collector.
+    Scalp Collector - WebSocket-based real-time data collector.
     
     Features:
-    - Track A 독립: 부트스트랩 심볼 기반 즉시 구독
+    - swing 독립: 부트스트랩 심볼 기반 즉시 구독
     - Dynamic 41-slot WebSocket subscription management
     - 2Hz real-time price data collection
     - Scalp log partitioning by date
@@ -70,12 +67,12 @@ class TrackBCollector(TimeAwareMixin):
         self,
         engine: ProviderEngine,
         trigger_engine: Optional[TriggerEngine] = None,
-        config: Optional[TrackBConfig] = None,
+        config: Optional[ScalpConfig] = None,
         on_error: Optional[Callable[[str], None]] = None,
     ) -> None:
         self.engine = engine
         self.trigger_engine = trigger_engine or TriggerEngine()
-        self.cfg = config or TrackBConfig()
+        self.cfg = config or ScalpConfig()
         self._tz_name = self.cfg.tz_name
         self._init_timezone()
 
@@ -124,17 +121,17 @@ class TrackBCollector(TimeAwareMixin):
     # -----------------------------------------------------
     async def start(self) -> None:
         """
-        Start Track B collector.
+        Start scalp collector.
         
         Main loop:
         1. Start WebSocket provider (connect to KIS)
         2. Register price update callback
-        3. 부트스트랩 심볼 기반 트리거 생성 (Track A 의존성 제거)
+        3. 부트스트랩 심볼 기반 트리거 생성 (swing 의존성 제거)
         4. Update slots based on trigger candidates
         5. Subscribe/unsubscribe WebSocket symbols
         6. Collect and log real-time data
         """
-        log.info("TrackBCollector started (max_slots=%d)", self.cfg.max_slots)
+        log.info("ScalpCollector started (max_slots=%d)", self.cfg.max_slots)
         self._running = True
 
         # DB 연결 초기화
@@ -164,12 +161,12 @@ class TrackBCollector(TimeAwareMixin):
                 now = self._now()
 
                 # 디버깅 로그 추가
-                log.info(f"Track B 현재 시간: {now} (timezone: {now.tzinfo})")
+                log.info(f"scalp 현재 시간: {now} (timezone: {now.tzinfo})")
                 log.info(f"장중 시간: {self.cfg.trading_start} - {self.cfg.trading_end}")
 
                 # 장 마감 시점이 지나면 즉시 수집을 종료하여 불필요한 로그 생성을 막는다
                 if not debug_mode and now.time() > self.cfg.trading_end:
-                    log.info("장 마감 시간을 초과했습니다. TrackBCollector를 종료합니다.")
+                    log.info("장 마감 시간을 초과했습니다. ScalpCollector를 종료합니다.")
                     self._running = False
                     break
 
@@ -185,7 +182,7 @@ class TrackBCollector(TimeAwareMixin):
                 await asyncio.sleep(self.cfg.trigger_check_interval_seconds)
                 
         except Exception as e:
-            log.error(f"TrackBCollector error: {e}", exc_info=True)
+            log.error(f"ScalpCollector error: {e}", exc_info=True)
             if self._on_error:
                 self._on_error(str(e))
         finally:
@@ -193,7 +190,7 @@ class TrackBCollector(TimeAwareMixin):
     
     def stop(self) -> None:
         """Stop the collector"""
-        log.info("TrackBCollector stopping...")
+        log.info("ScalpCollector stopping...")
         self._running = False
     
     # -----------------------------------------------------
@@ -201,7 +198,7 @@ class TrackBCollector(TimeAwareMixin):
     # -----------------------------------------------------
     async def _check_triggers(self) -> None:
         """
-        Track A 독립형 트리거 생성 및 슬롯 반영.
+        swing 독립형 트리거 생성 및 슬롯 반영.
 
         Process:
         1. 부트스트랩 심볼 리스트로 SlotCandidate 생성
@@ -215,7 +212,7 @@ class TrackBCollector(TimeAwareMixin):
                 log.debug("No bootstrap candidates available")
                 return
 
-            log.info(f"🎯 Generated {len(candidates)} bootstrap candidates (Track A independent mode)")
+            log.info(f"🎯 Generated {len(candidates)} bootstrap candidates (swing independent mode)")
 
             for candidate in candidates:
                 result = self.slot_manager.assign_slot(candidate)
@@ -240,7 +237,7 @@ class TrackBCollector(TimeAwareMixin):
             log.error(f"Error checking triggers: {e}")
 
     def _generate_bootstrap_candidates(self) -> List[SlotCandidate]:
-        """부트스트랩 심볼 기반 SlotCandidate 생성 (Track A 의존성 제거)."""
+        """부트스트랩 심볼 기반 SlotCandidate 생성 (swing 의존성 제거)."""
         now = self._now()
         candidates: List[SlotCandidate] = []
 
@@ -459,21 +456,18 @@ class TrackBCollector(TimeAwareMixin):
 # ---- CLI for Testing ----
 
 async def main():
-    """CLI for testing TrackBCollector"""
+    """CLI for testing ScalpCollector"""
     import argparse
     from provider import KISAuth
     
-    parser = argparse.ArgumentParser(description="Track B Collector Test CLI")
+    parser = argparse.ArgumentParser(description="scalp Collector Test CLI")
     parser.add_argument("--mode", choices=["PROD", "VIRTUAL"], default="VIRTUAL", help="KIS mode")
     parser.add_argument("--run-for", type=int, default=300, help="Run for N seconds (default: 300)")
     parser.add_argument("--bootstrap", default="005930,000660,373220", help="Comma-separated symbols for bootstrap")
     args = parser.parse_args()
     
     # Load .env if exists (Docker-compatible)
-    if env_file_path is not None:
-        env_file = env_file_path()
-    else:
-        env_file = Path(__file__).resolve().parents[3] / ".env"
+    env_file = env_file_path()
     if env_file.exists():
         from dotenv import load_dotenv
         load_dotenv(env_file)
@@ -486,15 +480,15 @@ async def main():
     
     bootstrap_symbols = [s.strip().zfill(6) for s in args.bootstrap.split(',') if s.strip()]
 
-    cfg = TrackBConfig(bootstrap_symbols=bootstrap_symbols)
+    cfg = ScalpConfig(bootstrap_symbols=bootstrap_symbols)
 
-    collector = TrackBCollector(
+    collector = ScalpCollector(
         engine=engine,
         trigger_engine=trigger_engine,
         config=cfg
     )
     
-    print(f"🚀 Starting TrackBCollector (mode={args.mode}, duration={args.run_for}s)")
+    print(f"🚀 Starting ScalpCollector (mode={args.mode}, duration={args.run_for}s)")
     print()
     
     # Run collector for specified duration

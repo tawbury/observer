@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 """
-phase4_enricher.py
+enricher.py
 
-Observer-Core Phase 4:
+Observer-Core Enrichment:
 - PatternRecord를 대상으로 "품질 태깅(Quality)" 및 "해석 메타데이터(Interpretation)"를 추가한다.
 
 중요한 경계:
@@ -43,7 +43,7 @@ from .schema_lite import (
 
 class RecordEnricher(Protocol):
     """
-    Phase 4 Enricher 인터페이스
+    Enricher Interface
     """
     def enrich(self, record: PatternRecord) -> PatternRecord:
         ...
@@ -64,9 +64,9 @@ class QualityTagger:
     관측 데이터의 "품질 특성"을 태깅한다.
 
     주의:
-    - Phase 3 Validation은 기록 차단이 목적이다.
-    - Phase 4 Quality는 "분류/우선순위 판단을 위한 속성" 기록이 목적이다.
-    - 따라서 Phase 4는 차단하지 않는다.
+    - Validation은 기록 차단이 목적이다.
+    - Quality는 "분류/우선순위 판단을 위한 속성" 기록이 목적이다.
+    - 따라서 Enricher는 차단하지 않는다.
     """
 
     def tag(self, snapshot: ObservationSnapshot) -> QualityResult:
@@ -185,22 +185,18 @@ class InterpretationAnnotator:
         return InterpretationResult(summary=summary, hints=hints)
 
 
-# ============================================================
-# Default Phase 4 Enricher
-# ============================================================
-
 class DefaultRecordEnricher:
     """
-    Phase 4 기본 Enricher
+    Default Enricher
 
     입력:
-      - PatternRecord (Phase 3까지 생성된 레코드)
+      - PatternRecord (Standard record)
 
     출력:
       - PatternRecord (metadata 확장된 레코드)
 
     주의:
-      - record.regime_tags / condition_tags / outcome_labels는 Phase 4에서 변경하지 않는다.
+      - record.regime_tags / condition_tags / outcome_labels는 변경하지 않는다.
       - 오직 metadata namespace만 확장한다.
     """
 
@@ -273,7 +269,7 @@ def _merge_dict(base: Dict[str, Any], extra: Dict[str, Any]) -> Dict[str, Any]:
     """
     얕은 병합(append-only 성격)
     - base에 있는 값은 유지하되, extra 키가 겹치면 extra가 우선한다.
-    - Phase 4는 "최신 생성 결과"를 우선하는 것이 자연스럽다.
+    - Enricher는 "최신 생성 결과"를 우선하는 것이 자연스럽다.
     """
     out = dict(base)
     out.update(extra)

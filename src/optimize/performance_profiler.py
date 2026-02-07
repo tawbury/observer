@@ -516,7 +516,8 @@ async def main():
     print("\n" + profiler.generate_report())
     
     # Export metrics
-    results_file = Path("d:/development/prj_obs/docs") / "PHASE_12_2_PERFORMANCE_PROFILE.json"
+    from observer.paths import project_root
+    results_file = project_root() / "docs" / "PHASE_12_2_PERFORMANCE_PROFILE.json"
     profiler.export_metrics(results_file)
 
 

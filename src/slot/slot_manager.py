@@ -15,10 +15,7 @@ from dataclasses import dataclass, asdict
 from typing import Optional, List, Dict
 from collections import deque
 
-try:
-    from observer.paths import system_log_dir
-except ImportError:
-    system_log_dir = None  # type: ignore
+from observer.paths import system_log_dir
 
 
 @dataclass
@@ -95,13 +92,8 @@ class SlotManager:
         # Overflow ledger - resolve via paths.py or fallback
         if overflow_ledger_dir is not None:
             self.overflow_ledger_dir = Path(overflow_ledger_dir)
-        elif system_log_dir is not None:
-            self.overflow_ledger_dir = system_log_dir()
         else:
-            # Fallback: relative to current file
-            # Current: src/slot/slot_manager.py
-            # Target: project_root/logs/system
-            self.overflow_ledger_dir = Path(__file__).resolve().parents[2] / "logs" / "system"
+            self.overflow_ledger_dir = system_log_dir()
         self.overflow_ledger_dir.mkdir(parents=True, exist_ok=True)
         
         # Statistics

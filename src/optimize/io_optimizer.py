@@ -345,7 +345,8 @@ async def main():
     
     print("\n🧪 I/O Optimization Test\n")
     
-    test_dir = Path("d:/development/prj_obs/docs/test_io")
+    from observer.paths import project_root
+    test_dir = project_root() / "docs" / "test_io"
     test_dir.mkdir(parents=True, exist_ok=True)
     
     # Test 1: Buffered Writer

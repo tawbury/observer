@@ -25,77 +25,29 @@ if str(_src_root) not in sys.path:
 from observer.observer import Observer
 from observer.event_bus import EventBus, JsonlFileSink
 from observer.api_server import start_api_server_background, get_status_tracker
-from observer.paths import log_dir, system_log_dir, observer_data_dir
+from observer.paths import log_dir, system_log_dir, observer_data_dir, validate_execution_contract
 from universe.universe_scheduler import UniverseScheduler, SchedulerConfig
 from provider import KISAuth, ProviderEngine
-from collector.track_a_collector import TrackACollector, TrackAConfig
-from collector.track_b_collector import TrackBCollector, TrackBConfig
+from collector.swing_collector import SwingCollector, SwingConfig
+from collector.scalp_collector import ScalpCollector, ScalpConfig
 from trigger.trigger_engine import TriggerEngine, TriggerConfig
 from slot.slot_manager import SlotManager
 from datetime import datetime, timezone
 import asyncio
 
 def configure_environment():
-    """Set default environment variables for Docker deployment (no .env load here)."""
+    """Load env files via RUN_MODE and set deployment defaults."""
+    from observer.paths import load_env_by_run_mode
+    load_env_by_run_mode()
     os.environ.setdefault("OBSERVER_STANDALONE", "1")
     os.environ.setdefault("OBSERVER_DEPLOYMENT_MODE", "docker")
     os.environ.setdefault("TRACK_A_ENABLED", "true")
     os.environ.setdefault("TRACK_B_ENABLED", "true")
 
 
-def _resolve_env_file_paths():
-    """
-    Resolve .env path(s): OBSERVER_ENV_FILE first, then Docker defaults (/app/secrets/.env, /app/.env), else local.
-    Returns (paths_attempted, path_loaded). Uses load_dotenv(override=False) so system env wins.
-    """
-    paths_attempted = []
-    path_loaded = None
-    explicit = os.environ.get("OBSERVER_ENV_FILE")
-    if explicit:
-        p = Path(explicit).resolve()
-        paths_attempted.append(p)
-        if p.exists():
-            try:
-                from dotenv import load_dotenv
-                load_dotenv(p, override=False)
-                path_loaded = p
-            except ImportError:
-                pass
-            except Exception:
-                pass
-        return (paths_attempted, path_loaded)
-    # Standalone mode: check current working directory for .env
-    for candidate in [Path.cwd() / "secrets" / ".env", Path.cwd() / ".env"]:
-        paths_attempted.append(candidate)
-        if candidate.exists() and path_loaded is None:
-            try:
-                from dotenv import load_dotenv
-                load_dotenv(candidate, override=False)
-                path_loaded = candidate
-            except ImportError:
-                pass
-            except Exception:
-                pass
-    return (paths_attempted, path_loaded)
-    local_root = Path(__file__).resolve().parent
-    for candidate in [local_root / ".env", local_root / "secrets" / ".env"]:
-        paths_attempted.append(candidate)
-        if candidate.exists() and path_loaded is None:
-            try:
-                from dotenv import load_dotenv
-                load_dotenv(candidate, override=False)
-                path_loaded = candidate
-            except ImportError:
-                pass
-            except Exception:
-                pass
-    return (paths_attempted, path_loaded)
-
-
 def run_observer_with_api():
     """Run Observer system with FastAPI server and Universe Scheduler"""
     configure_environment()
-    env_paths_attempted, env_path_loaded = _resolve_env_file_paths()
 
     # Ensure log directory exists (canonical: project_root/logs, legacy app/observer ignored)
     _log_dir = log_dir()
@@ -124,15 +76,10 @@ def run_observer_with_api():
     log = logging.getLogger("ObserverDocker")
     session_id = f"observer-{uuid4()}"
 
+    # Validate execution contract (logging is ready, fatal errors will be recorded)
+    validate_execution_contract()
+
     log.info("Starting Observer Docker system with API server | session_id=%s", session_id)
-    if env_path_loaded:
-        log.info("Env file loaded from: %s (absolute)", env_path_loaded.resolve())
-    else:
-        log.info(
-            "Env file not loaded; paths attempted (absolute): %s; OBSERVER_ENV_FILE=%s",
-            [str(p.resolve()) for p in env_paths_attempted],
-            os.environ.get("OBSERVER_ENV_FILE", "(not set)"),
-        )
 
     # KIS credentials: ONLY os.environ is checked. .env file load status is IGNORED.
     # If KIS_APP_KEY and KIS_APP_SECRET exist in os.environ (e.g. K8s Secret env), collectors are enabled.
@@ -141,14 +88,10 @@ def run_observer_with_api():
     kis_is_virtual = os.environ.get("KIS_IS_VIRTUAL", "false").lower() in ("true", "1", "yes")
 
     has_creds = bool(kis_app_key and kis_app_secret)
-    if not env_path_loaded and has_creds:
-        log.info(
-            "No .env file loaded; KIS credentials from os.environ (K8s/direct) - collectors enabled",
-        )
 
     universe_scheduler = None
     if has_creds:
-        cred_source = "env vars (K8s/direct)" if not env_path_loaded else "env file and/or env vars"
+        cred_source = "environment variables"
         log.info("KIS credentials found from %s - Universe Scheduler will be enabled", cred_source)
         try:
             kis_auth = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
@@ -218,11 +161,11 @@ def run_observer_with_api():
         scheduler_thread.start()
         log.info("Universe Scheduler thread started")
 
-    # Start Track A Collector in background if enabled
-    track_a_collector = None
+    # Start scalp Collector in background if enabled
+    swing_collector = None
     track_a_enabled = os.environ.get("TRACK_A_ENABLED", "true").lower() in ("true", "1", "yes")
     if track_a_enabled and kis_app_key and kis_app_secret:
-        log.info("Track A Collector will be enabled")
+        log.info("Swing Collector will be enabled")
         try:
             kis_auth_a = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
             provider_engine_a = ProviderEngine(kis_auth_a, is_virtual=kis_is_virtual)
@@ -233,30 +176,30 @@ def run_observer_with_api():
             universe_dir = _config_dir / "universe"
             universe_dir.mkdir(parents=True, exist_ok=True)
             
-            track_a_config = TrackAConfig(
+            track_a_config = SwingConfig(
                 interval_minutes=5,
                 market="kr_stocks",
                 session_id=session_id,
                 mode="DOCKER"
             )
             
-            track_a_collector = TrackACollector(
+            swing_collector = SwingCollector(
                 provider_engine_a,
                 config=track_a_config,
                 universe_dir=str(universe_dir),
-                on_error=lambda msg: log.warning(f"Track A Error: {msg}")
+                on_error=lambda msg: log.warning(f"Swing Error: {msg}")
             )
-            log.info("Track A Collector configured: 5-minute interval (universe_dir=%s)", universe_dir)
+            log.info("Swing Collector configured: 5-minute interval (universe_dir=%s)", universe_dir)
         except Exception as e:
-            log.error(f"Failed to initialize Track A Collector: {e}")
+            log.error(f"Failed to initialize Swing Collector: {e}")
     else:
-        log.info("Track A Collector disabled (TRACK_A_ENABLED=false or KIS credentials missing)")
+        log.info("Swing Collector disabled (TRACK_A_ENABLED=false or KIS credentials missing)")
 
-    # Start Track B Collector in background if enabled
-    track_b_collector = None
+    # Start Scalp Collector in background if enabled
+    scalp_collector = None
     track_b_enabled = os.environ.get("TRACK_B_ENABLED", "false").lower() in ("true", "1", "yes")
     if track_b_enabled and kis_app_key and kis_app_secret:
-        log.info("Track B Collector will be enabled")
+        log.info("Scalp Collector will be enabled")
         try:
             kis_auth_b = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
             provider_engine_b = ProviderEngine(kis_auth_b, is_virtual=kis_is_virtual)
@@ -268,7 +211,7 @@ def run_observer_with_api():
             )
             trigger_engine = TriggerEngine(config=trigger_config)
             
-            track_b_config = TrackBConfig(
+            track_b_config = ScalpConfig(
                 market="kr_stocks",
                 session_id=session_id,
                 mode="DOCKER",
@@ -276,20 +219,20 @@ def run_observer_with_api():
                 trigger_check_interval_seconds=30
             )
             
-            track_b_collector = TrackBCollector(
+            scalp_collector = ScalpCollector(
                 provider_engine_b,
                 trigger_engine=trigger_engine,
                 config=track_b_config,
-                on_error=lambda msg: log.warning(f"Track B Error: {msg}")
+                on_error=lambda msg: log.warning(f"Scalp Error: {msg}")
             )
-            log.info("Track B Collector configured: WebSocket real-time (41 slots)")
+            log.info("Scalp Collector configured: WebSocket real-time (41 slots)")
         except Exception as e:
-            log.error(f"Failed to initialize Track B Collector: {e}")
+            log.error(f"Failed to initialize Scalp Collector: {e}")
     else:
         if not track_b_enabled:
-            log.info("Track B Collector disabled (TRACK_B_ENABLED=false)")
+            log.info("Scalp Collector disabled (TRACK_B_ENABLED=false)")
         else:
-            log.info("Track B Collector disabled (KIS credentials missing)")
+            log.info("Scalp Collector disabled (KIS credentials missing)")
 
     try:
         # Start observer
@@ -301,43 +244,43 @@ def run_observer_with_api():
         log.info("Logs: %s", _log_dir)
         log.info("Starting FastAPI server on 0.0.0.0:8000")
 
-        # Start Track A Collector in background thread
+        # Start Swing/Scalp Collectors in background threads
         track_a_thread = None
-        if track_a_collector:
-            def run_track_a_async():
-                """Run Track A in asyncio event loop"""
+        if swing_collector:
+            def run_swing_async():
+                """Run Swing Collector in asyncio event loop"""
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    log.info("Starting Track A Collector background task...")
-                    loop.run_until_complete(track_a_collector.start())
+                    log.info("Starting Swing Collector background task...")
+                    loop.run_until_complete(swing_collector.start())
                 except Exception as e:
-                    log.error(f"Track A Collector error: {e}")
+                    log.error(f"Swing Collector error: {e}")
                 finally:
                     loop.close()
             
-            track_a_thread = threading.Thread(target=run_track_a_async, daemon=True)
+            track_a_thread = threading.Thread(target=run_swing_async, daemon=True)
             track_a_thread.start()
-            log.info("Track A Collector thread started")
+            log.info("Swing Collector thread started")
 
-        # Start Track B Collector in background thread
+        # Start scalp Collector in background thread
         track_b_thread = None
-        if track_b_collector:
-            def run_track_b_async():
-                """Run Track B in asyncio event loop"""
+        if scalp_collector:
+            def run_scalp_async():
+                """Run Scalp Collector in asyncio event loop"""
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    log.info("Starting Track B Collector background task...")
-                    loop.run_until_complete(track_b_collector.start())
+                    log.info("Starting Scalp Collector background task...")
+                    loop.run_until_complete(scalp_collector.start())
                 except Exception as e:
-                    log.error(f"Track B Collector error: {e}")
+                    log.error(f"Scalp Collector error: {e}")
                 finally:
                     loop.close()
             
-            track_b_thread = threading.Thread(target=run_track_b_async, daemon=True)
+            track_b_thread = threading.Thread(target=run_scalp_async, daemon=True)
             track_b_thread.start()
-            log.info("Track B Collector thread started")
+            log.info("scalp Collector thread started")
 
         # Start API server in background thread
         api_thread = start_api_server_background(host="0.0.0.0", port=8000)
@@ -351,11 +294,11 @@ def run_observer_with_api():
         def signal_handler(sig, frame):
             log.info("Received shutdown signal, stopping Observer system...")
             status_tracker.update_state("stopping")
-            if track_a_collector:
-                log.info("Stopping Track A Collector...")
-            if track_b_collector:
-                log.info("Stopping Track B Collector...")
-                track_b_collector.stop()
+            if swing_collector:
+                log.info("Stopping Swing Collector...")
+            if scalp_collector:
+                log.info("Stopping Scalp Collector...")
+                scalp_collector.stop()
             observer.stop()
             status_tracker.update_state("stopped", ready=False)
             log.info("Observer system stopped")

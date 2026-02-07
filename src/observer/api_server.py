@@ -17,6 +17,7 @@ Author: Observer Team
 License: MIT
 """
 
+import asyncio
 import logging
 import os
 import psutil
@@ -31,13 +32,10 @@ import uvicorn
 
 from observer.performance_metrics import get_metrics
 from observer.paths import observer_asset_dir, observer_log_dir
+from shared.timezone import now_kst
 
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Logger for this module
 logger = logging.getLogger(__name__)
 
 
@@ -89,7 +87,7 @@ class ObserverStatusTracker:
         """Initialize the status tracker"""
         self._lock = threading.Lock()
         self._state = "initializing"
-        self._last_update = datetime.utcnow()
+        self._last_update = now_kst()
         self._start_time = time.time()
         self._ready = False
         self._error_count = 0
@@ -105,7 +103,7 @@ class ObserverStatusTracker:
         """
         with self._lock:
             self._state = state
-            self._last_update = datetime.utcnow()
+            self._last_update = now_kst()
             if ready is not None:
                 self._ready = ready
             logger.info(f"Observer state updated to: {state} (ready: {self._ready})")
@@ -242,7 +240,65 @@ def get_system_metrics() -> Dict[str, Any]:
         }
 
 
-def perform_readiness_checks() -> Dict[str, bool]:
+# DB readiness flapping prevention cache
+_db_check_cache: Dict[str, float] = {
+    "last_success_time": 0.0,
+    "grace_window_seconds": 30.0,
+}
+
+
+async def _db_ping() -> bool:
+    """Lightweight DB connectivity test using asyncpg direct connection."""
+    try:
+        import asyncpg
+    except ImportError:
+        logger.warning("asyncpg not available, skipping DB readiness check")
+        return True  # Don't fail readiness if asyncpg not installed
+
+    db_host = os.environ.get("DB_HOST", "postgres")
+    db_port = int(os.environ.get("DB_PORT", "5432"))
+    db_user = os.environ.get("DB_USER", "postgres")
+    db_password = os.environ.get("DB_PASSWORD", "")
+    db_name = os.environ.get("DB_NAME", "observer")
+
+    conn = await asyncpg.connect(
+        host=db_host,
+        port=db_port,
+        user=db_user,
+        password=db_password,
+        database=db_name,
+        timeout=2.0,
+    )
+    try:
+        await conn.fetchval("SELECT 1")
+        return True
+    finally:
+        await conn.close()
+
+
+async def _check_db_connectivity(timeout_seconds: float = 3.0) -> bool:
+    """
+    DB connectivity check with explicit timeout and flapping prevention.
+
+    - timeout_seconds must be < readinessProbe timeoutSeconds (5s)
+    - On failure, grace window allows recent success to sustain READY
+    """
+    try:
+        result = await asyncio.wait_for(
+            _db_ping(),
+            timeout=timeout_seconds,
+        )
+        if result:
+            _db_check_cache["last_success_time"] = time.monotonic()
+        return result
+    except (asyncio.TimeoutError, Exception):
+        elapsed = time.monotonic() - _db_check_cache["last_success_time"]
+        if _db_check_cache["last_success_time"] > 0 and elapsed < _db_check_cache["grace_window_seconds"]:
+            return True
+        return False
+
+
+async def perform_readiness_checks() -> Dict[str, bool]:
     """
     Perform readiness checks
 
@@ -280,6 +336,9 @@ def perform_readiness_checks() -> Dict[str, bool]:
     except Exception:
         checks["disk_available"] = False
 
+    # DB connectivity check (timeout=3s, grace_window=30s for flapping prevention)
+    checks["db_connectable"] = await _check_db_connectivity(timeout_seconds=3.0)
+
     return checks
 
 
@@ -295,7 +354,7 @@ async def root():
         "service": "Observer API",
         "version": "1.0.0",
         "status": "running",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": now_kst().isoformat(),
         "endpoints": {
             "health": "/health",
             "readiness": "/ready",
@@ -320,7 +379,7 @@ async def health_check():
     """
     return HealthResponse(
         status="healthy",
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=now_kst().isoformat(),
         uptime_seconds=status_tracker.get_uptime()
     )
 
@@ -337,15 +396,18 @@ async def readiness_check():
     Returns:
         Readiness status and check results
     """
-    checks = perform_readiness_checks()
+    checks = await perform_readiness_checks()
     ready = all(checks.values())
 
-    return ReadinessResponse(
+    response = ReadinessResponse(
         ready=ready,
         status="ready" if ready else "not_ready",
-        timestamp=datetime.utcnow().isoformat(),
-        checks=checks
+        timestamp=now_kst().isoformat(),
+        checks=checks,
     )
+    if not ready:
+        return JSONResponse(status_code=503, content=response.model_dump())
+    return response
 
 
 @app.get("/status", response_model=StatusResponse)
@@ -363,7 +425,7 @@ async def get_status():
 
     return StatusResponse(
         status="running",
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=now_kst().isoformat(),
         uptime_seconds=status_tracker.get_uptime(),
         observer_state=status_tracker.get_state(),
         last_update=status_tracker.get_last_update().isoformat(),
@@ -513,7 +575,7 @@ async def get_observer_metrics():
         })
 
     return MetricsResponse(
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=now_kst().isoformat(),
         uptime_seconds=status_tracker.get_uptime(),
         observer=observer_metrics,
         system=system_metrics
@@ -578,5 +640,10 @@ def start_api_server_background(host: str = "0.0.0.0", port: int = 8000, log_lev
 
 
 if __name__ == "__main__":
+    # Configure logging for direct execution
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     # Run the server directly when the module is executed
     run_api_server()

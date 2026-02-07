@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional
 
+from shared.timezone import now_kst
+
 from .persistence.dataset_index import DatasetIdentity, DatasetIndex, PartitionKey
 from .persistence.dataset_reader import DatasetReader
 from .persistence.dataset_writer import DatasetWriter
@@ -68,7 +70,7 @@ class DecisionPipeline:
             dataset_version=self.cfg.dataset_version,
             build_id=build_id,
             session_id=session_id,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=now_kst(),
         )
         partition = PartitionKey(
             date_yyyymmdd=date_yyyymmdd,
@@ -101,7 +103,7 @@ class DecisionPipeline:
             dataset_version=self.cfg.dataset_version,
             build_id=build_id,
             session_id=session_id,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=now_kst(),
         )
         partition = PartitionKey(
             date_yyyymmdd=date_yyyymmdd,
@@ -133,7 +135,7 @@ class DecisionPipeline:
             dataset_version=self.cfg.dataset_version,
             build_id=build_id,
             session_id=session_id,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=now_kst(),
         )
         partition = PartitionKey(
             date_yyyymmdd=date_yyyymmdd,

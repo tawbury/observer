@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
 
+from shared.timezone import now_kst
+
 from .checksum import calculate_sha256
 from .manifest import BackupManifest
 
@@ -29,7 +31,7 @@ class BackupManager:
     # -------------------------
 
     def _now(self) -> datetime:
-        return datetime.now(tz=timezone.utc)
+        return now_kst()
 
     def _collect_files(self) -> List[Path]:
         if not self.source_root.exists():

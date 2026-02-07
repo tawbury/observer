@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
 
+from shared.timezone import now_kst
+
 from ops.maintenance._types import RetentionCandidate
 from ops.maintenance.retention.policy import RetentionPolicy
 
@@ -19,7 +21,7 @@ def scan_expired(data_root: Path, policy: RetentionPolicy) -> List[RetentionCand
     만료 대상 '산출'만 수행. 삭제는 cleanup에서만 수행.
     기준: 파일 mtime < now - ttl
     """
-    now = datetime.now(timezone.utc).timestamp()
+    now = now_kst().timestamp()
     threshold = now - policy.ttl.total_seconds()
 
     if policy.include_globs:

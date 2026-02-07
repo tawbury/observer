@@ -90,10 +90,11 @@ def run_observer_with_api():
     has_creds = bool(kis_app_key and kis_app_secret)
 
     # Create shared rate limiter for all KIS API calls
-    # 18 req/sec = 90% of official 20 req/sec limit (safe margin)
-    shared_rate_limiter = RateLimiter(requests_per_second=18, requests_per_minute=900) if has_creds else None
+    # 15 req/sec = 75% of official 20 req/sec limit (safe margin for sustained minute handling)
+    # 15 * 60 = 900 req/min (Under 1000 req/min limit)
+    shared_rate_limiter = RateLimiter(requests_per_second=15, requests_per_minute=900) if has_creds else None
     if shared_rate_limiter:
-        log.info("Shared RateLimiter created: 18 req/sec, 900 req/min")
+        log.info("Shared RateLimiter created: 15 req/sec (Strict Pacing), 900 req/min")
 
     universe_scheduler = None
     if has_creds:

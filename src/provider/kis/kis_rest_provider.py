@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 class RateLimiter:
     """
-    Token bucket rate limiter for KIS API.
+    Token bucket rate limiter with strict pacing for KIS API.
     
     Official KIS API Rate Limits (as of 2023.01.11):
     - REST API: 20 requests/sec, 1,000 requests/min, 500,000 requests/day
@@ -53,7 +53,7 @@ class RateLimiter:
     - Using 900 req/min (90% of limit) for safety margin
     """
     
-    def __init__(self, requests_per_second: int = 5, requests_per_minute: int = 900):
+    def __init__(self, requests_per_second: int = 15, requests_per_minute: int = 900):
         """
         Initialize rate limiter with conservative defaults.
         
@@ -68,6 +68,11 @@ class RateLimiter:
         self.second_tokens = requests_per_second
         self.minute_tokens = requests_per_minute
         
+        # Minimum interval between requests (Strict Pacing)
+        # e.g., 15 req/sec -> 0.066s gap
+        self.min_interval = 1.0 / requests_per_second
+        self.last_request_time = 0.0
+        
         # Last refill times
         from zoneinfo import ZoneInfo
         self.last_second_refill = datetime.now(ZoneInfo("Asia/Seoul"))
@@ -76,33 +81,46 @@ class RateLimiter:
         # Lock for thread safety
         self._lock = asyncio.Lock()
         
-        logger.info(f"RateLimiter initialized: {requests_per_second} req/sec, {requests_per_minute} req/min")
+        logger.info(f"RateLimiter initialized: {requests_per_second} req/sec (gap: {self.min_interval:.4f}s), {requests_per_minute} req/min")
     
     async def acquire(self) -> None:
         """Wait until a request can be made within rate limits."""
+        import time
         async with self._lock:
             while True:
                 from zoneinfo import ZoneInfo
-                now = datetime.now(ZoneInfo("Asia/Seoul"))
+                now_dt = datetime.now(ZoneInfo("Asia/Seoul"))
                 
                 # Refill second bucket
-                if (now - self.last_second_refill).total_seconds() >= 1.0:
+                if (now_dt - self.last_second_refill).total_seconds() >= 1.0:
                     self.second_tokens = self.rps_limit
-                    self.last_second_refill = now
+                    self.last_second_refill = now_dt
                 
                 # Refill minute bucket
-                if (now - self.last_minute_refill).total_seconds() >= 60.0:
+                if (now_dt - self.last_minute_refill).total_seconds() >= 60.0:
                     self.minute_tokens = self.rpm_limit
-                    self.last_minute_refill = now
+                    self.last_minute_refill = now_dt
                 
+                # Pacing check (Leaky Bucket)
+                # Ensure we don't send requests too close together
+                current_time = time.monotonic()
+                time_since_last = current_time - self.last_request_time
+                
+                if time_since_last < self.min_interval:
+                    wait_needed = self.min_interval - time_since_last
+                    await asyncio.sleep(wait_needed)
+                    # Loop again to re-check tokens after sleep
+                    continue
+
                 # Check if we can make a request
                 if self.second_tokens > 0 and self.minute_tokens > 0:
                     self.second_tokens -= 1
                     self.minute_tokens -= 1
+                    self.last_request_time = time.monotonic()
                     return
                 
-                # Wait a bit before retrying
-                await asyncio.sleep(0.1)
+                # Wait a bit before retrying if out of tokens
+                await asyncio.sleep(0.05)
 
 
 class KISRestProvider:

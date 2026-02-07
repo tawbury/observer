@@ -57,9 +57,8 @@ COPY --from=builder /root/.local /home/observer/.local
 # Update PATH to include the local bin directory
 ENV PATH="/home/observer/.local/bin:${PATH}"
 
-# Copy source code and config
+# Copy source code (config is injected via K8s ConfigMap/Secrets)
 COPY src /opt/platform/observer/src
-COPY config /opt/platform/observer/config
 
 # Setup permissions for both code and runtime directories
 RUN mkdir -p /opt/platform/runtime/observer && \

@@ -27,7 +27,7 @@ from observer.event_bus import EventBus, JsonlFileSink
 from observer.api_server import start_api_server_background, get_status_tracker
 from observer.paths import log_dir, system_log_dir, observer_data_dir, validate_execution_contract
 from universe.universe_scheduler import UniverseScheduler, SchedulerConfig
-from provider import KISAuth, ProviderEngine
+from provider import KISAuth, ProviderEngine, KISRestProvider, RateLimiter
 from collector.swing_collector import SwingCollector, SwingConfig
 from collector.scalp_collector import ScalpCollector, ScalpConfig
 from trigger.trigger_engine import TriggerEngine, TriggerConfig
@@ -89,13 +89,20 @@ def run_observer_with_api():
 
     has_creds = bool(kis_app_key and kis_app_secret)
 
+    # Create shared rate limiter for all KIS API calls
+    # 18 req/sec = 90% of official 20 req/sec limit (safe margin)
+    shared_rate_limiter = RateLimiter(requests_per_second=18, requests_per_minute=900) if has_creds else None
+    if shared_rate_limiter:
+        log.info("Shared RateLimiter created: 18 req/sec, 900 req/min")
+
     universe_scheduler = None
     if has_creds:
         cred_source = "environment variables"
         log.info("KIS credentials found from %s - Universe Scheduler will be enabled", cred_source)
         try:
             kis_auth = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
-            provider_engine = ProviderEngine(kis_auth, is_virtual=kis_is_virtual)
+            kis_rest = KISRestProvider(kis_auth, rate_limiter=shared_rate_limiter)
+            provider_engine = ProviderEngine(kis_auth, rest_provider=kis_rest, is_virtual=kis_is_virtual)
             
             scheduler_config = SchedulerConfig(
                 hour=17,  # TEMPORARY TEST: Changed from 16:05 to 17:00 KST for E2E validation
@@ -168,7 +175,8 @@ def run_observer_with_api():
         log.info("Swing Collector will be enabled")
         try:
             kis_auth_a = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
-            provider_engine_a = ProviderEngine(kis_auth_a, is_virtual=kis_is_virtual)
+            kis_rest_a = KISRestProvider(kis_auth_a, rate_limiter=shared_rate_limiter)
+            provider_engine_a = ProviderEngine(kis_auth_a, rest_provider=kis_rest_a, is_virtual=kis_is_virtual)
             
             # Use canonical config_dir from paths utility
             from observer.paths import config_dir as get_config_dir
@@ -203,7 +211,8 @@ def run_observer_with_api():
         log.info("Scalp Collector will be enabled")
         try:
             kis_auth_b = KISAuth(kis_app_key, kis_app_secret, is_virtual=kis_is_virtual)
-            provider_engine_b = ProviderEngine(kis_auth_b, is_virtual=kis_is_virtual)
+            kis_rest_b = KISRestProvider(kis_auth_b, rate_limiter=shared_rate_limiter)
+            provider_engine_b = ProviderEngine(kis_auth_b, rest_provider=kis_rest_b, is_virtual=kis_is_virtual)
             
             trigger_config = TriggerConfig(
                 volume_surge_ratio=5.0,

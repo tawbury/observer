@@ -174,7 +174,9 @@ class UniverseManager:
         # 2. Filter symbols by price
         selected: List[str] = []
         failed_symbols: List[tuple] = []  # (symbol, error_type, error_msg)
-        sem = asyncio.Semaphore(15)  # Optimized concurrency
+        # KIS API rate limit: 20 req/sec (official), using 3 for safety margin
+        # Higher values cause rate limit errors (EGW00201)
+        sem = asyncio.Semaphore(3)
         processed_count = 0
         total_candidates = len(candidates)
 

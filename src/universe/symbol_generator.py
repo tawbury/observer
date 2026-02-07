@@ -27,7 +27,7 @@ class SymbolGenerator:
         self.engine = provider_engine
         
         # [Requirement] Environment-based unified path management
-        from src.observer.paths import observer_data_dir, snapshot_dir
+        from observer.paths import observer_data_dir, snapshot_dir
         self.base_path = Path(base_dir) if base_dir else observer_data_dir()
         
         self.symbols_dir = self.base_path / "symbols"

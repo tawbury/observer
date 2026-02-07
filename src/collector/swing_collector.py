@@ -151,6 +151,21 @@ class SwingCollector(TimeAwareMixin):
         last_in_trading: Optional[bool] = None
         while True:
             now = self._now()
+            
+            # 휴장일 체크 (주말/공휴일)
+            try:
+                from shared.market_calendar import is_trading_day
+                if not is_trading_day(now.date()):
+                    log.info("📅 오늘은 휴장일입니다 (주말 또는 공휴일). 다음 거래일까지 대기 중...")
+                    await asyncio.sleep(3600)  # 1시간 대기 후 재확인
+                    continue
+            except ImportError:
+                # Fallback: 주말만 체크
+                if now.weekday() >= 5:
+                    log.info("📅 주말입니다. 월요일까지 대기 중...")
+                    await asyncio.sleep(3600)
+                    continue
+            
             in_trading = in_trading_hours(now, self.cfg.trading_start, self.cfg.trading_end)
             if in_trading:
                 if last_in_trading is False:

@@ -164,6 +164,21 @@ class ScalpCollector(TimeAwareMixin):
                 log.info(f"scalp 현재 시간: {now} (timezone: {now.tzinfo})")
                 log.info(f"장중 시간: {self.cfg.trading_start} - {self.cfg.trading_end}")
 
+                # 휴장일 체크 (주말/공휴일)
+                if not debug_mode:
+                    try:
+                        from shared.market_calendar import is_trading_day
+                        if not is_trading_day(now.date()):
+                            log.info("📅 오늘은 휴장일입니다 (주말 또는 공휴일). 다음 거래일까지 대기 중...")
+                            await asyncio.sleep(3600)  # 1시간 대기 후 재확인
+                            continue
+                    except ImportError:
+                        # Fallback: 주말만 체크
+                        if now.weekday() >= 5:
+                            log.info("📅 주말입니다. 월요일까지 대기 중...")
+                            await asyncio.sleep(3600)
+                            continue
+
                 # 장 마감 시점이 지나면 즉시 수집을 종료하여 불필요한 로그 생성을 막는다
                 if not debug_mode and now.time() > self.cfg.trading_end:
                     log.info("장 마감 시간을 초과했습니다. ScalpCollector를 종료합니다.")
